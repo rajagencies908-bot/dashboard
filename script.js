@@ -23,9 +23,7 @@ const filterDefs = [
 ];
 
 const filters =
-  filterDefs.map(
-    item => item[0]
-  );
+  filterDefs.map(x => x[0]);
 
 
 /* =====================================================
@@ -35,14 +33,12 @@ const filters =
 const selected = {};
 const searchState = {};
 
-filters.forEach(
-  column => {
+filters.forEach(column => {
 
-    selected[column] = [];
-    searchState[column] = '';
+  selected[column] = [];
+  searchState[column] = '';
 
-  }
-);
+});
 
 selected.month = [];
 selected.budgetOD = [];
@@ -65,13 +61,6 @@ let timer = null;
 let budgetPage = 1;
 let budgetRows = [];
 
-let odParties = [];
-
-/*
-  NEW:
-  Budget Target / Budget Status / OD
-  customer scope for actual sales.
-*/
 let budgetScopeParties = [];
 
 let budgetMonthStats = {};
@@ -111,7 +100,7 @@ const monthNames = {
 
 
 /* =====================================================
-   CUSTOMER BUDGET MONTH MAP
+   BUDGET MONTH MAP
 ===================================================== */
 
 const budgetMonthMap = {
@@ -174,7 +163,7 @@ const budgetMonthMap = {
 
 
 /* =====================================================
-   BASIC HELPERS
+   HELPERS
 ===================================================== */
 
 const el = id =>
@@ -350,9 +339,7 @@ function rowAverageSale(row){
 
       total +=
         Number(
-          row[column]
-          ||
-          0
+          row[column] || 0
         );
 
       count++;
@@ -370,10 +357,36 @@ function rowAverageSale(row){
 
 
 /* =====================================================
-   BUDGET SALES SCOPE
+   BASE NORMAL FILTER OBJECT
 
-   Budget Target / Budget Status / OD
-   can also control actual sales.
+   This contains only filters user actually selected.
+   No budget-generated Party list.
+===================================================== */
+
+function normalFilterObject(){
+
+  const obj = {};
+
+
+  for(const column of filters){
+
+    if(selected[column].length){
+
+      obj[column] =
+        [...selected[column]];
+
+    }
+
+  }
+
+
+  return obj;
+
+}
+
+
+/* =====================================================
+   IS TARGET / OD / STATUS CUSTOMER SCOPE ACTIVE?
 ===================================================== */
 
 function budgetSalesScopeIsActive(){
@@ -408,7 +421,10 @@ function budgetSalesScopeIsActive(){
 
 
 /* =====================================================
-   BUDGET REPORT RAW ARGS
+   RAW BUDGET ARGS
+
+   SAME selected SM goes to budget_customer SalesMan
+   and SQL also applies it to products.SM.
 ===================================================== */
 
 const rawBudgetArgs = () => ({
@@ -462,7 +478,7 @@ const rawBudgetArgs = () => ({
 
 
 /* =====================================================
-   REFRESH TARGET / STATUS / OD PARTY SCOPE
+   TARGET / OD / STATUS -> MATCHED PRODUCT PARTIES
 ===================================================== */
 
 async function refreshBudgetSalesScope(){
@@ -484,15 +500,14 @@ async function refreshBudgetSalesScope(){
 
 
   budgetScopeParties =
+
     Array.isArray(data)
 
       ? data
           .map(
             value =>
               String(
-                value
-                ??
-                ''
+                value ?? ''
               ).trim()
           )
           .filter(Boolean)
@@ -503,42 +518,35 @@ async function refreshBudgetSalesScope(){
 
 
 /* =====================================================
-   EFFECTIVE FILTER OBJECT
+   FINAL SALES FILTER OBJECT
 
-   All sales filters intersect here.
+   IMPORTANT:
+   SM IS ALWAYS KEPT.
+
+   Example:
+   SM = Bh + Target
+   =>
+   products.SM = Bh
+   AND Party in Bh Target customer Party scope
+
+   SM = Sr + Target
+   =>
+   products.SM = Sr
+   AND Party in Sr Target customer Party scope
 ===================================================== */
 
 function effectiveFilterObject(){
 
-  const obj = {};
+  const obj =
+    normalFilterObject();
 
-
-  /*
-    Normal dashboard filters
-  */
-
-  for(const column of filters){
-
-    if(
-      column !== 'Party'
-      &&
-      selected[column].length
-    ){
-
-      obj[column] =
-        [...selected[column]];
-
-    }
-
-  }
-
-
-  /*
-    Start Party scope from manual Party filter.
-  */
 
   let partyScope = null;
 
+
+  /*
+    Manual Party selection.
+  */
 
   if(selected.Party.length){
 
@@ -549,47 +557,12 @@ function effectiveFilterObject(){
 
 
   /*
-    OD customer scope.
-  */
-
-  if(selected.budgetOD.length){
-
-    const odSet =
-      new Set(
-        odParties.map(
-          value =>
-            String(value)
-        )
-      );
-
-
-    if(partyScope){
-
-      partyScope =
-        partyScope.filter(
-          party =>
-            odSet.has(
-              String(party)
-            )
-        );
-
-    }else{
-
-      partyScope =
-        [...odParties];
-
-    }
-
-  }
-
-
-  /*
-    Budget Target / Status / OD budget report scope.
+    Target / OD / Budget Status scope.
   */
 
   if(budgetSalesScopeIsActive()){
 
-    const budgetSet =
+    const allowed =
       new Set(
         budgetScopeParties.map(
           value =>
@@ -603,7 +576,7 @@ function effectiveFilterObject(){
       partyScope =
         partyScope.filter(
           party =>
-            budgetSet.has(
+            allowed.has(
               String(party)
             )
         );
@@ -617,10 +590,6 @@ function effectiveFilterObject(){
 
   }
 
-
-  /*
-    Final Party filter sent to all sales RPCs.
-  */
 
   if(partyScope !== null){
 
@@ -637,16 +606,26 @@ function effectiveFilterObject(){
   }
 
 
+  /*
+    CRITICAL:
+    Never remove SM here.
+  */
+
+  if(selected.SM.length){
+
+    obj.SM =
+      [...selected.SM];
+
+  }
+
+
   return obj;
 
 }
 
 
 /* =====================================================
-   FILTER OPTIONS OBJECT
-
-   Current dropdown itself is excluded so options
-   do not disappear after selection.
+   FILTER OPTION OBJECT
 ===================================================== */
 
 function filterObjectForOptions(column){
@@ -655,62 +634,55 @@ function filterObjectForOptions(column){
     effectiveFilterObject();
 
 
-  if(column !== 'Party'){
+  /*
+    Current filter itself removed
+    so other values remain visible.
+  */
 
-    delete obj[column];
-
-  }else{
-
-    /*
-      Party dropdown still respects
-      OD + Target + Status customer scope.
-    */
-
-    let partyScope = null;
+  delete obj[column];
 
 
-    if(selected.budgetOD.length){
+  /*
+    When user opens SM dropdown while Target is active,
+    don't lock SM list to current target-derived Party scope.
 
-      partyScope =
-        [...odParties];
+    This allows user to change:
+    Bh -> Sr -> any other SM.
+  */
+
+  if(
+    column === 'SM'
+    &&
+    budgetSalesScopeIsActive()
+  ){
+
+    if(selected.Party.length){
+
+      obj.Party =
+        [...selected.Party];
+
+    }else{
+
+      delete obj.Party;
 
     }
 
+  }
+
+
+  /*
+    Party options should respect target/OD/status scope.
+  */
+
+  if(column === 'Party'){
 
     if(budgetSalesScopeIsActive()){
 
-      const budgetSet =
-        new Set(
-          budgetScopeParties.map(String)
-        );
-
-
-      if(partyScope){
-
-        partyScope =
-          partyScope.filter(
-            party =>
-              budgetSet.has(
-                String(party)
-              )
-          );
-
-      }else{
-
-        partyScope =
-          [...budgetScopeParties];
-
-      }
-
-    }
-
-
-    if(partyScope !== null){
-
       obj.Party =
-        partyScope.length
 
-          ? partyScope
+        budgetScopeParties.length
+
+          ? [...budgetScopeParties]
 
           : [
               '__RAJ_NO_MATCHING_PARTY__'
@@ -757,9 +729,6 @@ const args = () => ({
 
 /* =====================================================
    COMPARISON ARGS
-
-   Main Month filter ignored.
-   All other filters apply.
 ===================================================== */
 
 const comparisonBaseArgs = () => ({
@@ -783,7 +752,7 @@ const comparisonBaseArgs = () => ({
 
 
 /* =====================================================
-   FILTER VALUE ARGS
+   FILTER VALUES ARGS
 ===================================================== */
 
 const filterArgs = column => ({
@@ -808,7 +777,7 @@ const filterArgs = column => ({
 
 
 /* =====================================================
-   CUSTOMER BUDGET TABLE ARGS
+   CUSTOMER BUDGET ARGS
 ===================================================== */
 
 const budgetArgs = () =>
@@ -818,13 +787,17 @@ const budgetArgs = () =>
 /* =====================================================
    MONTH BUDGET SUMMARY ARGS
 
-   Uses final effective filter object.
+   Important:
+   use normal selected filters,
+   NOT target-generated Party list.
+
+   This preserves Zero Sales Budget Customers.
 ===================================================== */
 
 const budgetSummaryArgs = () => ({
 
   p_filters:
-    effectiveFilterObject(),
+    normalFilterObject(),
 
   p_ods:
     selected.budgetOD.length
@@ -932,7 +905,6 @@ function buildFilterUI(){
               ${label}
             </label>
 
-
             <div
               class="multi"
               id="multi_${id}"
@@ -948,12 +920,9 @@ function buildFilterUI(){
                   ${all}
                 </span>
 
-                <span>
-                  ▾
-                </span>
+                <span>▾</span>
 
               </button>
-
 
               <div class="multi-menu">
 
@@ -971,7 +940,6 @@ function buildFilterUI(){
               </div>
 
             </div>
-
 
             <div
               class="selected-chips"
@@ -995,8 +963,7 @@ function updateMultiLabel(column){
 
   const def =
     filterDefs.find(
-      item =>
-        item[0] === column
+      x => x[0] === column
     );
 
 
@@ -1178,7 +1145,7 @@ function updateCompareLabel(){
 
 
 /* =====================================================
-   GET VALUES FROM OPTIONS
+   OPTION VALUES
 ===================================================== */
 
 function valuesFromOptions(
@@ -1398,8 +1365,6 @@ async function applyBulkSelection(
     );
 
 
-  /* COMPARISON MONTHS */
-
   if(id === 'compareMonths'){
 
     selected.compareMonths =
@@ -1414,34 +1379,9 @@ async function applyBulkSelection(
         : [];
 
 
-    document
-      .querySelectorAll(
-        '#options_compareMonths input[type="checkbox"]'
-      )
-      .forEach(
-        checkbox => {
-
-          if(
-            !visibleOnly
-
-            ||
-
-            checkbox
-              .closest('.multi-option')
-              ?.style
-              .display !== 'none'
-          ){
-
-            checkbox.checked =
-              selectAll;
-
-          }
-
-        }
-      );
-
-
     updateCompareLabel();
+
+    buildComparisonControls();
 
     await loadComparison();
 
@@ -1453,8 +1393,6 @@ async function applyBulkSelection(
 
   }
 
-
-  /* MAIN MONTH */
 
   if(id === 'month'){
 
@@ -1470,34 +1408,9 @@ async function applyBulkSelection(
         : [];
 
 
-    document
-      .querySelectorAll(
-        '#options_month input[type="checkbox"]'
-      )
-      .forEach(
-        checkbox => {
-
-          if(
-            !visibleOnly
-
-            ||
-
-            checkbox
-              .closest('.multi-option')
-              ?.style
-              .display !== 'none'
-          ){
-
-            checkbox.checked =
-              selectAll;
-
-          }
-
-        }
-      );
-
-
     updateMonthLabel();
+
+    buildMonths();
 
     page = 1;
     budgetPage = 1;
@@ -1513,8 +1426,6 @@ async function applyBulkSelection(
   }
 
 
-  /* OD */
-
   if(id === 'budgetOD'){
 
     selected.budgetOD =
@@ -1529,38 +1440,7 @@ async function applyBulkSelection(
         : [];
 
 
-    document
-      .querySelectorAll(
-        '#options_budgetOD input[type="checkbox"]'
-      )
-      .forEach(
-        checkbox => {
-
-          if(
-            !visibleOnly
-
-            ||
-
-            checkbox
-              .closest('.multi-option')
-              ?.style
-              .display !== 'none'
-          ){
-
-            checkbox.checked =
-              selectAll;
-
-          }
-
-        }
-      );
-
-
     updateODLabel();
-
-    await refreshODPartyScope();
-
-    await refreshBudgetSalesScope();
 
     page = 1;
     budgetPage = 1;
@@ -1575,8 +1455,6 @@ async function applyBulkSelection(
 
   }
 
-
-  /* NORMAL FILTER */
 
   if(!filters.includes(id)){
 
@@ -1597,33 +1475,6 @@ async function applyBulkSelection(
       : [];
 
 
-  document
-    .querySelectorAll(
-      `#options_${id} input[type="checkbox"]`
-    )
-    .forEach(
-      checkbox => {
-
-        if(
-          !visibleOnly
-
-          ||
-
-          checkbox
-            .closest('.multi-option')
-            ?.style
-            .display !== 'none'
-        ){
-
-          checkbox.checked =
-            selectAll;
-
-        }
-
-      }
-    );
-
-
   updateMultiLabel(id);
 
   page = 1;
@@ -1637,7 +1488,7 @@ async function applyBulkSelection(
 
 
 /* =====================================================
-   MAIN MONTH FILTER
+   BUILD MAIN MONTHS
 ===================================================== */
 
 function buildMonths(){
@@ -1758,7 +1609,7 @@ function buildMonths(){
 
 
 /* =====================================================
-   COMPARISON MONTH CONTROLS
+   COMPARISON CONTROLS
 ===================================================== */
 
 function buildComparisonControls(){
@@ -1919,7 +1770,7 @@ function buildComparisonControls(){
 
 
 /* =====================================================
-   NORMAL FILTER VALUES
+   FILTER VALUES
 ===================================================== */
 
 async function loadFilter(column){
@@ -1958,7 +1809,6 @@ async function loadFilter(column){
         value =>
 
           typeof value === 'object'
-
           &&
           value !== null
 
@@ -2010,7 +1860,8 @@ async function loadFilter(column){
           <label
             class="multi-option"
             data-text="${esc(
-              String(value).toLowerCase()
+              String(value)
+                .toLowerCase()
             )}"
           >
 
@@ -2233,10 +2084,6 @@ async function loadODOptions(){
 
             updateODLabel();
 
-            await refreshODPartyScope();
-
-            await refreshBudgetSalesScope();
-
             page = 1;
             budgetPage = 1;
 
@@ -2260,50 +2107,7 @@ async function loadODOptions(){
 
 
 /* =====================================================
-   OD -> PARTY SCOPE
-===================================================== */
-
-async function refreshODPartyScope(){
-
-  if(!selected.budgetOD.length){
-
-    odParties = [];
-
-    return;
-
-  }
-
-
-  const data =
-    await rpc(
-      'raj_budget_od_parties',
-      {
-        p_ods:
-          selected.budgetOD
-      }
-    );
-
-
-  odParties =
-
-    (data || [])
-      .map(
-        row =>
-          String(
-            row.Party
-            ??
-            row.party
-            ??
-            ''
-          ).trim()
-      )
-      .filter(Boolean);
-
-}
-
-
-/* =====================================================
-   MONTH BUDGET SUMMARY
+   BUDGET MONTH SUMMARY
 ===================================================== */
 
 async function loadBudgetMonthSummary(){
@@ -2401,7 +2205,7 @@ async function loadBudgetMonthSummary(){
 
 
 /* =====================================================
-   SAFE MONTH BUDGET DATA
+   SAFE BUDGET STATS
 ===================================================== */
 
 function budgetStatsForMonth(month){
@@ -2499,7 +2303,7 @@ function renderMonths(monthData){
       : 0;
 
 
-  const selectedBudgetMonths =
+  const budgetMonths =
 
     selected.month.length
 
@@ -2508,17 +2312,17 @@ function renderMonths(monthData){
       : months;
 
 
-  let selectedPeriodBudget = 0;
-  let selectedPeriodZeroBudget = 0;
+  let totalBudget = 0;
+  let zeroBudget = 0;
 
 
-  for(const month of selectedBudgetMonths){
+  for(const month of budgetMonths){
 
     const stats =
       budgetStatsForMonth(month);
 
 
-    selectedPeriodBudget +=
+    totalBudget +=
       Number(
         stats.TotalBudget
         ||
@@ -2526,7 +2330,7 @@ function renderMonths(monthData){
       );
 
 
-    selectedPeriodZeroBudget +=
+    zeroBudget +=
       Number(
         stats.ZeroSalesBudget
         ||
@@ -2544,7 +2348,6 @@ function renderMonths(monthData){
         Average Monthly Sale
       </h4>
 
-
       <div class="metric">
 
         <span>
@@ -2556,7 +2359,6 @@ function renderMonths(monthData){
         </b>
 
       </div>
-
 
       <div class="metric">
 
@@ -2575,14 +2377,13 @@ function renderMonths(monthData){
   `;
 
 
-  const budgetOverviewCard = `
+  const budgetOverview = `
 
     <div class="month-card budget-overview-card">
 
       <h4>
         Filtered Budget Overview
       </h4>
-
 
       <div class="metric">
 
@@ -2591,6 +2392,7 @@ function renderMonths(monthData){
         </span>
 
         <b>
+
           ${
             selected.month.length
 
@@ -2605,10 +2407,10 @@ function renderMonths(monthData){
 
               : 'All Available Months'
           }
+
         </b>
 
       </div>
-
 
       <div class="metric">
 
@@ -2617,11 +2419,10 @@ function renderMonths(monthData){
         </span>
 
         <b>
-          ${money(selectedPeriodBudget)}
+          ${money(totalBudget)}
         </b>
 
       </div>
-
 
       <div class="metric">
 
@@ -2630,7 +2431,7 @@ function renderMonths(monthData){
         </span>
 
         <b>
-          ${money(selectedPeriodZeroBudget)}
+          ${money(zeroBudget)}
         </b>
 
       </div>
@@ -2653,9 +2454,7 @@ function renderMonths(monthData){
 
 
           const budget =
-            budgetStatsForMonth(
-              month
-            );
+            budgetStatsForMonth(month);
 
 
           return `
@@ -2666,54 +2465,45 @@ function renderMonths(monthData){
                 ${esc(monthNames[month] || month)}
               </h4>
 
-
               <div class="metric">
                 <span>Qty</span>
                 <b>${fmt(sales.Qty)}</b>
               </div>
-
 
               <div class="metric">
                 <span>Taxable</span>
                 <b>${money(sales.Taxable)}</b>
               </div>
 
-
               <div class="metric">
                 <span>Sale</span>
                 <b>${money(sales.Sale)}</b>
               </div>
-
 
               <div class="metric">
                 <span>Products Sold</span>
                 <b>${fmt(sales.ProductsSold)}</b>
               </div>
 
-
               <div class="metric">
                 <span>Customers Billed</span>
                 <b>${fmt(sales.CustomersBilled)}</b>
               </div>
-
 
               <div class="metric">
                 <span>Budget Customers</span>
                 <b>${fmt(budget.BudgetCustomers)}</b>
               </div>
 
-
               <div class="metric">
                 <span>Total Budget</span>
                 <b>${money(budget.TotalBudget)}</b>
               </div>
 
-
               <div class="metric">
                 <span>Zero Sales Customers</span>
                 <b>${fmt(budget.ZeroSalesCustomers)}</b>
               </div>
-
 
               <div class="metric">
                 <span>Zero Sales Budget</span>
@@ -2735,7 +2525,7 @@ function renderMonths(monthData){
 
     +
 
-    budgetOverviewCard
+    budgetOverview
 
     +
 
@@ -2848,7 +2638,6 @@ function renderRows(rows){
 
 /* =====================================================
    ANALYSIS VIEW
-
    TAXABLE SALES
 ===================================================== */
 
@@ -2894,12 +2683,10 @@ async function loadGroupSummary(){
           rpc(
             'raj_group_summary',
             {
-
               p_view:
                 currentView,
 
               ...args()
-
             }
           ),
 
@@ -2908,7 +2695,6 @@ async function loadGroupSummary(){
               rpc(
                 'raj_group_summary',
                 {
-
                   p_view:
                     currentView,
 
@@ -2917,7 +2703,6 @@ async function loadGroupSummary(){
                   p_months:[
                     month
                   ]
-
                 }
               )
           )
@@ -2940,23 +2725,17 @@ async function loadGroupSummary(){
 
       ({
 
-        Party:
-          'Customer / Party',
+        Party:'Customer / Party',
 
-        MainGrp:
-          'Company / Main Group',
+        MainGrp:'Company / Main Group',
 
-        ItemName:
-          'Product / Item Name',
+        ItemName:'Product / Item Name',
 
-        SM:
-          'SM',
+        SM:'SM',
 
-        Division:
-          'Division',
+        Division:'Division',
 
-        Pincode:
-          'Pincode'
+        Pincode:'Pincode'
 
       })[currentView]
 
@@ -3080,7 +2859,7 @@ async function loadGroupSummary(){
         .map(
           row => {
 
-            const monthTaxableSales =
+            const monthSales =
 
               analysisMonths.map(
                 (month,index) =>
@@ -3096,11 +2875,11 @@ async function loadGroupSummary(){
               );
 
 
-            const avgTaxableSale =
+            const avg =
 
-              monthTaxableSales.length
+              monthSales.length
 
-                ? monthTaxableSales.reduce(
+                ? monthSales.reduce(
                     (
                       total,
                       value
@@ -3110,17 +2889,17 @@ async function loadGroupSummary(){
                     0
                   )
                   /
-                  monthTaxableSales.length
+                  monthSales.length
 
                 : 0;
 
 
             const monthCells =
 
-              monthTaxableSales
+              monthSales
                 .map(
-                  taxable =>
-                    `<td>${money(taxable)}</td>`
+                  value =>
+                    `<td>${money(value)}</td>`
                 )
                 .join('');
 
@@ -3133,34 +2912,27 @@ async function loadGroupSummary(){
                   ${esc(row.label)}
                 </td>
 
-
                 ${monthCells}
 
-
                 <td>
-                  ${money(avgTaxableSale)}
+                  ${money(avg)}
                 </td>
-
 
                 <td>
                   ${fmt(row.qty)}
                 </td>
 
-
                 <td>
                   ${money(row.taxable)}
                 </td>
-
 
                 <td>
                   ${fmt(row.productsSold)}
                 </td>
 
-
                 <td>
                   ${fmt(row.customersBilled)}
                 </td>
-
 
                 <td>
                   ${fmt(row.records)}
@@ -3188,10 +2960,8 @@ async function loadGroupSummary(){
       <tr>
 
         <td class="empty">
-
           Analysis error:
           ${esc(error.message)}
-
         </td>
 
       </tr>
@@ -3205,7 +2975,6 @@ async function loadGroupSummary(){
 
 /* =====================================================
    SALES COMPARISON
-
    TAXABLE SALES
 ===================================================== */
 
@@ -3228,7 +2997,6 @@ async function loadComparison(){
       const node =
         el(id);
 
-
       if(node){
 
         node.textContent =
@@ -3247,9 +3015,7 @@ async function loadComparison(){
 
   if(
     !compareMonths.length
-
     ||
-
     !actualMonth
   ){
 
@@ -3257,7 +3023,6 @@ async function loadComparison(){
       'compareMonthsText',
       'Select months'
     );
-
 
     setText(
       'compareActualMonth',
@@ -3271,24 +3036,20 @@ async function loadComparison(){
         : '-'
     );
 
-
     setText(
       'compareAvgSale',
       money(0)
     );
-
 
     setText(
       'compareActualSale',
       money(0)
     );
 
-
     setText(
       'compareDifference',
       money(0)
     );
-
 
     setText(
       'comparePercent',
@@ -3378,7 +3139,7 @@ async function loadComparison(){
       );
 
 
-    const compareTaxableSales =
+    const compareSales =
 
       compareResults.map(
         result =>
@@ -3395,26 +3156,26 @@ async function loadComparison(){
       );
 
 
-    const compareAvgTaxable =
+    const compareAvg =
 
-      compareTaxableSales.length
+      compareSales.length
 
-        ? compareTaxableSales.reduce(
+        ? compareSales.reduce(
             (
               total,
-              taxable
+              sale
             ) =>
-              total + taxable,
+              total + sale,
 
             0
           )
           /
-          compareTaxableSales.length
+          compareSales.length
 
         : 0;
 
 
-    const actualTaxable =
+    const actualSale =
 
       Number(
         actualResult
@@ -3428,19 +3189,19 @@ async function loadComparison(){
 
 
     const difference =
-      actualTaxable
+      actualSale
       -
-      compareAvgTaxable;
+      compareAvg;
 
 
     const percentage =
 
-      compareAvgTaxable !== 0
+      compareAvg !== 0
 
         ? (
             difference
             /
-            compareAvgTaxable
+            compareAvg
           )
           *
           100
@@ -3450,13 +3211,13 @@ async function loadComparison(){
 
     setText(
       'compareAvgSale',
-      money(compareAvgTaxable)
+      money(compareAvg)
     );
 
 
     setText(
       'compareActualSale',
-      money(actualTaxable)
+      money(actualSale)
     );
 
 
@@ -3549,7 +3310,7 @@ async function loadComparison(){
 
 
 /* =====================================================
-   BUDGET MONTHS TO SHOW
+   CUSTOMER BUDGET HELPERS
 ===================================================== */
 
 function budgetMonthsToShow(){
@@ -3562,7 +3323,7 @@ function budgetMonthsToShow(){
       : months;
 
 
-  const normalized = [];
+  const result = [];
 
 
   for(const month of chosen){
@@ -3586,13 +3347,11 @@ function budgetMonthsToShow(){
 
     if(
       budgetMonthMap[key]
-
       &&
-
-      !normalized.includes(key)
+      !result.includes(key)
     ){
 
-      normalized.push(
+      result.push(
         key
       );
 
@@ -3601,7 +3360,7 @@ function budgetMonthsToShow(){
   }
 
 
-  return normalized;
+  return result;
 
 }
 
@@ -3609,9 +3368,7 @@ function budgetMonthsToShow(){
 function diffClass(value){
 
   return Number(
-    value
-    ||
-    0
+    value || 0
   ) < 0
 
     ? 'budget-negative'
@@ -3640,9 +3397,7 @@ function renderBudget(){
 
   if(
     currentView === 'MainGrp'
-
     ||
-
     currentView === 'ItemName'
   ){
 
@@ -3712,9 +3467,7 @@ function renderBudget(){
 
   if(
     multiSelected
-
     ||
-
     !selected.month.length
   ){
 
@@ -3763,7 +3516,7 @@ function renderBudget(){
   }
 
 
-  const totalBudgetPages =
+  const totalPagesBudget =
 
     Math.max(
       1,
@@ -3779,7 +3532,7 @@ function renderBudget(){
 
     Math.min(
       budgetPage,
-      totalBudgetPages
+      totalPagesBudget
     );
 
 
@@ -3892,9 +3645,7 @@ function renderBudget(){
 
             if(
               multiSelected
-
               ||
-
               !selected.month.length
             ){
 
@@ -3956,7 +3707,7 @@ function renderBudget(){
       'budgetPageInfo'
     ).textContent =
 
-      `Page ${budgetPage} of ${totalBudgetPages} • ${fmt(budgetRows.length)} customers`;
+      `Page ${budgetPage} of ${totalPagesBudget} • ${fmt(budgetRows.length)} customers`;
 
   }
 
@@ -3976,31 +3727,7 @@ function renderBudget(){
     el(
       'budgetNext'
     ).disabled =
-      budgetPage >= totalBudgetPages;
-
-  }
-
-
-  if(el('budgetNote')){
-
-    el(
-      'budgetNote'
-    ).textContent =
-
-      selected.month.length
-
-        ? `Showing ${
-            selected.month
-              .map(
-                month =>
-                  monthNames[month]
-                  ||
-                  month
-              )
-              .join(', ')
-          } budget vs actual sales.`
-
-        : 'No month selected: showing all available months side-by-side.';
+      budgetPage >= totalPagesBudget;
 
   }
 
@@ -4015,9 +3742,7 @@ async function loadBudget(){
 
   if(
     currentView === 'MainGrp'
-
     ||
-
     currentView === 'ItemName'
   ){
 
@@ -4061,6 +3786,7 @@ async function loadBudget(){
   }catch(error){
 
     console.error(
+      'Budget error:',
       error
     );
 
@@ -4074,10 +3800,8 @@ async function loadBudget(){
         <tr>
 
           <td class="empty">
-
             Budget error:
             ${esc(error.message)}
-
           </td>
 
         </tr>
@@ -4104,10 +3828,6 @@ async function loadBudget(){
 
 /* =====================================================
    MAIN DASHBOARD
-
-   IMPORTANT:
-   refreshBudgetSalesScope() runs BEFORE
-   all sales RPCs.
 ===================================================== */
 
 async function loadDashboard(
@@ -4130,7 +3850,7 @@ async function loadDashboard(
   try{
 
     /*
-      Target / Status / OD -> Party scope
+      First build correct Target / OD / Status customer scope.
     */
 
     await refreshBudgetSalesScope();
@@ -4301,11 +4021,6 @@ async function loadDashboard(
     }
 
 
-    /*
-      Budget summary now also receives
-      final effective Party scope.
-    */
-
     await loadBudgetMonthSummary();
 
 
@@ -4333,12 +4048,6 @@ async function loadDashboard(
 
     }
 
-
-    /*
-      IMPORTANT:
-      These now all use effectiveFilterObject()
-      and therefore Target / Status / OD too.
-    */
 
     await Promise.all(
       [
@@ -4393,12 +4102,8 @@ document.addEventListener(
     try{
 
 
-      /* BUILD FILTER UI */
-
       buildFilterUI();
 
-
-      /* GET DATABASE SCHEMA */
 
       const schema =
         await rpc(
@@ -4417,8 +4122,6 @@ document.addEventListener(
         ||
         [];
 
-
-      /* DETAIL TABLE HEADER */
 
       if(el('tableHead')){
 
@@ -4445,9 +4148,7 @@ document.addEventListener(
       buildComparisonControls();
 
 
-      /* =================================================
-         GLOBAL MULTI SELECT CLICK
-      ================================================= */
+      /* GLOBAL DROPDOWN */
 
       document.addEventListener(
         'click',
@@ -4467,13 +4168,8 @@ document.addEventListener(
 
 
             applyBulkSelection(
-
-              selectAll
-                .dataset
-                .selectAll,
-
+              selectAll.dataset.selectAll,
               true
-
             );
 
 
@@ -4495,13 +4191,8 @@ document.addEventListener(
 
 
             applyBulkSelection(
-
-              unselectAll
-                .dataset
-                .unselectAll,
-
+              unselectAll.dataset.unselectAll,
               false
-
             );
 
 
@@ -4519,9 +4210,7 @@ document.addEventListener(
           if(button){
 
             const id =
-              button
-                .dataset
-                .open;
+              button.dataset.open;
 
 
             const multi =
@@ -4624,52 +4313,30 @@ document.addEventListener(
       );
 
 
-      /* =================================================
-         SEARCH BOXES
-      ================================================= */
+      /* SEARCH BOXES */
 
       for(const [id] of filterDefs){
 
-        wireSearchBox(
-          id
-        );
+        wireSearchBox(id);
 
       }
 
 
-      wireSearchBox(
-        'month'
-      );
+      wireSearchBox('month');
+      wireSearchBox('budgetOD');
+      wireSearchBox('compareMonths');
 
 
-      wireSearchBox(
-        'budgetOD'
-      );
-
-
-      wireSearchBox(
-        'compareMonths'
-      );
-
-
-      /* =================================================
-         INITIAL LOAD
-      ================================================= */
+      /* INITIAL LOAD */
 
       await refreshFilters();
 
       await loadODOptions();
 
-      await refreshODPartyScope();
-
-      await refreshBudgetSalesScope();
-
       await loadDashboard();
 
 
-      /* =================================================
-         ACTUAL COMPARISON MONTH
-      ================================================= */
+      /* ACTUAL COMPARE MONTH */
 
       if(el('actualCompareMonth')){
 
@@ -4685,9 +4352,7 @@ document.addEventListener(
       }
 
 
-      /* =================================================
-         PRODUCT SALE STATUS
-      ================================================= */
+      /* PRODUCT SALE */
 
       if(el('productSaleStatus')){
 
@@ -4698,20 +4363,17 @@ document.addEventListener(
 
             page = 1;
 
-            await loadDashboard(
-              true
-            );
+            await loadDashboard(true);
 
           };
 
       }
 
 
-      /* =================================================
-         BUDGET STATUS
-
-         NOW ALSO FILTERS ACTUAL SALES
-      ================================================= */
+      /*
+        BUDGET STATUS
+        also filters sales.
+      */
 
       if(el('budgetStatus')){
 
@@ -4723,22 +4385,17 @@ document.addEventListener(
             page = 1;
             budgetPage = 1;
 
-            await refreshBudgetSalesScope();
-
-            await loadDashboard(
-              true
-            );
+            await loadDashboard(true);
 
           };
 
       }
 
 
-      /* =================================================
-         BUDGET TARGET
-
-         NOW ALSO FILTERS ACTUAL SALES
-      ================================================= */
+      /*
+        TARGET
+        also filters sales.
+      */
 
       if(el('budgetTarget')){
 
@@ -4750,20 +4407,14 @@ document.addEventListener(
             page = 1;
             budgetPage = 1;
 
-            await refreshBudgetSalesScope();
-
-            await loadDashboard(
-              true
-            );
+            await loadDashboard(true);
 
           };
 
       }
 
 
-      /* =================================================
-         GLOBAL SEARCH
-      ================================================= */
+      /* GLOBAL SEARCH */
 
       if(el('search')){
 
@@ -4783,9 +4434,7 @@ document.addEventListener(
 
                   page = 1;
 
-                  await loadDashboard(
-                    true
-                  );
+                  await loadDashboard(true);
 
                 },
                 350
@@ -4796,9 +4445,7 @@ document.addEventListener(
       }
 
 
-      /* =================================================
-         PAGE SIZE
-      ================================================= */
+      /* PAGE SIZE */
 
       if(el('pageSize')){
 
@@ -4816,9 +4463,7 @@ document.addEventListener(
       }
 
 
-      /* =================================================
-         DETAIL PREVIOUS
-      ================================================= */
+      /* PREVIOUS */
 
       if(el('prevPage')){
 
@@ -4840,9 +4485,7 @@ document.addEventListener(
       }
 
 
-      /* =================================================
-         DETAIL NEXT
-      ================================================= */
+      /* NEXT */
 
       if(el('nextPage')){
 
@@ -4864,9 +4507,7 @@ document.addEventListener(
       }
 
 
-      /* =================================================
-         BUDGET PREVIOUS
-      ================================================= */
+      /* BUDGET PREV */
 
       if(el('budgetPrev')){
 
@@ -4888,9 +4529,7 @@ document.addEventListener(
       }
 
 
-      /* =================================================
-         BUDGET NEXT
-      ================================================= */
+      /* BUDGET NEXT */
 
       if(el('budgetNext')){
 
@@ -4911,9 +4550,7 @@ document.addEventListener(
               );
 
 
-            if(
-              budgetPage < pages
-            ){
+            if(budgetPage < pages){
 
               budgetPage++;
 
@@ -4926,9 +4563,7 @@ document.addEventListener(
       }
 
 
-      /* =================================================
-         CLEAR ALL
-      ================================================= */
+      /* CLEAR ALL */
 
       if(el('clearFilters')){
 
@@ -4949,12 +4584,8 @@ document.addEventListener(
 
 
             selected.month = [];
-
             selected.budgetOD = [];
-
             selected.compareMonths = [];
-
-            odParties = [];
 
             budgetScopeParties = [];
 
@@ -5015,7 +4646,6 @@ document.addEventListener(
                 selected[column] =
                   [];
 
-
                 updateMultiLabel(
                   column
                 );
@@ -5032,27 +4662,20 @@ document.addEventListener(
 
 
             page = 1;
-
             budgetPage = 1;
 
 
             buildComparisonControls();
 
 
-            await refreshBudgetSalesScope();
-
-            await loadDashboard(
-              true
-            );
+            await loadDashboard(true);
 
           };
 
       }
 
 
-      /* =================================================
-         ANALYSIS TABS
-      ================================================= */
+      /* ANALYSIS TABS */
 
       document
         .querySelectorAll(
