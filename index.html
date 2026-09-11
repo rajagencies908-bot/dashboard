@@ -14,7 +14,7 @@
 
   <link
     rel="stylesheet"
-    href="style.css?v=online10"
+    href="style.css?v=online11"
   >
 
   <style>
@@ -67,6 +67,11 @@
     .avg-card{
       border:1px solid #dbeafe;
       background:#eff6ff;
+    }
+
+    .budget-overview-card{
+      border:1px solid #d1fae5;
+      background:#ecfdf5;
     }
 
   </style>
@@ -125,8 +130,7 @@
     </h2>
 
     <p>
-      Multi-select filters, taxable sales comparison,
-      average sales and customer budget tracking.
+      Sales, taxable comparison, customer budget and zero-sales tracking.
     </p>
 
   </div>
@@ -148,9 +152,7 @@
 
   <article class="summary-card">
 
-    <span>
-      Total Qty
-    </span>
+    <span>Total Qty</span>
 
     <strong id="totalQty">
       0
@@ -165,9 +167,7 @@
 
   <article class="summary-card">
 
-    <span>
-      Total Taxable
-    </span>
+    <span>Total Taxable</span>
 
     <strong id="totalTaxable">
       ₹0
@@ -182,9 +182,7 @@
 
   <article class="summary-card">
 
-    <span>
-      Total Sale
-    </span>
+    <span>Total Sale</span>
 
     <strong id="totalSale">
       ₹0
@@ -199,16 +197,14 @@
 
   <article class="summary-card">
 
-    <span>
-      Products Sold
-    </span>
+    <span>Products Sold</span>
 
     <strong id="productsSold">
       0
     </strong>
 
     <small>
-      Distinct item codes sold
+      Distinct item codes
     </small>
 
   </article>
@@ -216,16 +212,14 @@
 
   <article class="summary-card">
 
-    <span>
-      Customers Billed
-    </span>
+    <span>Customers Billed</span>
 
     <strong id="customersBilled">
       0
     </strong>
 
     <small>
-      Distinct customers with billing
+      Actual sales customers
     </small>
 
   </article>
@@ -233,9 +227,7 @@
 
   <article class="summary-card">
 
-    <span>
-      Matching Records
-    </span>
+    <span>Matching Records</span>
 
     <strong id="recordCount">
       0
@@ -264,7 +256,7 @@
       </h3>
 
       <p>
-        Searchable multi-select filters with Select All and Unselect All.
+        All filters also update customer budget calculations.
       </p>
 
     </div>
@@ -311,9 +303,7 @@
             All Months / Total
           </span>
 
-          <span>
-            ▾
-          </span>
+          <span>▾</span>
 
         </button>
 
@@ -460,9 +450,7 @@
             All OD
           </span>
 
-          <span>
-            ▾
-          </span>
+          <span>▾</span>
 
         </button>
 
@@ -511,8 +499,7 @@
       </h3>
 
       <p>
-        Comparison is based on Taxable Sales only.
-        Select comparison months and one actual month.
+        Comparison uses Taxable Sales only.
       </p>
 
     </div>
@@ -544,9 +531,7 @@
             Select Compare Months
           </span>
 
-          <span>
-            ▾
-          </span>
+          <span>▾</span>
 
         </button>
 
@@ -601,9 +586,7 @@
 
     <div class="compare-card">
 
-      <span>
-        Compare Months
-      </span>
+      <span>Compare Months</span>
 
       <strong id="compareMonthsText">
         Select months
@@ -627,9 +610,7 @@
 
     <div class="compare-card">
 
-      <span>
-        Actual Month
-      </span>
+      <span>Actual Month</span>
 
       <strong id="compareActualMonth">
         -
@@ -666,9 +647,7 @@
 
     <div class="compare-card">
 
-      <span>
-        Change %
-      </span>
+      <span>Change %</span>
 
       <strong id="comparePercent">
         0%
@@ -679,9 +658,7 @@
 
     <div class="compare-card">
 
-      <span>
-        Status
-      </span>
+      <span>Status</span>
 
       <strong
         id="compareStatus"
@@ -711,7 +688,7 @@
       </h3>
 
       <p>
-        Qty, Taxable, Sale, Products, Customers and Budget Customer status.
+        Sales, filtered budget, zero-sales customers and zero-sales budget.
       </p>
 
     </div>
@@ -741,7 +718,7 @@
       </h3>
 
       <p>
-        Month-wise analysis uses Taxable Sales, not Amt / invoice sales.
+        Month-wise values use Taxable Sales.
       </p>
 
     </div>
@@ -796,26 +773,6 @@
             Customer / Party
           </th>
 
-          <th>
-            Qty
-          </th>
-
-          <th>
-            Total Taxable Sale
-          </th>
-
-          <th>
-            Products Sold
-          </th>
-
-          <th>
-            Customers Billed
-          </th>
-
-          <th>
-            Records
-          </th>
-
         </tr>
 
       </thead>
@@ -833,7 +790,7 @@
 
 
 
-<!-- BUDGET -->
+<!-- CUSTOMER BUDGET -->
 
 <section
   class="panel"
@@ -849,7 +806,7 @@
       </h3>
 
       <p id="budgetNote">
-        Budget comes from budget_customer and actual sales comes from products.
+        Budget comes from budget_customer and sales comes from products.
       </p>
 
     </div>
@@ -926,7 +883,7 @@
       </h3>
 
       <p>
-        Original sales columns plus calculated Avg Sales.
+        Original database columns plus calculated Avg Sales.
       </p>
 
     </div>
@@ -940,21 +897,15 @@
 
       <select id="pageSize">
 
-        <option>
-          10
-        </option>
+        <option>10</option>
 
         <option selected>
           25
         </option>
 
-        <option>
-          50
-        </option>
+        <option>50</option>
 
-        <option>
-          100
-        </option>
+        <option>100</option>
 
       </select>
 
@@ -979,9 +930,7 @@
         <tr id="tableHead"></tr>
       </thead>
 
-      <tbody
-        id="tableBody"
-      ></tbody>
+      <tbody id="tableBody"></tbody>
 
     </table>
 
@@ -1014,13 +963,9 @@
   src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
 ></script>
 
-<script
-  src="config.js?v=online10"
-></script>
+<script src="config.js?v=online11"></script>
 
-<script
-  src="script.js?v=online10"
-></script>
+<script src="script.js?v=online11"></script>
 
 
 </body>
