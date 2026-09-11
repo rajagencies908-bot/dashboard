@@ -6,11 +6,12 @@ const sb = createClient(
 );
 
 
-/* ==============================
-   FILTER DEFINITIONS
-============================== */
+/* =====================================================
+   FILTERS
+===================================================== */
 
 const filterDefs = [
+
   ['MainGrp','Main Group','All Main Groups'],
   ['ItemGroup','Item Group','All Item Groups'],
   ['Party','Customer / Party','All Customers'],
@@ -20,25 +21,30 @@ const filterDefs = [
   ['Division','Division','All Divisions'],
   ['City','City','All Cities'],
   ['Pincode','Pincode','All Pincodes']
+
 ];
 
 const filters =
-  filterDefs.map(x => x[0]);
+  filterDefs.map(
+    x => x[0]
+  );
 
 
-/* ==============================
+/* =====================================================
    STATE
-============================== */
+===================================================== */
 
 const selected = {};
 const searchState = {};
 
-filters.forEach(f => {
+filters.forEach(
+  column => {
 
-  selected[f] = [];
-  searchState[f] = '';
+    selected[column] = [];
+    searchState[column] = '';
 
-});
+  }
+);
 
 selected.month = [];
 selected.budgetOD = [];
@@ -68,24 +74,30 @@ let budgetMonthStats = {};
 const budgetPageSize = 25;
 
 
-/* ==============================
+/* =====================================================
    MONTH NAMES
-============================== */
+===================================================== */
 
 const monthNames = {
 
   Jan:'January',
   Feb:'February',
   Mar:'March',
+
   Apr:'April',
   May:'May',
+
   Jun:'June',
   June:'June',
+
   Jul:'July',
   July:'July',
+
   Aug:'August',
+
   Sep:'September',
   Sept:'September',
+
   Oct:'October',
   Nov:'November',
   Dec:'December'
@@ -93,9 +105,9 @@ const monthNames = {
 };
 
 
-/* ==============================
-   BUDGET MONTH MAP
-============================== */
+/* =====================================================
+   CUSTOMER BUDGET REPORT MONTH MAP
+===================================================== */
 
 const budgetMonthMap = {
 
@@ -156,27 +168,30 @@ const budgetMonthMap = {
 };
 
 
-/* ==============================
+/* =====================================================
    HELPERS
-============================== */
+===================================================== */
 
 const el = id =>
   document.getElementById(id);
 
 
-const fmt = n =>
+const fmt = value =>
+
   new Intl.NumberFormat(
     'en-IN',
     {
       maximumFractionDigits:2
     }
   ).format(
-    Number(n || 0)
+    Number(value || 0)
   );
 
 
-const money = n =>
+const money = value =>
+
   '₹' +
+
   new Intl.NumberFormat(
     'en-IN',
     {
@@ -184,26 +199,26 @@ const money = n =>
       maximumFractionDigits:2
     }
   ).format(
-    Number(n || 0)
+    Number(value || 0)
   );
 
 
-const esc = v => {
+const esc = value => {
 
-  const d =
+  const div =
     document.createElement('div');
 
-  d.textContent =
-    v ?? '';
+  div.textContent =
+    value ?? '';
 
-  return d.innerHTML;
+  return div.innerHTML;
 
 };
 
 
-/* ==============================
+/* =====================================================
    RPC
-============================== */
+===================================================== */
 
 async function rpc(
   name,
@@ -219,18 +234,22 @@ async function rpc(
       params
     );
 
+
   if(error){
+
     throw error;
+
   }
+
 
   return data;
 
 }
 
 
-/* ==============================
+/* =====================================================
    MONTH HELPERS
-============================== */
+===================================================== */
 
 function normalizeMonth(month){
 
@@ -251,13 +270,6 @@ function normalizeMonth(month){
 }
 
 
-/*
-  Detail table Avg Sales
-  હાલ Amt columns પરથી છે.
-  Comparison / Analysis Taxable
-  પર અલગથી ચાલે છે.
-*/
-
 function monthAmountColumn(month){
 
   const candidates = [
@@ -277,16 +289,21 @@ function monthAmountColumn(month){
       ? 'SeptAmt'
       : ''
 
-  ].filter(Boolean);
+  ]
+    .filter(Boolean);
 
 
   return (
+
     candidates.find(
-      c =>
-        columns.includes(c)
+      column =>
+        columns.includes(column)
     )
+
     ||
+
     null
+
   );
 
 }
@@ -306,17 +323,23 @@ function rowAverageSale(row){
   const activeMonths =
     activeAverageMonths();
 
+
   if(!activeMonths.length){
+
     return 0;
+
   }
+
 
   let total = 0;
   let count = 0;
+
 
   for(const month of activeMonths){
 
     const column =
       monthAmountColumn(month);
+
 
     if(column){
 
@@ -331,6 +354,7 @@ function rowAverageSale(row){
 
   }
 
+
   return count
     ? total / count
     : 0;
@@ -338,9 +362,9 @@ function rowAverageSale(row){
 }
 
 
-/* ==============================
-   EFFECTIVE FILTER OBJECT
-============================== */
+/* =====================================================
+   FILTER OBJECT
+===================================================== */
 
 function effectiveFilterObject(){
 
@@ -360,11 +384,8 @@ function effectiveFilterObject(){
 
 
   /*
-    OD customer list is taken
-    from budget_customer.
-
-    Then actual products sales
-    are filtered by Party.
+    OD is stored in budget_customer.
+    Convert OD -> Party scope.
   */
 
   if(selected.budgetOD.length){
@@ -377,6 +398,7 @@ function effectiveFilterObject(){
 
       const allowed =
         new Set(parties);
+
 
       parties =
         selected.Party.filter(
@@ -391,7 +413,9 @@ function effectiveFilterObject(){
 
     obj.Party =
       parties.length
+
         ? parties
+
         : [
             '__RAJ_NO_MATCHING_PARTY__'
           ];
@@ -404,9 +428,9 @@ function effectiveFilterObject(){
 }
 
 
-/* ==============================
-   FILTER OPTION OBJECT
-============================== */
+/* =====================================================
+   OPTION FILTER OBJECT
+===================================================== */
 
 function filterObjectForOptions(column){
 
@@ -422,7 +446,9 @@ function filterObjectForOptions(column){
 
     obj.Party =
       odParties.length
+
         ? [...odParties]
+
         : [
             '__RAJ_NO_MATCHING_PARTY__'
           ];
@@ -439,9 +465,9 @@ function filterObjectForOptions(column){
 }
 
 
-/* ==============================
-   MAIN DASHBOARD ARGS
-============================== */
+/* =====================================================
+   MAIN SALES ARGS
+===================================================== */
 
 const args = () => ({
 
@@ -464,15 +490,11 @@ const args = () => ({
 });
 
 
-/* ==============================
-   SALES COMPARISON ARGS
+/* =====================================================
+   COMPARISON ARGS
 
-   Important:
-   Main top Month filter is ignored
-   for comparison months.
-
-   All other filters apply.
-============================== */
+   Main Month filter does not control Comparison.
+===================================================== */
 
 const comparisonBaseArgs = () => ({
 
@@ -494,9 +516,9 @@ const comparisonBaseArgs = () => ({
 });
 
 
-/* ==============================
-   FILTER ARGS
-============================== */
+/* =====================================================
+   FILTER VALUE ARGS
+===================================================== */
 
 const filterArgs = column => ({
 
@@ -519,9 +541,9 @@ const filterArgs = column => ({
 });
 
 
-/* ==============================
-   BUDGET ARGS
-============================== */
+/* =====================================================
+   CUSTOMER BUDGET REPORT ARGS
+===================================================== */
 
 const budgetArgs = () => ({
 
@@ -573,21 +595,16 @@ const budgetArgs = () => ({
 });
 
 
-/* ==============================
-   BUDGET MONTH SUMMARY ARGS
-============================== */
+/* =====================================================
+   NEW MONTH BUDGET SUMMARY ARGS
+
+   All normal dashboard filters go to Supabase.
+===================================================== */
 
 const budgetSummaryArgs = () => ({
 
-  p_sms:
-    selected.SM.length
-      ? selected.SM
-      : null,
-
-  p_parties:
-    selected.Party.length
-      ? selected.Party
-      : null,
+  p_filters:
+    effectiveFilterObject(),
 
   p_ods:
     selected.budgetOD.length
@@ -597,14 +614,19 @@ const budgetSummaryArgs = () => ({
   p_target_mode:
     el('budgetTarget')
       ? el('budgetTarget').value
-      : 'all'
+      : 'all',
+
+  p_search:
+    el('search')
+      ? el('search').value.trim()
+      : ''
 
 });
 
 
-/* ==============================
-   SELECT ALL BUTTONS
-============================== */
+/* =====================================================
+   BULK BUTTONS
+===================================================== */
 
 function bulkButtons(id){
 
@@ -637,6 +659,7 @@ function bulkButtons(id){
         Select All
       </button>
 
+
       <button
         type="button"
         data-unselect-all="${id}"
@@ -654,26 +677,31 @@ function bulkButtons(id){
       </button>
 
     </div>
+
   `;
 
 }
 
 
-/* ==============================
-   BUILD NORMAL FILTER UI
-============================== */
+/* =====================================================
+   BUILD FILTER UI
+===================================================== */
 
 function buildFilterUI(){
 
   const grid =
     el('filterGrid');
 
+
   if(!grid){
+
     return;
+
   }
 
 
   grid.innerHTML =
+
     filterDefs
       .map(
         ([id,label,all]) => `
@@ -700,9 +728,7 @@ function buildFilterUI(){
                   ${all}
                 </span>
 
-                <span>
-                  ▾
-                </span>
+                <span>▾</span>
 
               </button>
 
@@ -739,16 +765,16 @@ function buildFilterUI(){
 }
 
 
-/* ==============================
+/* =====================================================
    LABELS
-============================== */
+===================================================== */
 
 function updateMultiLabel(column){
 
   const def =
     filterDefs.find(
-      x =>
-        x[0] === column
+      item =>
+        item[0] === column
     );
 
 
@@ -767,8 +793,11 @@ function updateMultiLabel(column){
   if(label){
 
     label.textContent =
+
       selected[column].length
+
         ? `${selected[column].length} selected`
+
         : def[2];
 
   }
@@ -790,7 +819,9 @@ function updateMultiLabel(column){
 
       (
         selected[column].length > 4
+
           ? `<span class="chip">+${selected[column].length - 4}</span>`
+
           : ''
       );
 
@@ -811,8 +842,11 @@ function updateMonthLabel(){
   if(label){
 
     label.textContent =
+
       selected.month.length
+
         ? `${selected.month.length} selected`
+
         : 'All Months / Total';
 
   }
@@ -821,16 +855,11 @@ function updateMonthLabel(){
   if(chips){
 
     chips.innerHTML =
+
       selected.month
         .map(
           month =>
-            `<span class="chip">${
-              esc(
-                monthNames[month]
-                ||
-                month
-              )
-            }</span>`
+            `<span class="chip">${esc(monthNames[month] || month)}</span>`
         )
         .join('');
 
@@ -851,8 +880,11 @@ function updateODLabel(){
   if(label){
 
     label.textContent =
+
       selected.budgetOD.length
+
         ? `${selected.budgetOD.length} selected`
+
         : 'All OD';
 
   }
@@ -874,7 +906,9 @@ function updateODLabel(){
 
       (
         selected.budgetOD.length > 4
+
           ? `<span class="chip">+${selected.budgetOD.length - 4}</span>`
+
           : ''
       );
 
@@ -895,8 +929,11 @@ function updateCompareLabel(){
   if(label){
 
     label.textContent =
+
       selected.compareMonths.length
+
         ? `${selected.compareMonths.length} selected`
+
         : 'Select Compare Months';
 
   }
@@ -905,16 +942,11 @@ function updateCompareLabel(){
   if(chips){
 
     chips.innerHTML =
+
       selected.compareMonths
         .map(
           month =>
-            `<span class="chip">${
-              esc(
-                monthNames[month]
-                ||
-                month
-              )
-            }</span>`
+            `<span class="chip">${esc(monthNames[month] || month)}</span>`
         )
         .join('');
 
@@ -923,9 +955,9 @@ function updateCompareLabel(){
 }
 
 
-/* ==============================
-   OPTION VALUES
-============================== */
+/* =====================================================
+   OPTIONS
+===================================================== */
 
 function valuesFromOptions(
   id,
@@ -933,19 +965,25 @@ function valuesFromOptions(
 ){
 
   return [
+
     ...document.querySelectorAll(
       `#options_${id} input[type="checkbox"]`
     )
+
   ]
     .filter(
       checkbox =>
+
         !visibleOnly
+
         ||
+
         checkbox
           .closest('.multi-option')
           ?.style
           .display !== 'none'
     )
+
     .map(
       checkbox =>
         checkbox.value
@@ -954,9 +992,9 @@ function valuesFromOptions(
 }
 
 
-/* ==============================
-   SEARCH
-============================== */
+/* =====================================================
+   SEARCH IN MULTI SELECT
+===================================================== */
 
 function applySearchFilter(id){
 
@@ -965,8 +1003,11 @@ function applySearchFilter(id){
       'search_' + id
     );
 
+
   if(!search){
+
     return;
+
   }
 
 
@@ -999,14 +1040,19 @@ function applySearchFilter(id){
 
         const optionText =
           String(
-            option.dataset.text || ''
+            option.dataset.text
+            ||
+            ''
           )
             .toLowerCase();
 
 
         option.style.display =
+
           optionText.includes(text)
+
             ? 'flex'
+
             : 'none';
 
       }
@@ -1060,6 +1106,7 @@ function restoreOpenFilter(id){
         const length =
           search.value.length;
 
+
         try{
 
           search.setSelectionRange(
@@ -1084,8 +1131,11 @@ function wireSearchBox(id){
       'search_' + id
     );
 
+
   if(!search){
+
     return;
+
   }
 
 
@@ -1108,9 +1158,9 @@ function wireSearchBox(id){
 }
 
 
-/* ==============================
-   BULK SELECTION
-============================== */
+/* =====================================================
+   BULK SELECT
+===================================================== */
 
 async function applyBulkSelection(
   id,
@@ -1127,16 +1177,19 @@ async function applyBulkSelection(
     );
 
 
-  /* COMPARISON MONTHS */
+  /* COMPARISON MONTH */
 
   if(id === 'compareMonths'){
 
     selected.compareMonths =
+
       selectAll
+
         ? valuesFromOptions(
             'compareMonths',
             visibleOnly
           )
+
         : [];
 
 
@@ -1149,7 +1202,9 @@ async function applyBulkSelection(
 
           if(
             !visibleOnly
+
             ||
+
             checkbox
               .closest('.multi-option')
               ?.style
@@ -1183,11 +1238,14 @@ async function applyBulkSelection(
   if(id === 'month'){
 
     selected.month =
+
       selectAll
+
         ? valuesFromOptions(
             'month',
             visibleOnly
           )
+
         : [];
 
 
@@ -1200,7 +1258,9 @@ async function applyBulkSelection(
 
           if(
             !visibleOnly
+
             ||
+
             checkbox
               .closest('.multi-option')
               ?.style
@@ -1223,7 +1283,9 @@ async function applyBulkSelection(
 
     await loadDashboard(true);
 
-    restoreOpenFilter('month');
+    restoreOpenFilter(
+      'month'
+    );
 
     return;
 
@@ -1235,11 +1297,14 @@ async function applyBulkSelection(
   if(id === 'budgetOD'){
 
     selected.budgetOD =
+
       selectAll
+
         ? valuesFromOptions(
             'budgetOD',
             visibleOnly
           )
+
         : [];
 
 
@@ -1252,7 +1317,9 @@ async function applyBulkSelection(
 
           if(
             !visibleOnly
+
             ||
+
             checkbox
               .closest('.multi-option')
               ?.style
@@ -1289,16 +1356,21 @@ async function applyBulkSelection(
   /* NORMAL FILTER */
 
   if(!filters.includes(id)){
+
     return;
+
   }
 
 
   selected[id] =
+
     selectAll
+
       ? valuesFromOptions(
           id,
           visibleOnly
         )
+
       : [];
 
 
@@ -1311,7 +1383,9 @@ async function applyBulkSelection(
 
         if(
           !visibleOnly
+
           ||
+
           checkbox
             .closest('.multi-option')
             ?.style
@@ -1339,17 +1413,20 @@ async function applyBulkSelection(
 }
 
 
-/* ==============================
-   MAIN MONTH FILTER
-============================== */
+/* =====================================================
+   BUILD MAIN MONTH FILTER
+===================================================== */
 
 function buildMonths(){
 
   const box =
     el('options_month');
 
+
   if(!box){
+
     return;
+
   }
 
 
@@ -1365,15 +1442,13 @@ function buildMonths(){
 
           <label
             class="multi-option"
-            data-text="${
-              esc(
-                (
-                  monthNames[month]
-                  ||
-                  month
-                ).toLowerCase()
-              )
-            }"
+            data-text="${esc(
+              (
+                monthNames[month]
+                ||
+                month
+              ).toLowerCase()
+            )}"
           >
 
             <input
@@ -1389,13 +1464,7 @@ function buildMonths(){
             >
 
             <span>
-              ${
-                esc(
-                  monthNames[month]
-                  ||
-                  month
-                )
-              }
+              ${esc(monthNames[month] || month)}
             </span>
 
           </label>
@@ -1464,9 +1533,9 @@ function buildMonths(){
 }
 
 
-/* ==============================
-   COMPARISON MONTH CONTROLS
-============================== */
+/* =====================================================
+   COMPARISON MONTH FILTER
+===================================================== */
 
 function buildComparisonControls(){
 
@@ -1498,15 +1567,13 @@ function buildComparisonControls(){
 
             <label
               class="multi-option"
-              data-text="${
-                esc(
-                  (
-                    monthNames[month]
-                    ||
-                    month
-                  ).toLowerCase()
-                )
-              }"
+              data-text="${esc(
+                (
+                  monthNames[month]
+                  ||
+                  month
+                ).toLowerCase()
+              )}"
             >
 
               <input
@@ -1522,13 +1589,7 @@ function buildComparisonControls(){
               >
 
               <span>
-                ${
-                  esc(
-                    monthNames[month]
-                    ||
-                    month
-                  )
-                }
+                ${esc(monthNames[month] || month)}
               </span>
 
             </label>
@@ -1565,6 +1626,7 @@ function buildComparisonControls(){
               }else{
 
                 selected.compareMonths =
+
                   selected.compareMonths.filter(
                     month =>
                       month !== checkbox.value
@@ -1609,13 +1671,9 @@ function buildComparisonControls(){
       months
         .map(
           month =>
-            `<option value="${esc(month)}">${
-              esc(
-                monthNames[month]
-                ||
-                month
-              )
-            }</option>`
+
+            `<option value="${esc(month)}">${esc(monthNames[month] || month)}</option>`
+
         )
         .join('');
 
@@ -1636,9 +1694,9 @@ function buildComparisonControls(){
 }
 
 
-/* ==============================
-   NORMAL FILTER VALUES
-============================== */
+/* =====================================================
+   FILTER VALUES
+===================================================== */
 
 async function loadFilter(column){
 
@@ -1646,8 +1704,12 @@ async function loadFilter(column){
     await rpc(
       'raj_filter_values',
       {
-        p_column:column,
+
+        p_column:
+          column,
+
         ...filterArgs(column)
+
       }
     );
 
@@ -1659,17 +1721,23 @@ async function loadFilter(column){
 
 
   if(!box){
+
     return;
+
   }
 
 
   const rawValues =
+
     (data || [])
       .map(
         value =>
+
           typeof value === 'object'
+
           &&
           value !== null
+
             ? (
                 value.value
                 ??
@@ -1677,14 +1745,17 @@ async function loadFilter(column){
                 ??
                 Object.values(value)[0]
               )
+
             : value
       );
 
 
   const values =
+
     [
       ...new Set(
         [
+
           ...rawValues.map(
             value =>
               String(
@@ -1695,6 +1766,7 @@ async function loadFilter(column){
           ),
 
           ...selected[column]
+
         ]
       )
     ]
@@ -1713,12 +1785,10 @@ async function loadFilter(column){
 
           <label
             class="multi-option"
-            data-text="${
-              esc(
-                String(value)
-                  .toLowerCase()
-              )
-            }"
+            data-text="${esc(
+              String(value)
+                .toLowerCase()
+            )}"
           >
 
             <input
@@ -1771,6 +1841,7 @@ async function loadFilter(column){
             }else{
 
               selected[column] =
+
                 selected[column].filter(
                   value =>
                     value !== checkbox.value
@@ -1783,8 +1854,10 @@ async function loadFilter(column){
               column
             );
 
+
             page = 1;
             budgetPage = 1;
+
 
             await loadDashboard(true);
 
@@ -1816,9 +1889,9 @@ async function refreshFilters(){
 }
 
 
-/* ==============================
-   OD
-============================== */
+/* =====================================================
+   OD OPTIONS
+===================================================== */
 
 async function loadODOptions(){
 
@@ -1827,8 +1900,11 @@ async function loadODOptions(){
       'options_budgetOD'
     );
 
+
   if(!box){
+
     return;
+
   }
 
 
@@ -1839,6 +1915,7 @@ async function loadODOptions(){
 
 
   const values =
+
     (data || [])
       .map(
         row =>
@@ -1867,11 +1944,9 @@ async function loadODOptions(){
 
           <label
             class="multi-option"
-            data-text="${
-              esc(
-                value.toLowerCase()
-              )
-            }"
+            data-text="${esc(
+              value.toLowerCase()
+            )}"
           >
 
             <input
@@ -1924,6 +1999,7 @@ async function loadODOptions(){
             }else{
 
               selected.budgetOD =
+
                 selected.budgetOD.filter(
                   value =>
                     value !== checkbox.value
@@ -1980,6 +2056,7 @@ async function refreshODPartyScope(){
 
 
   odParties =
+
     (data || [])
       .map(
         row =>
@@ -1989,16 +2066,17 @@ async function refreshODPartyScope(){
             row.party
             ??
             ''
-          ).trim()
+          )
+            .trim()
       )
       .filter(Boolean);
 
 }
 
 
-/* ==============================
-   BUDGET MONTH SUMMARY
-============================== */
+/* =====================================================
+   NEW BUDGET MONTH SUMMARY
+===================================================== */
 
 async function loadBudgetMonthSummary(){
 
@@ -2023,13 +2101,16 @@ async function loadBudgetMonthSummary(){
 
 
       if(!month){
+
         continue;
+
       }
 
 
       budgetMonthStats[month] = {
 
         BudgetCustomers:
+
           Number(
             row.BudgetCustomers
             ??
@@ -2038,20 +2119,35 @@ async function loadBudgetMonthSummary(){
             0
           ),
 
-        SalesCustomers:
+
+        TotalBudget:
+
           Number(
-            row.SalesCustomers
+            row.TotalBudget
             ??
-            row.salescustomers
+            row.totalbudget
             ??
             0
           ),
 
+
         ZeroSalesCustomers:
+
           Number(
             row.ZeroSalesCustomers
             ??
             row.zerosalescustomers
+            ??
+            0
+          ),
+
+
+        ZeroSalesBudget:
+
+          Number(
+            row.ZeroSalesBudget
+            ??
+            row.zerosalesbudget
             ??
             0
           )
@@ -2060,12 +2156,14 @@ async function loadBudgetMonthSummary(){
 
     }
 
+
   }catch(error){
 
     console.error(
       'Budget month summary error:',
       error
     );
+
 
     budgetMonthStats = {};
 
@@ -2074,9 +2172,9 @@ async function loadBudgetMonthSummary(){
 }
 
 
-/* ==============================
-   SAFE BUDGET STATS
-============================== */
+/* =====================================================
+   SAFE BUDGET MONTH RESULT
+===================================================== */
 
 function budgetStatsForMonth(month){
 
@@ -2094,20 +2192,32 @@ function budgetStatsForMonth(month){
 
     budgetMonthStats[
       month === 'Jun'
+
         ? 'June'
+
         : month === 'Jul'
+
           ? 'July'
+
           : month === 'Sep'
+
             ? 'Sept'
+
             : month
     ]
 
     ||
 
     {
+
       BudgetCustomers:0,
-      SalesCustomers:0,
-      ZeroSalesCustomers:0
+
+      TotalBudget:0,
+
+      ZeroSalesCustomers:0,
+
+      ZeroSalesBudget:0
+
     }
 
   );
@@ -2115,9 +2225,19 @@ function budgetStatsForMonth(month){
 }
 
 
-/* ==============================
+/* =====================================================
    MONTH SUMMARY
-============================== */
+
+   Sales Customers removed.
+
+   Customers Billed already represents actual customers.
+
+   Budget metrics:
+   - Budget Customers
+   - Total Budget
+   - Zero Sales Customers
+   - Zero Sales Budget
+===================================================== */
 
 function renderMonths(monthData){
 
@@ -2126,34 +2246,82 @@ function renderMonths(monthData){
 
 
   if(!container){
+
     return;
+
   }
 
 
-  const averageMonths =
+  const activeMonths =
     activeAverageMonths();
 
 
+  /* Average Sale */
+
   const averageTotal =
-    averageMonths.reduce(
+
+    activeMonths.reduce(
       (total,month) =>
+
         total
+
         +
+
         Number(
           monthData?.[month]?.Sale
           ||
           0
         ),
+
       0
     );
 
 
   const averageSale =
-    averageMonths.length
+
+    activeMonths.length
+
       ? averageTotal
         /
-        averageMonths.length
+        activeMonths.length
+
       : 0;
+
+
+  /* FILTERED TOTAL BUDGET */
+
+  const selectedBudgetMonths =
+
+    selected.month.length
+
+      ? selected.month
+
+      : months;
+
+
+  let selectedPeriodBudget = 0;
+
+  let selectedPeriodZeroBudget = 0;
+
+
+  for(const month of selectedBudgetMonths){
+
+    const stats =
+      budgetStatsForMonth(month);
+
+
+    selectedPeriodBudget +=
+      Number(
+        stats.TotalBudget || 0
+      );
+
+
+    selectedPeriodZeroBudget +=
+      Number(
+        stats.ZeroSalesBudget || 0
+      );
+
+  }
 
 
   const averageCard = `
@@ -2164,6 +2332,7 @@ function renderMonths(monthData){
         Average Monthly Sale
       </h4>
 
+
       <div class="metric">
 
         <span>
@@ -2171,7 +2340,7 @@ function renderMonths(monthData){
         </span>
 
         <b>
-          ${fmt(averageMonths.length)}
+          ${fmt(activeMonths.length)}
         </b>
 
       </div>
@@ -2194,7 +2363,73 @@ function renderMonths(monthData){
   `;
 
 
+  const budgetOverviewCard = `
+
+    <div class="month-card budget-overview-card">
+
+      <h4>
+        Filtered Budget Overview
+      </h4>
+
+
+      <div class="metric">
+
+        <span>
+          Period
+        </span>
+
+        <b>
+          ${
+            selected.month.length
+
+              ? selected.month
+                  .map(
+                    month =>
+                      monthNames[month]
+                      ||
+                      month
+                  )
+                  .join(', ')
+
+              : 'All Available Months'
+          }
+        </b>
+
+      </div>
+
+
+      <div class="metric">
+
+        <span>
+          Total Budget
+        </span>
+
+        <b>
+          ${money(selectedPeriodBudget)}
+        </b>
+
+      </div>
+
+
+      <div class="metric">
+
+        <span>
+          Zero Sales Budget
+        </span>
+
+        <b>
+          ${money(selectedPeriodZeroBudget)}
+        </b>
+
+      </div>
+
+    </div>
+
+  `;
+
+
   const cards =
+
     months
       .map(
         month => {
@@ -2216,13 +2451,7 @@ function renderMonths(monthData){
             <div class="month-card">
 
               <h4>
-                ${
-                  esc(
-                    monthNames[month]
-                    ||
-                    month
-                  )
-                }
+                ${esc(monthNames[month] || month)}
               </h4>
 
 
@@ -2307,11 +2536,11 @@ function renderMonths(monthData){
               <div class="metric">
 
                 <span>
-                  Sales Customers
+                  Total Budget
                 </span>
 
                 <b>
-                  ${fmt(budget.SalesCustomers)}
+                  ${money(budget.TotalBudget)}
                 </b>
 
               </div>
@@ -2329,6 +2558,19 @@ function renderMonths(monthData){
 
               </div>
 
+
+              <div class="metric">
+
+                <span>
+                  Zero Sales Budget
+                </span>
+
+                <b>
+                  ${money(budget.ZeroSalesBudget)}
+                </b>
+
+              </div>
+
             </div>
 
           `;
@@ -2339,16 +2581,23 @@ function renderMonths(monthData){
 
 
   container.innerHTML =
+
     averageCard
+
     +
+
+    budgetOverviewCard
+
+    +
+
     cards;
 
 }
 
 
-/* ==============================
+/* =====================================================
    DETAIL TABLE
-============================== */
+===================================================== */
 
 function renderRows(rows){
 
@@ -2357,7 +2606,9 @@ function renderRows(rows){
 
 
   if(!body){
+
     return;
+
   }
 
 
@@ -2369,12 +2620,7 @@ function renderRows(rows){
 
         <td
           class="empty"
-          colspan="${
-            Math.max(
-              columns.length + 1,
-              1
-            )
-          }"
+          colspan="${Math.max(columns.length + 1,1)}"
         >
           No matching data found.
         </td>
@@ -2389,11 +2635,13 @@ function renderRows(rows){
 
 
   body.innerHTML =
+
     rows
       .map(
         row => {
 
           const cells =
+
             columns
               .map(
                 column => {
@@ -2412,7 +2660,9 @@ function renderRows(rows){
                         esc(
                           /Qty|Taxable|Amt|Sale$/
                             .test(column)
+
                             ? fmt(value)
+
                             : value
                         )
                       }
@@ -2447,15 +2697,11 @@ function renderRows(rows){
 }
 
 
-/* =================================================
+/* =====================================================
    ANALYSIS VIEW
 
-   IMPORTANT:
-   All "Sales" in Analysis are TAXABLE SALES.
-
-   row.taxable is used.
-   row.sale is NOT used for sales display.
-================================================= */
+   TAXABLE SALES ONLY
+===================================================== */
 
 async function loadGroupSummary(){
 
@@ -2464,7 +2710,9 @@ async function loadGroupSummary(){
 
 
   if(!body){
+
     return;
+
   }
 
 
@@ -2477,7 +2725,9 @@ async function loadGroupSummary(){
 
 
   if(!headRow){
+
     return;
+
   }
 
 
@@ -2488,16 +2738,19 @@ async function loadGroupSummary(){
   try{
 
     const results =
+
       await Promise.all(
         [
 
           rpc(
             'raj_group_summary',
             {
+
               p_view:
                 currentView,
 
               ...args()
+
             }
           ),
 
@@ -2506,6 +2759,7 @@ async function loadGroupSummary(){
               rpc(
                 'raj_group_summary',
                 {
+
                   p_view:
                     currentView,
 
@@ -2514,6 +2768,7 @@ async function loadGroupSummary(){
                   p_months:[
                     month
                   ]
+
                 }
               )
           )
@@ -2533,6 +2788,7 @@ async function loadGroupSummary(){
 
 
     const viewName =
+
       ({
 
         Party:
@@ -2569,23 +2825,13 @@ async function loadGroupSummary(){
     `;
 
 
-    /*
-      Month-wise Taxable Sales columns
-    */
-
     analysisMonths.forEach(
       month => {
 
         header += `
 
           <th>
-            ${
-              esc(
-                monthNames[month]
-                ||
-                month
-              )
-            }
+            ${esc(monthNames[month] || month)}
             Taxable Sale
           </th>
 
@@ -2632,11 +2878,7 @@ async function loadGroupSummary(){
 
           <td
             class="empty"
-            colspan="${
-              7
-              +
-              analysisMonths.length
-            }"
+            colspan="${7 + analysisMonths.length}"
           >
             No summary data found.
           </td>
@@ -2650,13 +2892,8 @@ async function loadGroupSummary(){
     }
 
 
-    /*
-      IMPORTANT:
-      map stores row.taxable
-      NOT row.sale
-    */
-
     const monthMaps =
+
       monthlyData.map(
         rows => {
 
@@ -2670,6 +2907,7 @@ async function loadGroupSummary(){
 
                 map.set(
                   String(row.label),
+
                   Number(
                     row.taxable
                     ||
@@ -2688,46 +2926,48 @@ async function loadGroupSummary(){
 
 
     body.innerHTML =
+
       totalData
         .map(
           row => {
 
-            /*
-              Month-wise Taxable values
-            */
-
             const monthTaxableSales =
+
               analysisMonths.map(
                 (month,index) =>
+
                   monthMaps[index]
                     ?.get(
                       String(row.label)
                     )
+
                   ||
+
                   0
               );
 
 
-            /*
-              Average Taxable Sale
-            */
-
             const avgTaxableSale =
+
               monthTaxableSales.length
+
                 ? monthTaxableSales.reduce(
                     (
                       total,
                       value
                     ) =>
                       total + value,
+
                     0
                   )
                   /
                   monthTaxableSales.length
+
                 : 0;
 
 
             const monthCells =
+
               monthTaxableSales
                 .map(
                   taxable =>
@@ -2814,15 +3054,11 @@ async function loadGroupSummary(){
 }
 
 
-/* =================================================
+/* =====================================================
    SALES COMPARISON
 
-   IMPORTANT:
-   Comparison is based on
-   TotalTaxable.
-
-   TotalSale / Amt is NOT used.
-================================================= */
+   TAXABLE SALES ONLY
+===================================================== */
 
 async function loadComparison(){
 
@@ -2843,6 +3079,7 @@ async function loadComparison(){
       const node =
         el(id);
 
+
       if(node){
 
         node.textContent =
@@ -2861,7 +3098,9 @@ async function loadComparison(){
 
   if(
     !compareMonths.length
+
     ||
+
     !actualMonth
   ){
 
@@ -2873,10 +3112,13 @@ async function loadComparison(){
 
     setText(
       'compareActualMonth',
+
       actualMonth
+
         ? monthNames[actualMonth]
           ||
           actualMonth
+
         : '-'
     );
 
@@ -2950,90 +3192,88 @@ async function loadComparison(){
       comparisonBaseArgs();
 
 
-    /*
-      Get selected compare months
-      individually.
-    */
-
     const compareResults =
+
       await Promise.all(
         compareMonths.map(
           month =>
             rpc(
               'raj_dashboard_summary',
               {
+
                 ...baseArgs,
 
                 p_months:[
                   month
                 ]
+
               }
             )
         )
       );
 
 
-    /*
-      Get Actual month.
-    */
-
     const actualResult =
+
       await rpc(
         'raj_dashboard_summary',
         {
+
           ...baseArgs,
 
           p_months:[
             actualMonth
           ]
+
         }
       );
 
 
-    /*
-      IMPORTANT:
-      TotalTaxable used here.
-    */
-
     const compareTaxableSales =
+
       compareResults.map(
         result =>
+
           Number(
             result
               ?.summary
               ?.TotalTaxable
+
             ||
+
             0
           )
       );
 
 
     const compareAvgTaxable =
+
       compareTaxableSales.length
+
         ? compareTaxableSales.reduce(
             (
               total,
               taxable
             ) =>
               total + taxable,
+
             0
           )
           /
           compareTaxableSales.length
+
         : 0;
 
 
-    /*
-      IMPORTANT:
-      Actual is also TotalTaxable.
-    */
-
     const actualTaxable =
+
       Number(
         actualResult
           ?.summary
           ?.TotalTaxable
+
         ||
+
         0
       );
 
@@ -3045,7 +3285,9 @@ async function loadComparison(){
 
 
     const percentage =
+
       compareAvgTaxable !== 0
+
         ? (
             difference
             /
@@ -3053,22 +3295,19 @@ async function loadComparison(){
           )
           *
           100
+
         : 0;
 
 
     setText(
       'compareAvgSale',
-      money(
-        compareAvgTaxable
-      )
+      money(compareAvgTaxable)
     );
 
 
     setText(
       'compareActualSale',
-      money(
-        actualTaxable
-      )
+      money(actualTaxable)
     );
 
 
@@ -3083,9 +3322,7 @@ async function loadComparison(){
 
       +
 
-      money(
-        difference
-      )
+      money(difference)
     );
 
 
@@ -3100,9 +3337,7 @@ async function loadComparison(){
 
       +
 
-      fmt(
-        percentage
-      )
+      fmt(percentage)
 
       +
 
@@ -3164,15 +3399,17 @@ async function loadComparison(){
 }
 
 
-/* ==============================
-   BUDGET MONTHS
-============================== */
+/* =====================================================
+   CUSTOMER BUDGET TABLE
+===================================================== */
 
 function budgetMonthsToShow(){
 
   const chosen =
     selected.month.length
+
       ? selected.month
+
       : months;
 
 
@@ -3182,22 +3419,33 @@ function budgetMonthsToShow(){
   for(const month of chosen){
 
     const key =
+
       month === 'Sept'
+
         ? 'Sep'
+
         : month === 'June'
+
           ? 'Jun'
+
           : month === 'July'
+
             ? 'Jul'
+
             : month;
 
 
     if(
       budgetMonthMap[key]
+
       &&
+
       !normalized.includes(key)
     ){
 
-      normalized.push(key);
+      normalized.push(
+        key
+      );
 
     }
 
@@ -3222,9 +3470,9 @@ function diffClass(value){
 }
 
 
-/* ==============================
-   RENDER BUDGET
-============================== */
+/* =====================================================
+   RENDER CUSTOMER BUDGET
+===================================================== */
 
 function renderBudget(){
 
@@ -3233,18 +3481,17 @@ function renderBudget(){
 
 
   if(!panel){
+
     return;
+
   }
 
 
-  /*
-    Customer budget hidden
-    for Company and Product view.
-  */
-
   if(
     currentView === 'MainGrp'
+
     ||
+
     currentView === 'ItemName'
   ){
 
@@ -3314,7 +3561,9 @@ function renderBudget(){
 
   if(
     multiSelected
+
     ||
+
     !selected.month.length
   ){
 
@@ -3364,6 +3613,7 @@ function renderBudget(){
 
 
   const totalBudgetPages =
+
     Math.max(
       1,
       Math.ceil(
@@ -3375,6 +3625,7 @@ function renderBudget(){
 
 
   budgetPage =
+
     Math.min(
       budgetPage,
       totalBudgetPages
@@ -3382,6 +3633,7 @@ function renderBudget(){
 
 
   const rows =
+
     budgetRows.slice(
 
       (
@@ -3404,7 +3656,9 @@ function renderBudget(){
 
 
   if(!body){
+
     return;
+
   }
 
 
@@ -3434,6 +3688,7 @@ function renderBudget(){
   }else{
 
     body.innerHTML =
+
       rows
         .map(
           row => {
@@ -3486,7 +3741,9 @@ function renderBudget(){
 
             if(
               multiSelected
+
               ||
+
               !selected.month.length
             ){
 
@@ -3599,15 +3856,17 @@ function renderBudget(){
 }
 
 
-/* ==============================
-   LOAD BUDGET
-============================== */
+/* =====================================================
+   LOAD CUSTOMER BUDGET
+===================================================== */
 
 async function loadBudget(){
 
   if(
     currentView === 'MainGrp'
+
     ||
+
     currentView === 'ItemName'
   ){
 
@@ -3634,11 +3893,14 @@ async function loadBudget(){
   try{
 
     budgetRows =
+
       await rpc(
         'raj_customer_budget_report',
         budgetArgs()
       )
+
       ||
+
       [];
 
 
@@ -3689,9 +3951,9 @@ async function loadBudget(){
 }
 
 
-/* ==============================
+/* =====================================================
    MAIN DASHBOARD
-============================== */
+===================================================== */
 
 async function loadDashboard(
   reloadFilters = false
@@ -3720,6 +3982,7 @@ async function loadDashboard(
       summaryResult,
       rowsResult
     ] =
+
       await Promise.all(
         [
 
@@ -3876,6 +4139,11 @@ async function loadDashboard(
     }
 
 
+    /*
+      Load filtered budget summary BEFORE
+      rendering month cards.
+    */
+
     await loadBudgetMonthSummary();
 
 
@@ -3946,9 +4214,9 @@ async function loadDashboard(
 }
 
 
-/* ==============================
+/* =====================================================
    STARTUP
-============================== */
+===================================================== */
 
 document.addEventListener(
   'DOMContentLoaded',
@@ -3957,12 +4225,8 @@ document.addEventListener(
     try{
 
 
-      /* BUILD NORMAL FILTERS */
-
       buildFilterUI();
 
-
-      /* GET DATABASE SCHEMA */
 
       const schema =
         await rpc(
@@ -3981,8 +4245,6 @@ document.addEventListener(
         ||
         [];
 
-
-      /* DETAIL TABLE HEADER */
 
       if(el('tableHead')){
 
@@ -4004,16 +4266,12 @@ document.addEventListener(
       }
 
 
-      /* MONTH CONTROLS */
-
       buildMonths();
 
       buildComparisonControls();
 
 
-      /* ==========================
-         GLOBAL DROPDOWN CLICK
-      ========================== */
+      /* GLOBAL MULTI SELECT CLICK */
 
       document.addEventListener(
         'click',
@@ -4033,13 +4291,8 @@ document.addEventListener(
 
 
             applyBulkSelection(
-
-              selectAll
-                .dataset
-                .selectAll,
-
+              selectAll.dataset.selectAll,
               true
-
             );
 
 
@@ -4061,13 +4314,8 @@ document.addEventListener(
 
 
             applyBulkSelection(
-
-              unselectAll
-                .dataset
-                .unselectAll,
-
+              unselectAll.dataset.unselectAll,
               false
-
             );
 
 
@@ -4085,9 +4333,7 @@ document.addEventListener(
           if(button){
 
             const id =
-              button
-                .dataset
-                .open;
+              button.dataset.open;
 
 
             const multi =
@@ -4097,7 +4343,9 @@ document.addEventListener(
 
 
             if(!multi){
+
               return;
+
             }
 
 
@@ -4214,7 +4462,7 @@ document.addEventListener(
       );
 
 
-      /* INITIAL DATA */
+      /* INITIAL */
 
       await refreshFilters();
 
@@ -4223,9 +4471,7 @@ document.addEventListener(
       await loadDashboard();
 
 
-      /* ==========================
-         ACTUAL COMPARISON MONTH
-      ========================== */
+      /* ACTUAL COMPARISON MONTH */
 
       if(el('actualCompareMonth')){
 
@@ -4241,7 +4487,7 @@ document.addEventListener(
       }
 
 
-      /* PRODUCT STATUS */
+      /* PRODUCT SALE */
 
       if(el('productSaleStatus')){
 
@@ -4252,9 +4498,7 @@ document.addEventListener(
 
             page = 1;
 
-            await loadDashboard(
-              true
-            );
+            await loadDashboard(true);
 
           };
 
@@ -4279,7 +4523,7 @@ document.addEventListener(
       }
 
 
-      /* BUDGET TARGET */
+      /* TARGET */
 
       if(el('budgetTarget')){
 
@@ -4290,9 +4534,7 @@ document.addEventListener(
 
             budgetPage = 1;
 
-            await loadDashboard(
-              false
-            );
+            await loadDashboard(false);
 
           };
 
@@ -4319,9 +4561,7 @@ document.addEventListener(
 
                   page = 1;
 
-                  await loadDashboard(
-                    true
-                  );
+                  await loadDashboard(true);
 
                 },
                 350
@@ -4350,7 +4590,7 @@ document.addEventListener(
       }
 
 
-      /* DETAIL PREVIOUS */
+      /* PREV */
 
       if(el('prevPage')){
 
@@ -4372,7 +4612,7 @@ document.addEventListener(
       }
 
 
-      /* DETAIL NEXT */
+      /* NEXT */
 
       if(el('nextPage')){
 
@@ -4394,7 +4634,7 @@ document.addEventListener(
       }
 
 
-      /* BUDGET PREVIOUS */
+      /* BUDGET PREV */
 
       if(el('budgetPrev')){
 
@@ -4426,6 +4666,7 @@ document.addEventListener(
           () => {
 
             const pages =
+
               Math.max(
                 1,
                 Math.ceil(
@@ -4451,9 +4692,7 @@ document.addEventListener(
       }
 
 
-      /* ==========================
-         CLEAR ALL
-      ========================== */
+      /* CLEAR ALL */
 
       if(el('clearFilters')){
 
@@ -4538,7 +4777,6 @@ document.addEventListener(
                 selected[column] =
                   [];
 
-
                 updateMultiLabel(
                   column
                 );
@@ -4562,18 +4800,14 @@ document.addEventListener(
             buildComparisonControls();
 
 
-            await loadDashboard(
-              true
-            );
+            await loadDashboard(true);
 
           };
 
       }
 
 
-      /* ==========================
-         ANALYSIS TABS
-      ========================== */
+      /* ANALYSIS VIEW */
 
       document
         .querySelectorAll(
