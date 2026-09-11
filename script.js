@@ -5,33 +5,47 @@ const sb = createClient(
   RAJ_CONFIG.supabasePublishableKey
 );
 
+
 const filterDefs = [
-  ['MainGrp', 'Main Group', 'All Main Groups'],
-  ['ItemGroup', 'Item Group', 'All Item Groups'],
-  ['Party', 'Customer / Party', 'All Customers'],
-  ['ItemCode', 'Item Code', 'All Item Codes'],
-  ['ItemName', 'Product / Item Name', 'All Products'],
-  ['SM', 'SM', 'All SM'],
-  ['Division', 'Division', 'All Divisions'],
-  ['City', 'City', 'All Cities'],
-  ['Pincode', 'Pincode', 'All Pincodes']
+  ['MainGrp','Main Group','All Main Groups'],
+  ['ItemGroup','Item Group','All Item Groups'],
+  ['Party','Customer / Party','All Customers'],
+  ['ItemCode','Item Code','All Item Codes'],
+  ['ItemName','Product / Item Name','All Products'],
+  ['SM','SM','All SM'],
+  ['Division','Division','All Divisions'],
+  ['City','City','All Cities'],
+  ['Pincode','Pincode','All Pincodes']
 ];
 
-const filters = filterDefs.map(x => x[0]);
+
+const filters =
+  filterDefs.map(
+    x => x[0]
+  );
+
 
 const selected = {};
 const searchState = {};
 
-filters.forEach(f => {
-  selected[f] = [];
-  searchState[f] = '';
-});
+
+filters.forEach(
+  f => {
+
+    selected[f] = [];
+    searchState[f] = '';
+
+  }
+);
+
 
 selected.month = [];
 selected.budgetOD = [];
+selected.compareMonths = [];
 
 searchState.month = '';
 searchState.budgetOD = '';
+
 
 let columns = [];
 let months = [];
@@ -48,87 +62,97 @@ let budgetRows = [];
 
 let odParties = [];
 
+let budgetMonthStats = {};
+
 const budgetPageSize = 25;
 
 
+/* =========================================
+   MONTH NAMES
+========================================= */
+
 const monthNames = {
 
-  Jan: 'January',
-  Feb: 'February',
-  Mar: 'March',
+  Jan:'January',
+  Feb:'February',
+  Mar:'March',
 
-  Apr: 'April',
-  May: 'May',
+  Apr:'April',
+  May:'May',
 
-  Jun: 'June',
-  June: 'June',
+  Jun:'June',
+  June:'June',
 
-  Jul: 'July',
-  July: 'July',
+  Jul:'July',
+  July:'July',
 
-  Aug: 'August',
+  Aug:'August',
 
-  Sep: 'September',
-  Sept: 'September',
+  Sep:'September',
+  Sept:'September',
 
-  Oct: 'October',
-  Nov: 'November',
-  Dec: 'December'
+  Oct:'October',
+  Nov:'November',
+  Dec:'December'
 
 };
 
 
+/* =========================================
+   BUDGET MONTH MAP
+========================================= */
+
 const budgetMonthMap = {
 
-  Apr: [
+  Apr:[
     'AprBudget',
     'AprSales',
     'AprDiff'
   ],
 
-  May: [
+  May:[
     'MayBudget',
     'MaySales',
     'MayDiff'
   ],
 
-  Jun: [
+  Jun:[
     'JuneBudget',
     'JuneSales',
     'JuneDiff'
   ],
 
-  June: [
+  June:[
     'JuneBudget',
     'JuneSales',
     'JuneDiff'
   ],
 
-  Jul: [
+  Jul:[
     'JulyBudget',
     'JulySales',
     'JulyDiff'
   ],
 
-  July: [
+  July:[
     'JulyBudget',
     'JulySales',
     'JulyDiff'
   ],
 
-  Aug: [
+  Aug:[
     'AugBudget',
     'AugSales',
     'AugDiff'
   ],
 
-  Sep: [
+  Sep:[
     'SepBudget',
     'SepSales',
     'SepDiff'
   ],
 
-  Sept: [
+  Sept:[
     'SepBudget',
     'SepSales',
     'SepDiff'
@@ -137,9 +161,15 @@ const budgetMonthMap = {
 };
 
 
+/* =========================================
+   HELPERS
+========================================= */
+
 const el =
   id =>
-    document.getElementById(id);
+    document.getElementById(
+      id
+    );
 
 
 const fmt =
@@ -147,24 +177,29 @@ const fmt =
     new Intl.NumberFormat(
       'en-IN',
       {
-        maximumFractionDigits: 2
+        maximumFractionDigits:2
       }
     ).format(
-      Number(n || 0)
+      Number(
+        n || 0
+      )
     );
 
 
 const money =
   n =>
-    '₹' +
+    '₹'
+    +
     new Intl.NumberFormat(
       'en-IN',
       {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
+        minimumFractionDigits:2,
+        maximumFractionDigits:2
       }
     ).format(
-      Number(n || 0)
+      Number(
+        n || 0
+      )
     );
 
 
@@ -172,7 +207,9 @@ const esc =
   v => {
 
     const d =
-      document.createElement('div');
+      document.createElement(
+        'div'
+      );
 
     d.textContent =
       v ?? '';
@@ -182,10 +219,14 @@ const esc =
   };
 
 
+/* =========================================
+   RPC
+========================================= */
+
 async function rpc(
   name,
   params = {}
-) {
+){
 
   const {
     data,
@@ -197,7 +238,9 @@ async function rpc(
     );
 
 
-  if (error) {
+  if(
+    error
+  ){
 
     throw error;
 
@@ -210,21 +253,169 @@ async function rpc(
 
 
 /* =========================================
+   MONTH HELPERS
+========================================= */
+
+function normalizeMonth(
+  m
+){
+
+  if(
+    m === 'Jun'
+  ){
+
+    return 'June';
+
+  }
+
+
+  if(
+    m === 'Jul'
+  ){
+
+    return 'July';
+
+  }
+
+
+  if(
+    m === 'Sep'
+  ){
+
+    return 'Sept';
+
+  }
+
+
+  return m;
+
+}
+
+
+function monthAmountColumn(
+  month
+){
+
+  const candidates = [
+
+    `${month}Amt`,
+
+    `${normalizeMonth(month)}Amt`,
+
+    month === 'June'
+      ? 'JuneAmt'
+      : '',
+
+    month === 'July'
+      ? 'JulyAmt'
+      : '',
+
+    month === 'Sept'
+      ? 'SeptAmt'
+      : ''
+
+  ].filter(
+    Boolean
+  );
+
+
+  return candidates.find(
+    c =>
+      columns.includes(
+        c
+      )
+  )
+  ||
+  null;
+
+}
+
+
+function activeAverageMonths(){
+
+  return selected.month.length
+
+    ? selected.month
+
+    : months;
+
+}
+
+
+function rowAverageSale(
+  row
+){
+
+  const ms =
+    activeAverageMonths();
+
+
+  if(
+    !ms.length
+  ){
+
+    return 0;
+
+  }
+
+
+  let total = 0;
+  let count = 0;
+
+
+  for(
+    const m of ms
+  ){
+
+    const c =
+      monthAmountColumn(
+        m
+      );
+
+
+    if(
+      c
+    ){
+
+      total +=
+        Number(
+          row[c]
+          ||
+          0
+        );
+
+      count++;
+
+    }
+
+  }
+
+
+  return count
+
+    ? total / count
+
+    : 0;
+
+}
+
+
+/* =========================================
    EFFECTIVE FILTER OBJECT
 ========================================= */
 
-function effectiveFilterObject() {
+function effectiveFilterObject(){
 
   const obj = {};
 
 
-  for (
+  for(
     const c of filters
-  ) {
+  ){
 
-    if (
+    if(
       selected[c].length
-    ) {
+    ){
 
       obj[c] =
         [...selected[c]];
@@ -236,13 +427,13 @@ function effectiveFilterObject() {
 
   /*
     OD selected હોય તો
-    budget_customer Party list
-    sales Party filterમાં apply થશે.
+    OD customersની Party list
+    products Party પર apply થશે.
   */
 
-  if (
+  if(
     selected.budgetOD.length
-  ) {
+  ){
 
     let parties =
       odParties.map(
@@ -251,13 +442,13 @@ function effectiveFilterObject() {
 
 
     /*
-      Party manually selected હોય તો
-      OD Party + selected Party intersection.
+      Party filter manually selected હોય
+      તો intersection.
     */
 
-    if (
+    if(
       selected.Party.length
-    ) {
+    ){
 
       const allowed =
         new Set(
@@ -275,11 +466,6 @@ function effectiveFilterObject() {
 
     }
 
-
-    /*
-      OD selected but no matching Party:
-      grand total ન આવવો જોઈએ.
-    */
 
     obj.Party =
 
@@ -300,7 +486,57 @@ function effectiveFilterObject() {
 
 
 /* =========================================
-   DASHBOARD ARGUMENTS
+   FILTER OPTION OBJECT
+
+   Current column restriction remove થાય
+   જેથી multiple same-search selections
+   disappear ન થાય.
+========================================= */
+
+function filterObjectForOptions(
+  column
+){
+
+  const obj =
+    effectiveFilterObject();
+
+
+  if(
+    column !== 'Party'
+  ){
+
+    delete obj[column];
+
+  }
+  else if(
+    selected.budgetOD.length
+  ){
+
+    obj.Party =
+
+      odParties.length
+
+        ? [...odParties]
+
+        : [
+            '__RAJ_NO_MATCHING_PARTY__'
+          ];
+
+  }
+  else{
+
+    delete obj.Party;
+
+  }
+
+
+  return obj;
+
+}
+
+
+/* =========================================
+   MAIN DASHBOARD ARGS
 ========================================= */
 
 const args =
@@ -314,17 +550,25 @@ const args =
 
     p_sale_status:
 
-      el('productSaleStatus')
+      el(
+        'productSaleStatus'
+      )
 
-        ? el('productSaleStatus').value
+        ? el(
+            'productSaleStatus'
+          ).value
 
         : 'All',
 
     p_search:
 
-      el('search')
+      el(
+        'search'
+      )
 
-        ? el('search').value.trim()
+        ? el(
+            'search'
+          ).value.trim()
 
         : ''
 
@@ -332,7 +576,49 @@ const args =
 
 
 /* =========================================
-   BUDGET ARGUMENTS
+   FILTER VALUE ARGS
+========================================= */
+
+const filterArgs =
+  column => ({
+
+    p_filters:
+      filterObjectForOptions(
+        column
+      ),
+
+    p_months:
+      selected.month,
+
+    p_sale_status:
+
+      el(
+        'productSaleStatus'
+      )
+
+        ? el(
+            'productSaleStatus'
+          ).value
+
+        : 'All',
+
+    p_search:
+
+      el(
+        'search'
+      )
+
+        ? el(
+            'search'
+          ).value.trim()
+
+        : ''
+
+  });
+
+
+/* =========================================
+   BUDGET REPORT ARGS
 ========================================= */
 
 const budgetArgs =
@@ -388,17 +674,25 @@ const budgetArgs =
 
     p_target_mode:
 
-      el('budgetTarget')
+      el(
+        'budgetTarget'
+      )
 
-        ? el('budgetTarget').value
+        ? el(
+            'budgetTarget'
+          ).value
 
         : 'all',
 
     p_status:
 
-      el('budgetStatus')
+      el(
+        'budgetStatus'
+      )
 
-        ? el('budgetStatus').value
+        ? el(
+            'budgetStatus'
+          ).value
 
         : 'all',
 
@@ -414,10 +708,58 @@ const budgetArgs =
 
 
 /* =========================================
-   SELECT ALL / UNSELECT ALL BUTTONS
+   MONTH BUDGET SUMMARY ARGS
 ========================================= */
 
-function bulkButtons(id) {
+const budgetSummaryArgs =
+  () => ({
+
+    p_sms:
+
+      selected.SM.length
+
+        ? selected.SM
+
+        : null,
+
+    p_parties:
+
+      selected.Party.length
+
+        ? selected.Party
+
+        : null,
+
+    p_ods:
+
+      selected.budgetOD.length
+
+        ? selected.budgetOD
+
+        : null,
+
+    p_target_mode:
+
+      el(
+        'budgetTarget'
+      )
+
+        ? el(
+            'budgetTarget'
+          ).value
+
+        : 'all'
+
+  });
+
+
+/* =========================================
+   SELECT ALL BUTTONS
+========================================= */
+
+function bulkButtons(
+  id
+){
 
   return `
 
@@ -478,13 +820,17 @@ function bulkButtons(id) {
    BUILD FILTER UI
 ========================================= */
 
-function buildFilterUI() {
+function buildFilterUI(){
 
   const grid =
-    el('filterGrid');
+    el(
+      'filterGrid'
+    );
 
 
-  if (!grid) {
+  if(
+    !grid
+  ){
 
     return;
 
@@ -570,12 +916,12 @@ function buildFilterUI() {
 
 
 /* =========================================
-   UPDATE NORMAL FILTER LABEL
+   NORMAL FILTER LABEL
 ========================================= */
 
 function updateMultiLabel(
   column
-) {
+){
 
   const def =
     filterDefs.find(
@@ -584,21 +930,15 @@ function updateMultiLabel(
     );
 
 
-  const label =
+  if(
     el(
       'label_' + column
-    );
+    )
+  ){
 
-
-  const chips =
     el(
-      'chips_' + column
-    );
-
-
-  if (label) {
-
-    label.textContent =
+      'label_' + column
+    ).textContent =
 
       selected[column].length
 
@@ -609,9 +949,15 @@ function updateMultiLabel(
   }
 
 
-  if (chips) {
+  if(
+    el(
+      'chips_' + column
+    )
+  ){
 
-    chips.innerHTML =
+    el(
+      'chips_' + column
+    ).innerHTML =
 
       selected[column]
 
@@ -647,22 +993,20 @@ function updateMultiLabel(
 
 
 /* =========================================
-   UPDATE MONTH LABEL
+   MONTH LABEL
 ========================================= */
 
-function updateMonthLabel() {
+function updateMonthLabel(){
 
-  const label =
-    el('label_month');
+  if(
+    el(
+      'label_month'
+    )
+  ){
 
-
-  const chips =
-    el('chips_month');
-
-
-  if (label) {
-
-    label.textContent =
+    el(
+      'label_month'
+    ).textContent =
 
       selected.month.length
 
@@ -673,9 +1017,15 @@ function updateMonthLabel() {
   }
 
 
-  if (chips) {
+  if(
+    el(
+      'chips_month'
+    )
+  ){
 
-    chips.innerHTML =
+    el(
+      'chips_month'
+    ).innerHTML =
 
       selected.month
 
@@ -683,7 +1033,9 @@ function updateMonthLabel() {
           v =>
             `<span class="chip">
               ${esc(
-                monthNames[v] || v
+                monthNames[v]
+                ||
+                v
               )}
             </span>`
         )
@@ -696,22 +1048,20 @@ function updateMonthLabel() {
 
 
 /* =========================================
-   UPDATE OD LABEL
+   OD LABEL
 ========================================= */
 
-function updateODLabel() {
+function updateODLabel(){
 
-  const label =
-    el('label_budgetOD');
+  if(
+    el(
+      'label_budgetOD'
+    )
+  ){
 
-
-  const chips =
-    el('chips_budgetOD');
-
-
-  if (label) {
-
-    label.textContent =
+    el(
+      'label_budgetOD'
+    ).textContent =
 
       selected.budgetOD.length
 
@@ -722,9 +1072,15 @@ function updateODLabel() {
   }
 
 
-  if (chips) {
+  if(
+    el(
+      'chips_budgetOD'
+    )
+  ){
 
-    chips.innerHTML =
+    el(
+      'chips_budgetOD'
+    ).innerHTML =
 
       selected.budgetOD
 
@@ -760,35 +1116,109 @@ function updateODLabel() {
 
 
 /* =========================================
-   GET CHECKBOX VALUES
+   COMPARE LABEL
 ========================================= */
 
-function valuesFromOptions(
-  id
-) {
+function updateCompareLabel(){
 
-  return [
+  if(
+    el(
+      'label_compareMonths'
+    )
+  ){
 
-    ...document
-      .querySelectorAll(
-        `#options_${id} input[type="checkbox"]`
-      )
+    el(
+      'label_compareMonths'
+    ).textContent =
 
-  ].map(
-    x =>
-      x.value
-  );
+      selected.compareMonths.length
+
+        ? `${selected.compareMonths.length} selected`
+
+        : 'Select Compare Months';
+
+  }
+
+
+  if(
+    el(
+      'chips_compareMonths'
+    )
+  ){
+
+    el(
+      'chips_compareMonths'
+    ).innerHTML =
+
+      selected.compareMonths
+
+        .map(
+          v =>
+            `<span class="chip">
+              ${esc(
+                monthNames[v]
+                ||
+                v
+              )}
+            </span>`
+        )
+
+        .join('');
+
+  }
 
 }
 
 
 /* =========================================
-   STABLE SEARCH
+   OPTION VALUES
+========================================= */
+
+function valuesFromOptions(
+  id,
+  visibleOnly = false
+){
+
+  return [
+
+    ...document.querySelectorAll(
+      `#options_${id} input[type="checkbox"]`
+    )
+
+  ]
+
+    .filter(
+      x =>
+
+        !visibleOnly
+
+        ||
+
+        x
+          .closest(
+            '.multi-option'
+          )
+          ?.style
+          .display
+          !==
+          'none'
+    )
+
+    .map(
+      x =>
+        x.value
+    );
+
+}
+
+
+/* =========================================
+   SEARCH FILTER
 ========================================= */
 
 function applySearchFilter(
   id
-) {
+){
 
   const search =
     el(
@@ -796,7 +1226,9 @@ function applySearchFilter(
     );
 
 
-  if (!search) {
+  if(
+    !search
+  ){
 
     return;
 
@@ -805,7 +1237,7 @@ function applySearchFilter(
 
   const text =
 
-    (
+    String(
       searchState[id]
       ??
       search.value
@@ -819,31 +1251,40 @@ function applySearchFilter(
 
 
   search.value =
+
     searchState[id]
+
     ??
+
     search.value
+
     ??
+
     '';
 
 
   document
+
     .querySelectorAll(
       `#options_${id} .multi-option`
     )
+
     .forEach(
       option => {
 
-        const optionText =
+        const t =
 
           String(
-            option.dataset.text || ''
+            option.dataset.text
+            ||
+            ''
           )
             .toLowerCase();
 
 
         option.style.display =
 
-          optionText.includes(
+          t.includes(
             text
           )
 
@@ -858,12 +1299,12 @@ function applySearchFilter(
 
 
 /* =========================================
-   KEEP FILTER OPEN AFTER SELECTION
+   KEEP DROPDOWN OPEN
 ========================================= */
 
 function restoreOpenFilter(
   id
-) {
+){
 
   const search =
     el(
@@ -877,11 +1318,14 @@ function restoreOpenFilter(
     );
 
 
-  if (search) {
+  if(
+    search
+  ){
 
     search.value =
       searchState[id]
-      || '';
+      ||
+      '';
 
   }
 
@@ -891,7 +1335,9 @@ function restoreOpenFilter(
   );
 
 
-  if (multi) {
+  if(
+    multi
+  ){
 
     multi.classList.add(
       'open'
@@ -900,28 +1346,28 @@ function restoreOpenFilter(
   }
 
 
-  if (search) {
+  if(
+    search
+  ){
 
     requestAnimationFrame(
       () => {
 
         search.focus();
 
-
         const len =
           search.value.length;
 
 
-        try {
+        try{
 
           search.setSelectionRange(
             len,
             len
           );
 
-        } catch (_) {
-
         }
+        catch(_){}
 
       }
     );
@@ -932,12 +1378,12 @@ function restoreOpenFilter(
 
 
 /* =========================================
-   SEARCH INPUT EVENT
+   SEARCH INPUT
 ========================================= */
 
 function wireSearchBox(
   id
-) {
+){
 
   const search =
     el(
@@ -945,7 +1391,9 @@ function wireSearchBox(
     );
 
 
-  if (!search) {
+  if(
+    !search
+  ){
 
     return;
 
@@ -954,7 +1402,8 @@ function wireSearchBox(
 
   search.value =
     searchState[id]
-    || '';
+    ||
+    '';
 
 
   search.oninput =
@@ -974,37 +1423,35 @@ function wireSearchBox(
 
 
 /* =========================================
-   SELECT ALL / UNSELECT ALL
+   SELECT / UNSELECT ALL
 ========================================= */
 
 async function applyBulkSelection(
   id,
   selectAll
-) {
+){
 
-  /*
-    MONTH
-  */
+  if(
+    id === 'compareMonths'
+  ){
 
-  if (
-    id === 'month'
-  ) {
-
-    selected.month =
+    selected.compareMonths =
 
       selectAll
 
         ? valuesFromOptions(
-            'month'
+            'compareMonths'
           )
 
         : [];
 
 
     document
+
       .querySelectorAll(
-        '#options_month input[type="checkbox"]'
+        '#options_compareMonths input[type="checkbox"]'
       )
+
       .forEach(
         x =>
           x.checked =
@@ -1012,8 +1459,76 @@ async function applyBulkSelection(
       );
 
 
-    updateMonthLabel();
+    updateCompareLabel();
 
+
+    await loadComparison();
+
+
+    return;
+
+  }
+
+
+  const visibleOnly =
+
+    Boolean(
+      (
+        searchState[id]
+        ||
+        ''
+      ).trim()
+    );
+
+
+  if(
+    id === 'month'
+  ){
+
+    selected.month =
+
+      selectAll
+
+        ? valuesFromOptions(
+            'month',
+            visibleOnly
+          )
+
+        : [];
+
+
+    document
+
+      .querySelectorAll(
+        '#options_month input[type="checkbox"]'
+      )
+
+      .forEach(
+        x => {
+
+          if(
+            !visibleOnly
+            ||
+            x
+              .closest(
+                '.multi-option'
+              )
+              ?.style
+              .display
+              !==
+              'none'
+          ){
+
+            x.checked =
+              selectAll;
+
+          }
+
+        }
+      );
+
+
+    updateMonthLabel();
 
     page = 1;
     budgetPage = 1;
@@ -1034,33 +1549,50 @@ async function applyBulkSelection(
   }
 
 
-  /*
-    OD
-  */
-
-  if (
+  if(
     id === 'budgetOD'
-  ) {
+  ){
 
     selected.budgetOD =
 
       selectAll
 
         ? valuesFromOptions(
-            'budgetOD'
+            'budgetOD',
+            visibleOnly
           )
 
         : [];
 
 
     document
+
       .querySelectorAll(
         '#options_budgetOD input[type="checkbox"]'
       )
+
       .forEach(
-        x =>
-          x.checked =
-            selectAll
+        x => {
+
+          if(
+            !visibleOnly
+            ||
+            x
+              .closest(
+                '.multi-option'
+              )
+              ?.style
+              .display
+              !==
+              'none'
+          ){
+
+            x.checked =
+              selectAll;
+
+          }
+
+        }
       );
 
 
@@ -1089,13 +1621,11 @@ async function applyBulkSelection(
   }
 
 
-  /*
-    NORMAL FILTER
-  */
-
-  if (
-    !filters.includes(id)
-  ) {
+  if(
+    !filters.includes(
+      id
+    )
+  ){
 
     return;
 
@@ -1106,19 +1636,42 @@ async function applyBulkSelection(
 
     selectAll
 
-      ? valuesFromOptions(id)
+      ? valuesFromOptions(
+          id,
+          visibleOnly
+        )
 
       : [];
 
 
   document
+
     .querySelectorAll(
       `#options_${id} input[type="checkbox"]`
     )
+
     .forEach(
-      x =>
-        x.checked =
-          selectAll
+      x => {
+
+        if(
+          !visibleOnly
+          ||
+          x
+            .closest(
+              '.multi-option'
+            )
+            ?.style
+            .display
+            !==
+            'none'
+        ){
+
+          x.checked =
+            selectAll;
+
+        }
+
+      }
     );
 
 
@@ -1147,7 +1700,7 @@ async function applyBulkSelection(
    BUILD MONTH FILTER
 ========================================= */
 
-function buildMonths() {
+function buildMonths(){
 
   const box =
     el(
@@ -1155,7 +1708,9 @@ function buildMonths() {
     );
 
 
-  if (!box) {
+  if(
+    !box
+  ){
 
     return;
 
@@ -1180,7 +1735,8 @@ function buildMonths() {
             data-text="${esc(
               (
                 monthNames[m]
-                || m
+                ||
+                m
               )
                 .toLowerCase()
             )}"
@@ -1204,7 +1760,8 @@ function buildMonths() {
             <span>
               ${esc(
                 monthNames[m]
-                || m
+                ||
+                m
               )}
             </span>
 
@@ -1217,49 +1774,49 @@ function buildMonths() {
 
 
   box
+
     .querySelectorAll(
       'input[type="checkbox"]'
     )
-    .forEach(
-      checkbox => {
 
-        checkbox.onchange =
+    .forEach(
+      cb => {
+
+        cb.onchange =
           async () => {
 
-            if (
-              checkbox.checked
-            ) {
+            if(
+              cb.checked
+            ){
 
-              if (
+              if(
                 !selected.month
                   .includes(
-                    checkbox.value
+                    cb.value
                   )
-              ) {
+              ){
 
-                selected.month
-                  .push(
-                    checkbox.value
-                  );
+                selected.month.push(
+                  cb.value
+                );
 
               }
 
-            } else {
+            }
+            else{
 
               selected.month =
 
-                selected.month
-                  .filter(
-                    x =>
-                      x !==
-                      checkbox.value
-                  );
+                selected.month.filter(
+                  x =>
+                    x !==
+                    cb.value
+                );
 
             }
 
 
             updateMonthLabel();
-
 
             page = 1;
             budgetPage = 1;
@@ -1288,12 +1845,192 @@ function buildMonths() {
 
 
 /* =========================================
-   LOAD NORMAL FILTER
+   BUILD COMPARISON CONTROL
+========================================= */
+
+function buildComparisonControls(){
+
+  const box =
+    el(
+      'options_compareMonths'
+    );
+
+
+  const actual =
+    el(
+      'actualCompareMonth'
+    );
+
+
+  if(
+    box
+  ){
+
+    box.innerHTML =
+
+      bulkButtons(
+        'compareMonths'
+      )
+
+      +
+
+      months
+
+        .map(
+          m => `
+
+            <label
+              class="multi-option"
+              data-text="${esc(
+                (
+                  monthNames[m]
+                  ||
+                  m
+                )
+                  .toLowerCase()
+              )}"
+            >
+
+              <input
+                type="checkbox"
+                value="${esc(m)}"
+                ${
+                  selected.compareMonths
+                    .includes(
+                      String(m)
+                    )
+
+                    ? 'checked'
+
+                    : ''
+                }
+              >
+
+              <span>
+                ${esc(
+                  monthNames[m]
+                  ||
+                  m
+                )}
+              </span>
+
+            </label>
+
+          `
+        )
+
+        .join('');
+
+
+    box
+
+      .querySelectorAll(
+        'input[type="checkbox"]'
+      )
+
+      .forEach(
+        cb => {
+
+          cb.onchange =
+            async () => {
+
+              if(
+                cb.checked
+              ){
+
+                if(
+                  !selected.compareMonths
+                    .includes(
+                      cb.value
+                    )
+                ){
+
+                  selected.compareMonths.push(
+                    cb.value
+                  );
+
+                }
+
+              }
+              else{
+
+                selected.compareMonths =
+
+                  selected.compareMonths.filter(
+                    x =>
+                      x !==
+                      cb.value
+                  );
+
+              }
+
+
+              updateCompareLabel();
+
+
+              await loadComparison();
+
+            };
+
+        }
+      );
+
+  }
+
+
+  if(
+    actual
+  ){
+
+    const current =
+      actual.value;
+
+
+    actual.innerHTML =
+
+      '<option value="">Select Actual Month</option>'
+
+      +
+
+      months
+
+        .map(
+          m =>
+            `<option value="${esc(m)}">
+              ${esc(
+                monthNames[m]
+                ||
+                m
+              )}
+            </option>`
+        )
+
+        .join('');
+
+
+    if(
+      months.includes(
+        current
+      )
+    ){
+
+      actual.value =
+        current;
+
+    }
+
+  }
+
+}
+
+
+/* =========================================
+   LOAD FILTER VALUES
 ========================================= */
 
 async function loadFilter(
   column
-) {
+){
 
   const data =
 
@@ -1304,7 +2041,9 @@ async function loadFilter(
         p_column:
           column,
 
-        ...args()
+        ...filterArgs(
+          column
+        )
 
       }
     );
@@ -1316,11 +2055,62 @@ async function loadFilter(
     );
 
 
-  if (!box) {
+  if(
+    !box
+  ){
 
     return;
 
   }
+
+
+  const raw =
+
+    (data || [])
+
+      .map(
+        v =>
+
+          typeof v === 'object'
+          &&
+          v !== null
+
+            ? (
+                v.value
+                ??
+                v.Value
+                ??
+                Object.values(
+                  v
+                )[0]
+              )
+
+            : v
+      );
+
+
+  const values =
+
+    [
+      ...new Set(
+        [
+
+          ...raw.map(
+            v =>
+              String(
+                v ?? ''
+              )
+          ),
+
+          ...selected[column]
+
+        ]
+      )
+    ]
+
+      .filter(
+        Boolean
+      );
 
 
   box.innerHTML =
@@ -1331,7 +2121,7 @@ async function loadFilter(
 
     +
 
-    (data || [])
+    values
 
       .map(
         v => `
@@ -1372,34 +2162,36 @@ async function loadFilter(
 
 
   box
+
     .querySelectorAll(
       'input[type="checkbox"]'
     )
-    .forEach(
-      checkbox => {
 
-        checkbox.onchange =
+    .forEach(
+      cb => {
+
+        cb.onchange =
           async () => {
 
-            if (
-              checkbox.checked
-            ) {
+            if(
+              cb.checked
+            ){
 
-              if (
+              if(
                 !selected[column]
                   .includes(
-                    checkbox.value
+                    cb.value
                   )
-              ) {
+              ){
 
-                selected[column]
-                  .push(
-                    checkbox.value
-                  );
+                selected[column].push(
+                  cb.value
+                );
 
               }
 
-            } else {
+            }
+            else{
 
               selected[column] =
 
@@ -1407,7 +2199,7 @@ async function loadFilter(
                   .filter(
                     v =>
                       v !==
-                      checkbox.value
+                      cb.value
                   );
 
             }
@@ -1427,11 +2219,6 @@ async function loadFilter(
             );
 
 
-            /*
-              હવે search text stable રહેશે,
-              dropdown open રહેશે.
-            */
-
             restoreOpenFilter(
               column
             );
@@ -1441,11 +2228,6 @@ async function loadFilter(
       }
     );
 
-
-  /*
-    Filter reload થયા પછી
-    typed search ફરી apply.
-  */
 
   applySearchFilter(
     column
@@ -1458,11 +2240,11 @@ async function loadFilter(
    REFRESH FILTERS
 ========================================= */
 
-async function refreshFilters() {
+async function refreshFilters(){
 
-  for (
+  for(
     const column of filters
-  ) {
+  ){
 
     await loadFilter(
       column
@@ -1477,7 +2259,7 @@ async function refreshFilters() {
    LOAD OD OPTIONS
 ========================================= */
 
-async function loadODOptions() {
+async function loadODOptions(){
 
   const box =
     el(
@@ -1485,7 +2267,9 @@ async function loadODOptions() {
     );
 
 
-  if (!box) {
+  if(
+    !box
+  ){
 
     return;
 
@@ -1499,6 +2283,26 @@ async function loadODOptions() {
     );
 
 
+  const values =
+
+    (data || [])
+
+      .map(
+        r =>
+          String(
+            r.OD
+            ??
+            r.od
+            ??
+            ''
+          )
+      )
+
+      .filter(
+        Boolean
+      );
+
+
   box.innerHTML =
 
     bulkButtons(
@@ -1507,31 +2311,25 @@ async function loadODOptions() {
 
     +
 
-    (data || [])
+    values
 
       .map(
-        row => `
+        v => `
 
           <label
             class="multi-option"
             data-text="${esc(
-              String(
-                row.OD
-              ).toLowerCase()
+              v.toLowerCase()
             )}"
           >
 
             <input
               type="checkbox"
-              value="${esc(
-                row.OD
-              )}"
+              value="${esc(v)}"
               ${
                 selected.budgetOD
                   .includes(
-                    String(
-                      row.OD
-                    )
+                    v
                   )
 
                   ? 'checked'
@@ -1541,9 +2339,7 @@ async function loadODOptions() {
             >
 
             <span>
-              ${esc(
-                row.OD
-              )}
+              ${esc(v)}
             </span>
 
           </label>
@@ -1555,34 +2351,36 @@ async function loadODOptions() {
 
 
   box
+
     .querySelectorAll(
       'input[type="checkbox"]'
     )
-    .forEach(
-      checkbox => {
 
-        checkbox.onchange =
+    .forEach(
+      cb => {
+
+        cb.onchange =
           async () => {
 
-            if (
-              checkbox.checked
-            ) {
+            if(
+              cb.checked
+            ){
 
-              if (
+              if(
                 !selected.budgetOD
                   .includes(
-                    checkbox.value
+                    cb.value
                   )
-              ) {
+              ){
 
-                selected.budgetOD
-                  .push(
-                    checkbox.value
-                  );
+                selected.budgetOD.push(
+                  cb.value
+                );
 
               }
 
-            } else {
+            }
+            else{
 
               selected.budgetOD =
 
@@ -1590,7 +2388,7 @@ async function loadODOptions() {
                   .filter(
                     v =>
                       v !==
-                      checkbox.value
+                      cb.value
                   );
 
             }
@@ -1629,14 +2427,14 @@ async function loadODOptions() {
 
 
 /* =========================================
-   OD -> PARTY LIST
+   OD -> PARTY
 ========================================= */
 
-async function refreshODPartyScope() {
+async function refreshODPartyScope(){
 
-  if (
+  if(
     !selected.budgetOD.length
-  ) {
+  ){
 
     odParties = [];
 
@@ -1663,10 +2461,13 @@ async function refreshODPartyScope() {
     (data || [])
 
       .map(
-        row =>
+        r =>
           String(
-            row.Party
-            || ''
+            r.Party
+            ??
+            r.party
+            ??
+            ''
           ).trim()
       )
 
@@ -1678,12 +2479,143 @@ async function refreshODPartyScope() {
 
 
 /* =========================================
-   MONTH SUMMARY CARDS
+   BUDGET MONTH SUMMARY
+========================================= */
+
+async function loadBudgetMonthSummary(){
+
+  try{
+
+    const data =
+
+      await rpc(
+        'raj_budget_month_summary',
+        budgetSummaryArgs()
+      );
+
+
+    budgetMonthStats =
+      {};
+
+
+    for(
+      const row of (
+        data || []
+      )
+    ){
+
+      const m =
+        row.Month
+        ??
+        row.month;
+
+
+      budgetMonthStats[m] = {
+
+        BudgetCustomers:
+          Number(
+            row.BudgetCustomers
+            ??
+            row.budgetcustomers
+            ??
+            0
+          ),
+
+        SalesCustomers:
+          Number(
+            row.SalesCustomers
+            ??
+            row.salescustomers
+            ??
+            0
+          ),
+
+        ZeroSalesCustomers:
+          Number(
+            row.ZeroSalesCustomers
+            ??
+            row.zerosalescustomers
+            ??
+            0
+          )
+
+      };
+
+    }
+
+  }
+  catch(
+    err
+  ){
+
+    console.error(
+      'Budget month summary error:',
+      err
+    );
+
+
+    budgetMonthStats =
+      {};
+
+  }
+
+}
+
+
+/* =========================================
+   BUDGET MONTH STATS
+========================================= */
+
+function budgetStatsForMonth(
+  month
+){
+
+  return
+
+    budgetMonthStats[month]
+
+    ||
+
+    budgetMonthStats[
+      normalizeMonth(
+        month
+      )
+    ]
+
+    ||
+
+    budgetMonthStats[
+
+      month === 'Jun'
+
+        ? 'June'
+
+        : month === 'Jul'
+
+          ? 'July'
+
+          : month === 'Sep'
+
+            ? 'Sept'
+
+            : month
+
+    ]
+
+    ||
+
+    {};
+
+}
+
+
+/* =========================================
+   MONTH CARDS
 ========================================= */
 
 function renderMonths(
   monthData
-) {
+){
 
   const container =
     el(
@@ -1691,14 +2623,89 @@ function renderMonths(
     );
 
 
-  if (!container) {
+  if(
+    !container
+  ){
 
     return;
 
   }
 
 
-  container.innerHTML =
+  const avgMonths =
+    activeAverageMonths();
+
+
+  const avgTotal =
+
+    avgMonths.reduce(
+      (
+        sum,
+        m
+      ) =>
+        sum
+        +
+        Number(
+          monthData?.[m]?.Sale
+          ||
+          0
+        ),
+
+      0
+    );
+
+
+  const avgSale =
+
+    avgMonths.length
+
+      ? avgTotal / avgMonths.length
+
+      : 0;
+
+
+  const avgCard = `
+
+    <div class="month-card avg-card">
+
+      <h4>
+        Average Monthly Sale
+      </h4>
+
+      <div class="metric">
+
+        <span>
+          Months Used
+        </span>
+
+        <b>
+          ${fmt(
+            avgMonths.length
+          )}
+        </b>
+
+      </div>
+
+      <div class="metric">
+
+        <span>
+          Avg Sales
+        </span>
+
+        <b>
+          ${money(
+            avgSale
+          )}
+        </b>
+
+      </div>
+
+    </div>
+
+  `;
+
+
+  const cards =
 
     months
 
@@ -1707,7 +2714,14 @@ function renderMonths(
 
           const a =
             monthData?.[month]
-            || {};
+            ||
+            {};
+
+
+          const b =
+            budgetStatsForMonth(
+              month
+            );
 
 
           return `
@@ -1717,10 +2731,10 @@ function renderMonths(
               <h4>
                 ${esc(
                   monthNames[month]
-                  || month
+                  ||
+                  month
                 )}
               </h4>
-
 
               <div class="metric">
 
@@ -1796,6 +2810,40 @@ function renderMonths(
 
               </div>
 
+
+              <div class="metric">
+
+                <span>
+                  Budget Customers
+                </span>
+
+                <b>
+                  ${fmt(
+                    b.BudgetCustomers
+                    ||
+                    0
+                  )}
+                </b>
+
+              </div>
+
+
+              <div class="metric">
+
+                <span>
+                  Zero Sales Customers
+                </span>
+
+                <b>
+                  ${fmt(
+                    b.ZeroSalesCustomers
+                    ||
+                    0
+                  )}
+                </b>
+
+              </div>
+
             </div>
 
           `;
@@ -1804,6 +2852,12 @@ function renderMonths(
       )
 
       .join('');
+
+
+  container.innerHTML =
+    avgCard
+    +
+    cards;
 
 }
 
@@ -1814,7 +2868,7 @@ function renderMonths(
 
 function renderRows(
   rows
-) {
+){
 
   const body =
     el(
@@ -1822,16 +2876,18 @@ function renderRows(
     );
 
 
-  if (!body) {
+  if(
+    !body
+  ){
 
     return;
 
   }
 
 
-  if (
+  if(
     !rows?.length
-  ) {
+  ){
 
     body.innerHTML = `
 
@@ -1839,11 +2895,12 @@ function renderRows(
 
         <td
           class="empty"
-          colspan="${columns.length}"
+          colspan="${Math.max(
+            columns.length + 1,
+            1
+          )}"
         >
-
           No matching data found.
-
         </td>
 
       </tr>
@@ -1871,7 +2928,6 @@ function renderRows(
 
             .map(
               column =>
-
                 `<td>${
                   esc(
 
@@ -1886,15 +2942,25 @@ function renderRows(
 
                       : (
                           row[column]
-                          ?? ''
+                          ??
+                          ''
                         )
 
                   )
                 }</td>`
-
             )
 
             .join('')
+
+          +
+
+          `<td>
+            ${money(
+              rowAverageSale(
+                row
+              )
+            )}
+          </td>`
 
           +
 
@@ -1909,10 +2975,9 @@ function renderRows(
 
 /* =========================================
    ANALYSIS VIEW
-   MONTH WISE SALE
 ========================================= */
 
-async function loadGroupSummary() {
+async function loadGroupSummary(){
 
   const body =
     el(
@@ -1920,20 +2985,9 @@ async function loadGroupSummary() {
     );
 
 
-  if (!body) {
-
-    return;
-
-  }
-
-
-  const table =
-    body.closest(
-      'table'
-    );
-
-
-  if (!table) {
+  if(
+    !body
+  ){
 
     return;
 
@@ -1941,12 +2995,19 @@ async function loadGroupSummary() {
 
 
   const headRow =
-    table.querySelector(
-      'thead tr'
-    );
+
+    body
+      .closest(
+        'table'
+      )
+      ?.querySelector(
+        'thead tr'
+      );
 
 
-  if (!headRow) {
+  if(
+    !headRow
+  ){
 
     return;
 
@@ -1954,74 +3015,62 @@ async function loadGroupSummary() {
 
 
   const analysisMonths =
-
-    selected.month.length
-
-      ? selected.month
-
-      : months;
+    activeAverageMonths();
 
 
-  try {
-
-    const totalPromise =
-
-      rpc(
-        'raj_group_summary',
-        {
-
-          p_view:
-            currentView,
-
-          ...args()
-
-        }
-      );
-
-
-    const monthPromises =
-
-      analysisMonths
-
-        .map(
-          month =>
-
-            rpc(
-              'raj_group_summary',
-              {
-
-                p_view:
-                  currentView,
-
-                ...args(),
-
-                p_months:
-                  [month]
-
-              }
-            )
-
-        );
-
+  try{
 
     const results =
 
-      await Promise.all([
+      await Promise.all(
+        [
 
-        totalPromise,
+          rpc(
+            'raj_group_summary',
+            {
 
-        ...monthPromises
+              p_view:
+                currentView,
 
-      ]);
+              ...args()
+
+            }
+          ),
+
+          ...analysisMonths.map(
+            month =>
+              rpc(
+                'raj_group_summary',
+                {
+
+                  p_view:
+                    currentView,
+
+                  ...args(),
+
+                  p_months:
+                    [
+                      month
+                    ]
+
+                }
+              )
+          )
+
+        ]
+      );
 
 
     const totalData =
       results[0]
-      || [];
+      ||
+      [];
 
 
     const monthlyData =
-      results.slice(1);
+      results.slice(
+        1
+      );
 
 
     const viewName =
@@ -2050,7 +3099,9 @@ async function loadGroupSummary() {
         currentView
       ]
 
-      || currentView;
+      ||
+
+      currentView;
 
 
     let header =
@@ -2062,24 +3113,33 @@ async function loadGroupSummary() {
       </th>`;
 
 
-    analysisMonths.forEach(
-      month => {
+    analysisMonths
 
-        header +=
+      .forEach(
+        m => {
 
-          `<th>
-            ${esc(
-              monthNames[month]
-              || month
-            )}
-            Sale
-          </th>`;
+          header += `
 
-      }
-    );
+            <th>
+              ${esc(
+                monthNames[m]
+                ||
+                m
+              )}
+              Sale
+            </th>
+
+          `;
+
+        }
+      );
 
 
     header +=
+
+      '<th>Avg Sale</th>'
+
+      +
 
       '<th>Qty</th>'
 
@@ -2108,9 +3168,9 @@ async function loadGroupSummary() {
       header;
 
 
-    if (
+    if(
       !totalData.length
-    ) {
+    ){
 
       body.innerHTML = `
 
@@ -2119,14 +3179,12 @@ async function loadGroupSummary() {
           <td
             class="empty"
             colspan="${
-              7
+              8
               +
               analysisMonths.length
             }"
           >
-
             No summary data found.
-
           </td>
 
         </tr>
@@ -2150,25 +3208,22 @@ async function loadGroupSummary() {
               new Map();
 
 
-            (rows || [])
+            (
+              rows || []
+            )
 
               .forEach(
-                row => {
-
+                r =>
                   map.set(
-
                     String(
-                      row.label
+                      r.label
                     ),
-
                     Number(
-                      row.sale
-                      || 0
+                      r.sale
+                      ||
+                      0
                     )
-
-                  );
-
-                }
+                  )
               );
 
 
@@ -2185,40 +3240,57 @@ async function loadGroupSummary() {
         .map(
           row => {
 
-            let monthCells =
-              '';
+            const values =
 
+              analysisMonths
 
-            analysisMonths
-
-              .forEach(
-                (
-                  month,
-                  index
-                ) => {
-
-                  const monthSale =
-
-                    monthMaps[index]
+                .map(
+                  (
+                    m,
+                    i
+                  ) =>
+                    monthMaps[i]
                       ?.get(
                         String(
                           row.label
                         )
                       )
+                    ||
+                    0
+                );
 
-                    || 0;
+
+            const avg =
+
+              values.length
+
+                ? values.reduce(
+                    (
+                      a,
+                      b
+                    ) =>
+                      a + b,
+
+                    0
+                  )
+                  /
+                  values.length
+
+                : 0;
 
 
-                  monthCells +=
+            const monthCells =
 
+              values
+
+                .map(
+                  v =>
                     `<td>
-                      ${money(
-                        monthSale
-                      )}
-                    </td>`;
+                      ${money(v)}
+                    </td>`
+                )
 
-                }
-              );
+                .join('');
 
 
             return `
@@ -2231,9 +3303,13 @@ async function loadGroupSummary() {
                   )}
                 </td>
 
-
                 ${monthCells}
 
+                <td>
+                  ${money(
+                    avg
+                  )}
+                </td>
 
                 <td>
                   ${fmt(
@@ -2241,13 +3317,11 @@ async function loadGroupSummary() {
                   )}
                 </td>
 
-
                 <td>
                   ${money(
                     row.taxable
                   )}
                 </td>
-
 
                 <td>
                   ${money(
@@ -2255,20 +3329,17 @@ async function loadGroupSummary() {
                   )}
                 </td>
 
-
                 <td>
                   ${fmt(
                     row.productsSold
                   )}
                 </td>
 
-
                 <td>
                   ${fmt(
                     row.customersBilled
                   )}
                 </td>
-
 
                 <td>
                   ${fmt(
@@ -2286,7 +3357,10 @@ async function loadGroupSummary() {
         .join('');
 
 
-  } catch (error) {
+  }
+  catch(
+    error
+  ){
 
     console.error(
       'Analysis View Error:',
@@ -2317,10 +3391,329 @@ async function loadGroupSummary() {
 
 
 /* =========================================
+   SALES COMPARISON
+========================================= */
+
+async function loadComparison(){
+
+  const actualMonth =
+
+    el(
+      'actualCompareMonth'
+    )
+      ?.value
+    ||
+    '';
+
+
+  const compareMonths =
+    selected.compareMonths;
+
+
+  const setText =
+    (
+      id,
+      val
+    ) => {
+
+      if(
+        el(id)
+      ){
+
+        el(id).textContent =
+          val;
+
+      }
+
+    };
+
+
+  const statusEl =
+    el(
+      'compareStatus'
+    );
+
+
+  if(
+    !compareMonths.length
+    ||
+    !actualMonth
+  ){
+
+    setText(
+      'compareAvgSale',
+      money(0)
+    );
+
+
+    setText(
+      'compareActualSale',
+      money(0)
+    );
+
+
+    setText(
+      'compareDifference',
+      money(0)
+    );
+
+
+    setText(
+      'comparePercent',
+      '0%'
+    );
+
+
+    if(
+      statusEl
+    ){
+
+      statusEl.textContent =
+        'Select months';
+
+
+      statusEl.className =
+        'compare-status compare-neutral';
+
+    }
+
+
+    return;
+
+  }
+
+
+  try{
+
+    const base =
+      args();
+
+
+    const compareResults =
+
+      await Promise.all(
+
+        compareMonths.map(
+          m =>
+            rpc(
+              'raj_dashboard_summary',
+              {
+
+                ...base,
+
+                p_months:
+                  [
+                    m
+                  ]
+
+              }
+            )
+        )
+
+      );
+
+
+    const actualResult =
+
+      await rpc(
+        'raj_dashboard_summary',
+        {
+
+          ...base,
+
+          p_months:
+            [
+              actualMonth
+            ]
+
+        }
+      );
+
+
+    const sales =
+
+      compareResults.map(
+        r =>
+          Number(
+            r?.summary?.TotalSale
+            ||
+            0
+          )
+      );
+
+
+    const avg =
+
+      sales.length
+
+        ? sales.reduce(
+            (
+              a,
+              b
+            ) =>
+              a + b,
+
+            0
+          )
+          /
+          sales.length
+
+        : 0;
+
+
+    const actual =
+
+      Number(
+        actualResult?.summary?.TotalSale
+        ||
+        0
+      );
+
+
+    const diff =
+      actual - avg;
+
+
+    const pct =
+
+      avg !== 0
+
+        ? (
+            diff
+            /
+            avg
+          )
+          *
+          100
+
+        : 0;
+
+
+    setText(
+      'compareAvgSale',
+      money(
+        avg
+      )
+    );
+
+
+    setText(
+      'compareActualSale',
+      money(
+        actual
+      )
+    );
+
+
+    setText(
+      'compareDifference',
+
+      (
+        diff >= 0
+          ? '+'
+          : ''
+      )
+
+      +
+
+      money(
+        diff
+      )
+    );
+
+
+    setText(
+      'comparePercent',
+
+      (
+        pct >= 0
+          ? '+'
+          : ''
+      )
+
+      +
+
+      fmt(
+        pct
+      )
+
+      +
+
+      '%'
+    );
+
+
+    if(
+      statusEl
+    ){
+
+      statusEl.textContent =
+
+        diff > 0
+
+          ? 'Above Avg'
+
+          : diff < 0
+
+            ? 'Below Avg'
+
+            : 'Equal to Avg';
+
+
+      statusEl.className =
+
+        'compare-status '
+
+        +
+
+        (
+          diff > 0
+
+            ? 'compare-positive'
+
+            : diff < 0
+
+              ? 'compare-negative'
+
+              : 'compare-neutral'
+        );
+
+    }
+
+  }
+  catch(
+    error
+  ){
+
+    console.error(
+      'Comparison error:',
+      error
+    );
+
+
+    if(
+      statusEl
+    ){
+
+      statusEl.textContent =
+        'Comparison error';
+
+
+      statusEl.className =
+        'compare-status compare-negative';
+
+    }
+
+  }
+
+}
+
+
+/* =========================================
    BUDGET MONTHS
 ========================================= */
 
-function budgetMonthsToShow() {
+function budgetMonthsToShow(){
 
   const chosen =
 
@@ -2335,9 +3728,9 @@ function budgetMonthsToShow() {
     [];
 
 
-  for (
+  for(
     const month of chosen
-  ) {
+  ){
 
     const key =
 
@@ -2356,13 +3749,13 @@ function budgetMonthsToShow() {
             : month;
 
 
-    if (
+    if(
       budgetMonthMap[key]
       &&
       !normalized.includes(
         key
       )
-    ) {
+    ){
 
       normalized.push(
         key
@@ -2380,11 +3773,12 @@ function budgetMonthsToShow() {
 
 function diffClass(
   value
-) {
+){
 
   return Number(
     value
-    || 0
+    ||
+    0
   ) < 0
 
     ? 'budget-negative'
@@ -2395,10 +3789,10 @@ function diffClass(
 
 
 /* =========================================
-   RENDER BUDGET
+   BUDGET RENDER
 ========================================= */
 
-function renderBudget() {
+function renderBudget(){
 
   const panel =
     el(
@@ -2406,18 +3800,20 @@ function renderBudget() {
     );
 
 
-  if (!panel) {
+  if(
+    !panel
+  ){
 
     return;
 
   }
 
 
-  if (
+  if(
     currentView === 'MainGrp'
     ||
     currentView === 'ItemName'
-  ) {
+  ){
 
     panel.classList.add(
       'budget-hidden'
@@ -2459,41 +3855,44 @@ function renderBudget() {
     '<th>OD</th>';
 
 
-  showMonths.forEach(
-    month => {
+  showMonths
 
-      const name =
-        monthNames[month]
-        || month;
+    .forEach(
+      month => {
 
-
-      head +=
-
-        `<th>
-          ${name} Sales
-        </th>`
-
-        +
-
-        `<th>
-          ${name} Budget
-        </th>`
-
-        +
-
-        `<th>
-          ${name} Diff
-        </th>`;
-
-    }
-  );
+        const name =
+          monthNames[month]
+          ||
+          month;
 
 
-  if (
+        head +=
+
+          `<th>
+            ${name} Sales
+          </th>`
+
+          +
+
+          `<th>
+            ${name} Budget
+          </th>`
+
+          +
+
+          `<th>
+            ${name} Diff
+          </th>`;
+
+      }
+    );
+
+
+  if(
     multiSelected
     ||
     !selected.month.length
-  ) {
+  ){
 
     head +=
 
@@ -2518,29 +3917,29 @@ function renderBudget() {
   }
 
 
-  const budgetHead =
+  if(
     el(
       'budgetTableHead'
-    );
+    )
+  ){
 
-
-  if (budgetHead) {
-
-    budgetHead.innerHTML =
+    el(
+      'budgetTableHead'
+    ).innerHTML =
       head;
 
   }
 
 
-  const count =
+  if(
     el(
       'budgetCount'
-    );
+    )
+  ){
 
-
-  if (count) {
-
-    count.textContent =
+    el(
+      'budgetCount'
+    ).textContent =
       fmt(
         budgetRows.length
       );
@@ -2594,16 +3993,18 @@ function renderBudget() {
     );
 
 
-  if (!body) {
+  if(
+    !body
+  ){
 
     return;
 
   }
 
 
-  if (
+  if(
     !rows.length
-  ) {
+  ){
 
     body.innerHTML = `
 
@@ -2619,16 +4020,15 @@ function renderBudget() {
             5
           }"
         >
-
           No matching budget customers found.
-
         </td>
 
       </tr>
 
     `;
 
-  } else {
+  }
+  else{
 
     body.innerHTML =
 
@@ -2642,7 +4042,8 @@ function renderBudget() {
               `<td>
                 ${esc(
                   row.SalesMan
-                  || ''
+                  ||
+                  ''
                 )}
               </td>`
 
@@ -2651,7 +4052,8 @@ function renderBudget() {
               `<td>
                 ${esc(
                   row.Party
-                  || ''
+                  ||
+                  ''
                 )}
               </td>`
 
@@ -2660,7 +4062,8 @@ function renderBudget() {
               `<td>
                 ${esc(
                   row.Target
-                  || ''
+                  ||
+                  ''
                 )}
               </td>`
 
@@ -2669,63 +4072,66 @@ function renderBudget() {
               `<td>
                 ${esc(
                   row.Order
-                  || ''
+                  ||
+                  ''
                 )}
               </td>`;
 
 
-            showMonths.forEach(
-              month => {
+            showMonths
 
-                const [
-                  budgetKey,
-                  salesKey,
-                  diffKey
-                ] =
-                  budgetMonthMap[
-                    month
-                  ];
+              .forEach(
+                month => {
 
-
-                cells +=
-
-                  `<td>
-                    ${money(
-                      row[salesKey]
-                    )}
-                  </td>`
-
-                  +
-
-                  `<td>
-                    ${money(
-                      row[budgetKey]
-                    )}
-                  </td>`
-
-                  +
-
-                  `<td class="${
-                    diffClass(
-                      row[diffKey]
-                    )
-                  }">
-
-                    ${money(
-                      row[diffKey]
-                    )}
-
-                  </td>`;
-
-              }
-            );
+                  const [
+                    budgetKey,
+                    salesKey,
+                    diffKey
+                  ] =
+                    budgetMonthMap[
+                      month
+                    ];
 
 
-            if (
+                  cells +=
+
+                    `<td>
+                      ${money(
+                        row[salesKey]
+                      )}
+                    </td>`
+
+                    +
+
+                    `<td>
+                      ${money(
+                        row[budgetKey]
+                      )}
+                    </td>`
+
+                    +
+
+                    `<td
+                      class="${
+                        diffClass(
+                          row[diffKey]
+                        )
+                      }"
+                    >
+                      ${money(
+                        row[diffKey]
+                      )}
+                    </td>`;
+
+                }
+              );
+
+
+            if(
               multiSelected
               ||
               !selected.month.length
-            ) {
+            ){
 
               cells +=
 
@@ -2745,16 +4151,16 @@ function renderBudget() {
 
                 +
 
-                `<td class="${
-                  diffClass(
-                    row.Difference
-                  )
-                }">
-
+                `<td
+                  class="${
+                    diffClass(
+                      row.Difference
+                    )
+                  }"
+                >
                   ${money(
                     row.Difference
                   )}
-
                 </td>`
 
                 +
@@ -2771,21 +4177,18 @@ function renderBudget() {
 
                   <span
                     class="budget-status ${
-                      row.BudgetStatus
-                      ===
-                      'ACHIEVED'
+                      row.BudgetStatus === 'ACHIEVED'
 
                         ? 'ok'
 
                         : 'bad'
                     }"
                   >
-
                     ${esc(
                       row.BudgetStatus
-                      || ''
+                      ||
+                      ''
                     )}
-
                   </span>
 
                 </td>`;
@@ -2809,15 +4212,15 @@ function renderBudget() {
   }
 
 
-  const pageInfo =
+  if(
     el(
       'budgetPageInfo'
-    );
+    )
+  ){
 
-
-  if (pageInfo) {
-
-    pageInfo.textContent =
+    el(
+      'budgetPageInfo'
+    ).textContent =
 
       `Page ${budgetPage} of ${totalBudgetPages} • ${fmt(
         budgetRows.length
@@ -2826,45 +4229,43 @@ function renderBudget() {
   }
 
 
-  const prev =
+  if(
     el(
       'budgetPrev'
-    );
+    )
+  ){
 
-
-  if (prev) {
-
-    prev.disabled =
+    el(
+      'budgetPrev'
+    ).disabled =
       budgetPage <= 1;
 
   }
 
 
-  const next =
+  if(
     el(
       'budgetNext'
-    );
+    )
+  ){
 
-
-  if (next) {
-
-    next.disabled =
-      budgetPage
-      >=
-      totalBudgetPages;
+    el(
+      'budgetNext'
+    ).disabled =
+      budgetPage >= totalBudgetPages;
 
   }
 
 
-  const note =
+  if(
     el(
       'budgetNote'
-    );
+    )
+  ){
 
-
-  if (note) {
-
-    note.textContent =
+    el(
+      'budgetNote'
+    ).textContent =
 
       selected.month.length
 
@@ -2873,7 +4274,8 @@ function renderBudget() {
               .map(
                 m =>
                   monthNames[m]
-                  || m
+                  ||
+                  m
               )
               .join(', ')
           } budget vs actual sales.`
@@ -2889,13 +4291,13 @@ function renderBudget() {
    LOAD BUDGET
 ========================================= */
 
-async function loadBudget() {
+async function loadBudget(){
 
-  if (
+  if(
     currentView === 'MainGrp'
     ||
     currentView === 'ItemName'
-  ) {
+  ){
 
     renderBudget();
 
@@ -2910,7 +4312,9 @@ async function loadBudget() {
     );
 
 
-  if (loading) {
+  if(
+    loading
+  ){
 
     loading.classList.add(
       'show'
@@ -2919,7 +4323,7 @@ async function loadBudget() {
   }
 
 
-  try {
+  try{
 
     budgetRows =
 
@@ -2928,38 +4332,40 @@ async function loadBudget() {
         budgetArgs()
       )
 
-      || [];
+      ||
+
+      [];
 
 
     renderBudget();
 
-
-  } catch (error) {
+  }
+  catch(
+    error
+  ){
 
     console.error(
       error
     );
 
 
-    const body =
+    if(
       el(
         'budgetTableBody'
-      );
+      )
+    ){
 
-
-    if (body) {
-
-      body.innerHTML = `
+      el(
+        'budgetTableBody'
+      ).innerHTML = `
 
         <tr>
 
           <td class="empty">
-
             Budget error:
             ${esc(
               error.message
             )}
-
           </td>
 
         </tr>
@@ -2968,10 +4374,12 @@ async function loadBudget() {
 
     }
 
+  }
+  finally{
 
-  } finally {
-
-    if (loading) {
+    if(
+      loading
+    ){
 
       loading.classList.remove(
         'show'
@@ -2985,12 +4393,12 @@ async function loadBudget() {
 
 
 /* =========================================
-   MAIN DASHBOARD LOAD
+   MAIN DASHBOARD
 ========================================= */
 
 async function loadDashboard(
   reload = false
-) {
+){
 
   const loading =
     el(
@@ -2998,7 +4406,9 @@ async function loadDashboard(
     );
 
 
-  if (loading) {
+  if(
+    loading
+  ){
 
     loading.classList.add(
       'show'
@@ -3007,7 +4417,7 @@ async function loadDashboard(
   }
 
 
-  try {
+  try{
 
     const a =
       args();
@@ -3018,50 +4428,61 @@ async function loadDashboard(
       rowsResult
     ] =
 
-      await Promise.all([
+      await Promise.all(
+        [
 
-        rpc(
-          'raj_dashboard_summary',
-          a
-        ),
+          rpc(
+            'raj_dashboard_summary',
+            a
+          ),
 
-        rpc(
-          'raj_dashboard_rows',
-          {
+          rpc(
+            'raj_dashboard_rows',
+            {
 
-            ...a,
+              ...a,
 
-            p_page:
-              page,
+              p_page:
+                page,
 
-            p_page_size:
+              p_page_size:
 
-              Number(
+                Number(
 
-                el('pageSize')
+                  el(
+                    'pageSize'
+                  )
 
-                  ? el('pageSize').value
+                    ? el(
+                        'pageSize'
+                      ).value
 
-                  : 25
+                    : 25
 
-              )
+                )
 
-          }
-        )
+            }
+          )
 
-      ]);
+        ]
+      );
 
 
     const summary =
-      summaryResult.summary
-      || {};
+      summaryResult?.summary
+      ||
+      {};
 
 
-    if (
-      el('totalQty')
-    ) {
+    if(
+      el(
+        'totalQty'
+      )
+    ){
 
-      el('totalQty').textContent =
+      el(
+        'totalQty'
+      ).textContent =
         fmt(
           summary.TotalQty
         );
@@ -3069,11 +4490,15 @@ async function loadDashboard(
     }
 
 
-    if (
-      el('totalTaxable')
-    ) {
+    if(
+      el(
+        'totalTaxable'
+      )
+    ){
 
-      el('totalTaxable').textContent =
+      el(
+        'totalTaxable'
+      ).textContent =
         money(
           summary.TotalTaxable
         );
@@ -3081,11 +4506,15 @@ async function loadDashboard(
     }
 
 
-    if (
-      el('totalSale')
-    ) {
+    if(
+      el(
+        'totalSale'
+      )
+    ){
 
-      el('totalSale').textContent =
+      el(
+        'totalSale'
+      ).textContent =
         money(
           summary.TotalSale
         );
@@ -3093,11 +4522,15 @@ async function loadDashboard(
     }
 
 
-    if (
-      el('productsSold')
-    ) {
+    if(
+      el(
+        'productsSold'
+      )
+    ){
 
-      el('productsSold').textContent =
+      el(
+        'productsSold'
+      ).textContent =
         fmt(
           summary.ProductsSold
         );
@@ -3105,11 +4538,15 @@ async function loadDashboard(
     }
 
 
-    if (
-      el('customersBilled')
-    ) {
+    if(
+      el(
+        'customersBilled'
+      )
+    ){
 
-      el('customersBilled').textContent =
+      el(
+        'customersBilled'
+      ).textContent =
         fmt(
           summary.CustomersBilled
         );
@@ -3117,77 +4554,108 @@ async function loadDashboard(
     }
 
 
-    if (
-      el('recordCount')
-    ) {
+    if(
+      el(
+        'recordCount'
+      )
+    ){
 
-      el('recordCount').textContent =
+      el(
+        'recordCount'
+      ).textContent =
         fmt(
-          rowsResult.totalRows
+          rowsResult?.totalRows
         );
 
     }
 
 
-    renderMonths(
-      summaryResult.monthly
-    );
-
-
-    renderRows(
-      rowsResult.rows
-    );
-
-
     page =
-      rowsResult.page;
+      Number(
+        rowsResult?.page
+        ||
+        1
+      );
 
 
     totalPages =
-      rowsResult.totalPages;
+      Number(
+        rowsResult?.totalPages
+        ||
+        1
+      );
 
 
-    if (
-      el('pageInfo')
-    ) {
+    if(
+      el(
+        'pageInfo'
+      )
+    ){
 
-      el('pageInfo').textContent =
+      el(
+        'pageInfo'
+      ).textContent =
 
         `Page ${page} of ${totalPages} • ${fmt(
-          rowsResult.totalRows
+          rowsResult?.totalRows
         )} records`;
 
     }
 
 
-    if (
-      el('prevPage')
-    ) {
+    if(
+      el(
+        'prevPage'
+      )
+    ){
 
-      el('prevPage').disabled =
+      el(
+        'prevPage'
+      ).disabled =
         page <= 1;
 
     }
 
 
-    if (
-      el('nextPage')
-    ) {
+    if(
+      el(
+        'nextPage'
+      )
+    ){
 
-      el('nextPage').disabled =
+      el(
+        'nextPage'
+      ).disabled =
         page >= totalPages;
 
     }
 
 
     /*
-      Filter options reload થાય છે,
-      પણ searchState preserve થાય છે.
+      Budget customers + zero sales
+      month summary.
     */
 
-    if (
+    await loadBudgetMonthSummary();
+
+
+    renderMonths(
+      summaryResult?.monthly
+      ||
+      {}
+    );
+
+
+    renderRows(
+      rowsResult?.rows
+      ||
+      []
+    );
+
+
+    if(
       reload
-    ) {
+    ){
 
       await refreshFilters();
 
@@ -3198,16 +4666,22 @@ async function loadDashboard(
     }
 
 
-    await Promise.all([
+    await Promise.all(
+      [
 
-      loadGroupSummary(),
+        loadGroupSummary(),
 
-      loadBudget()
+        loadBudget(),
 
-    ]);
+        loadComparison()
 
+      ]
+    );
 
-  } catch (error) {
+  }
+  catch(
+    error
+  ){
 
     console.error(
       error
@@ -3215,19 +4689,17 @@ async function loadDashboard(
 
 
     alert(
-
       'Dashboard error: '
-
       +
-
       error.message
-
     );
 
+  }
+  finally{
 
-  } finally {
-
-    if (loading) {
+    if(
+      loading
+    ){
 
       loading.classList.remove(
         'show'
@@ -3241,87 +4713,90 @@ async function loadDashboard(
 
 
 /* =========================================
-   PAGE START
+   STARTUP
 ========================================= */
 
 document.addEventListener(
   'DOMContentLoaded',
   async () => {
 
-    try {
+    try{
 
       buildFilterUI();
 
 
       const schema =
+
         await rpc(
           'raj_dashboard_schema'
         );
 
 
       columns =
-        schema.columns
-        || [];
+        schema?.columns
+        ||
+        [];
 
 
       months =
-        schema.months
-        || [];
+        schema?.months
+        ||
+        [];
 
 
-      const tableHead =
+      /*
+        Detail table columns + Avg Sales.
+      */
+
+      if(
         el(
           'tableHead'
-        );
+        )
+      ){
 
-
-      if (tableHead) {
-
-        tableHead.innerHTML =
+        el(
+          'tableHead'
+        ).innerHTML =
 
           columns
 
             .map(
-              column =>
-
+              c =>
                 `<th>
-                  ${esc(
-                    column
-                  )}
+                  ${esc(c)}
                 </th>`
-
             )
 
-            .join('');
+            .join('')
+
+          +
+
+          '<th>Avg Sales</th>';
 
       }
 
 
       buildMonths();
 
+      buildComparisonControls();
 
-      /*
-        CLICK HANDLER
-      */
+
+      /* MAIN CLICK HANDLER */
 
       document.addEventListener(
         'click',
         event => {
 
-          /*
-            SELECT ALL
-          */
-
-          const selectAllButton =
+          const sa =
 
             event.target.closest(
               '[data-select-all]'
             );
 
 
-          if (
-            selectAllButton
-          ) {
+          if(
+            sa
+          ){
 
             event.preventDefault();
 
@@ -3329,13 +4804,8 @@ document.addEventListener(
 
 
             applyBulkSelection(
-
-              selectAllButton
-                .dataset
-                .selectAll,
-
+              sa.dataset.selectAll,
               true
-
             );
 
 
@@ -3344,20 +4814,16 @@ document.addEventListener(
           }
 
 
-          /*
-            UNSELECT ALL
-          */
-
-          const unselectAllButton =
+          const ua =
 
             event.target.closest(
               '[data-unselect-all]'
             );
 
 
-          if (
-            unselectAllButton
-          ) {
+          if(
+            ua
+          ){
 
             event.preventDefault();
 
@@ -3365,13 +4831,8 @@ document.addEventListener(
 
 
             applyBulkSelection(
-
-              unselectAllButton
-                .dataset
-                .unselectAll,
-
+              ua.dataset.unselectAll,
               false
-
             );
 
 
@@ -3379,10 +4840,6 @@ document.addEventListener(
 
           }
 
-
-          /*
-            OPEN DROPDOWN
-          */
 
           const button =
 
@@ -3391,9 +4848,9 @@ document.addEventListener(
             );
 
 
-          if (
+          if(
             button
-          ) {
+          ){
 
             const id =
               button.dataset.open;
@@ -3405,7 +4862,9 @@ document.addEventListener(
               );
 
 
-            if (!box) {
+            if(
+              !box
+            ){
 
               return;
 
@@ -3413,15 +4872,17 @@ document.addEventListener(
 
 
             document
+
               .querySelectorAll(
                 '.multi.open'
               )
+
               .forEach(
                 x => {
 
-                  if (
+                  if(
                     x !== box
-                  ) {
+                  ){
 
                     x.classList.remove(
                       'open'
@@ -3438,28 +4899,28 @@ document.addEventListener(
             );
 
 
-            /*
-              ફરી dropdown open કરીએ ત્યારે
-              જૂનો typed search visible રહે.
-            */
-
-            if (
+            if(
               box.classList.contains(
                 'open'
               )
-            ) {
+              &&
+              id !== 'compareMonths'
+            ){
 
-              const search =
+              const s =
                 el(
                   'search_' + id
                 );
 
 
-              if (search) {
+              if(
+                s
+              ){
 
-                search.value =
+                s.value =
                   searchState[id]
-                  || '';
+                  ||
+                  '';
 
 
                 applySearchFilter(
@@ -3469,7 +4930,7 @@ document.addEventListener(
 
                 requestAnimationFrame(
                   () =>
-                    search.focus()
+                    s.focus()
                 );
 
               }
@@ -3482,20 +4943,18 @@ document.addEventListener(
           }
 
 
-          /*
-            CLICK OUTSIDE
-          */
-
-          if (
+          if(
             !event.target.closest(
               '.multi'
             )
-          ) {
+          ){
 
             document
+
               .querySelectorAll(
                 '.multi.open'
               )
+
               .forEach(
                 x =>
                   x.classList.remove(
@@ -3509,13 +4968,11 @@ document.addEventListener(
       );
 
 
-      /*
-        SEARCH BOXES
-      */
+      /* SEARCH BOXES */
 
-      for (
+      for(
         const [id] of filterDefs
-      ) {
+      ){
 
         wireSearchBox(
           id
@@ -3534,9 +4991,7 @@ document.addEventListener(
       );
 
 
-      /*
-        INITIAL LOAD
-      */
+      /* INITIAL LOAD */
 
       await refreshFilters();
 
@@ -3545,15 +5000,33 @@ document.addEventListener(
       await loadDashboard();
 
 
-      /*
-        PRODUCT SALE
-      */
+      /* ACTUAL COMPARE MONTH */
 
-      if (
-        el('productSaleStatus')
-      ) {
+      if(
+        el(
+          'actualCompareMonth'
+        )
+      ){
 
-        el('productSaleStatus').onchange =
+        el(
+          'actualCompareMonth'
+        ).onchange =
+          loadComparison;
+
+      }
+
+
+      /* PRODUCT STATUS */
+
+      if(
+        el(
+          'productSaleStatus'
+        )
+      ){
+
+        el(
+          'productSaleStatus'
+        ).onchange =
           async () => {
 
             page = 1;
@@ -3568,15 +5041,17 @@ document.addEventListener(
       }
 
 
-      /*
-        BUDGET STATUS
-      */
+      /* BUDGET STATUS */
 
-      if (
-        el('budgetStatus')
-      ) {
+      if(
+        el(
+          'budgetStatus'
+        )
+      ){
 
-        el('budgetStatus').onchange =
+        el(
+          'budgetStatus'
+        ).onchange =
           async () => {
 
             budgetPage = 1;
@@ -3589,36 +5064,42 @@ document.addEventListener(
       }
 
 
-      /*
-        BUDGET TARGET
-      */
+      /* BUDGET TARGET */
 
-      if (
-        el('budgetTarget')
-      ) {
+      if(
+        el(
+          'budgetTarget'
+        )
+      ){
 
-        el('budgetTarget').onchange =
+        el(
+          'budgetTarget'
+        ).onchange =
           async () => {
 
             budgetPage = 1;
 
 
-            await loadBudget();
+            await loadDashboard(
+              false
+            );
 
           };
 
       }
 
 
-      /*
-        GLOBAL SEARCH
-      */
+      /* GLOBAL SEARCH */
 
-      if (
-        el('search')
-      ) {
+      if(
+        el(
+          'search'
+        )
+      ){
 
-        el('search').oninput =
+        el(
+          'search'
+        ).oninput =
           () => {
 
             clearTimeout(
@@ -3650,15 +5131,17 @@ document.addEventListener(
       }
 
 
-      /*
-        PAGE SIZE
-      */
+      /* PAGE SIZE */
 
-      if (
-        el('pageSize')
-      ) {
+      if(
+        el(
+          'pageSize'
+        )
+      ){
 
-        el('pageSize').onchange =
+        el(
+          'pageSize'
+        ).onchange =
           async () => {
 
             page = 1;
@@ -3671,20 +5154,22 @@ document.addEventListener(
       }
 
 
-      /*
-        PREVIOUS PAGE
-      */
+      /* PREVIOUS PAGE */
 
-      if (
-        el('prevPage')
-      ) {
+      if(
+        el(
+          'prevPage'
+        )
+      ){
 
-        el('prevPage').onclick =
+        el(
+          'prevPage'
+        ).onclick =
           async () => {
 
-            if (
+            if(
               page > 1
-            ) {
+            ){
 
               page--;
 
@@ -3698,20 +5183,22 @@ document.addEventListener(
       }
 
 
-      /*
-        NEXT PAGE
-      */
+      /* NEXT PAGE */
 
-      if (
-        el('nextPage')
-      ) {
+      if(
+        el(
+          'nextPage'
+        )
+      ){
 
-        el('nextPage').onclick =
+        el(
+          'nextPage'
+        ).onclick =
           async () => {
 
-            if (
+            if(
               page < totalPages
-            ) {
+            ){
 
               page++;
 
@@ -3725,20 +5212,22 @@ document.addEventListener(
       }
 
 
-      /*
-        BUDGET PREVIOUS
-      */
+      /* BUDGET PREVIOUS */
 
-      if (
-        el('budgetPrev')
-      ) {
+      if(
+        el(
+          'budgetPrev'
+        )
+      ){
 
-        el('budgetPrev').onclick =
+        el(
+          'budgetPrev'
+        ).onclick =
           () => {
 
-            if (
+            if(
               budgetPage > 1
-            ) {
+            ){
 
               budgetPage--;
 
@@ -3752,15 +5241,17 @@ document.addEventListener(
       }
 
 
-      /*
-        BUDGET NEXT
-      */
+      /* BUDGET NEXT */
 
-      if (
-        el('budgetNext')
-      ) {
+      if(
+        el(
+          'budgetNext'
+        )
+      ){
 
-        el('budgetNext').onclick =
+        el(
+          'budgetNext'
+        ).onclick =
           () => {
 
             const pages =
@@ -3778,9 +5269,9 @@ document.addEventListener(
               );
 
 
-            if (
+            if(
               budgetPage < pages
-            ) {
+            ){
 
               budgetPage++;
 
@@ -3794,22 +5285,28 @@ document.addEventListener(
       }
 
 
-      /*
-        CLEAR ALL FILTERS
-      */
+      /* CLEAR FILTERS */
 
-      if (
-        el('clearFilters')
-      ) {
+      if(
+        el(
+          'clearFilters'
+        )
+      ){
 
-        el('clearFilters').onclick =
+        el(
+          'clearFilters'
+        ).onclick =
           async () => {
 
-            if (
-              el('search')
-            ) {
+            if(
+              el(
+                'search'
+              )
+            ){
 
-              el('search').value =
+              el(
+                'search'
+              ).value =
                 '';
 
             }
@@ -3823,74 +5320,105 @@ document.addEventListener(
               [];
 
 
+            selected.compareMonths =
+              [];
+
+
             odParties =
               [];
 
 
-            /*
-              Filter search text પણ clear.
-            */
+            Object
 
-            for (
-              const key of Object.keys(
+              .keys(
                 searchState
               )
-            ) {
 
-              searchState[key] =
-                '';
+              .forEach(
+                k =>
+                  searchState[k] =
+                    ''
+              );
 
-            }
 
+            if(
+              el(
+                'productSaleStatus'
+              )
+            ){
 
-            if (
-              el('productSaleStatus')
-            ) {
-
-              el('productSaleStatus').value =
+              el(
+                'productSaleStatus'
+              ).value =
                 'All';
 
             }
 
 
-            if (
-              el('budgetStatus')
-            ) {
+            if(
+              el(
+                'budgetStatus'
+              )
+            ){
 
-              el('budgetStatus').value =
+              el(
+                'budgetStatus'
+              ).value =
                 'all';
 
             }
 
 
-            if (
-              el('budgetTarget')
-            ) {
+            if(
+              el(
+                'budgetTarget'
+              )
+            ){
 
-              el('budgetTarget').value =
+              el(
+                'budgetTarget'
+              ).value =
                 'all';
 
             }
 
 
-            filters.forEach(
-              column => {
+            if(
+              el(
+                'actualCompareMonth'
+              )
+            ){
 
-                selected[column] =
-                  [];
+              el(
+                'actualCompareMonth'
+              ).value =
+                '';
+
+            }
 
 
-                updateMultiLabel(
-                  column
-                );
+            filters
 
-              }
-            );
+              .forEach(
+                c => {
+
+                  selected[c] =
+                    [];
+
+
+                  updateMultiLabel(
+                    c
+                  );
+
+                }
+              );
 
 
             updateMonthLabel();
 
             updateODLabel();
+
+            updateCompareLabel();
 
 
             page = 1;
@@ -3898,28 +5426,26 @@ document.addEventListener(
             budgetPage = 1;
 
 
-            buildMonths();
+            buildComparisonControls();
 
 
-            await loadODOptions();
-
-            await refreshFilters();
-
-            await loadDashboard();
+            await loadDashboard(
+              true
+            );
 
           };
 
       }
 
 
-      /*
-        ANALYSIS TABS
-      */
+      /* ANALYSIS TABS */
 
       document
+
         .querySelectorAll(
           '#viewTabs button'
         )
+
         .forEach(
           button => {
 
@@ -3927,9 +5453,11 @@ document.addEventListener(
               async () => {
 
                 document
+
                   .querySelectorAll(
                     '#viewTabs button'
                   )
+
                   .forEach(
                     x =>
                       x.classList.remove(
@@ -3947,21 +5475,25 @@ document.addEventListener(
                   button.dataset.view;
 
 
-                await Promise.all([
+                await Promise.all(
+                  [
 
-                  loadGroupSummary(),
+                    loadGroupSummary(),
 
-                  loadBudget()
+                    loadBudget()
 
-                ]);
+                  ]
+                );
 
               };
 
           }
         );
 
-
-    } catch (error) {
+    }
+    catch(
+      error
+    ){
 
       console.error(
         error
@@ -3969,17 +5501,11 @@ document.addEventListener(
 
 
       alert(
-
         'Startup error: '
-
         +
-
         error.message
-
         +
-
         '\nRun required Supabase SQL functions first.'
-
       );
 
     }
