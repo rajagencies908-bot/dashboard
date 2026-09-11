@@ -20,11 +20,18 @@ const filterDefs = [
 const filters = filterDefs.map(x => x[0]);
 
 const selected = {};
+const searchState = {};
 
-filters.forEach(f => selected[f] = []);
+filters.forEach(f => {
+  selected[f] = [];
+  searchState[f] = '';
+});
 
 selected.month = [];
 selected.budgetOD = [];
+
+searchState.month = '';
+searchState.budgetOD = '';
 
 let columns = [];
 let months = [];
@@ -39,106 +46,37 @@ let timer = null;
 let budgetPage = 1;
 let budgetRows = [];
 
-const budgetPageSize = 25;
-
-
-/*
-  OD customers list.
-
-  OD products tableમાં નથી.
-
-  એટલે:
-  budget_customer.Order
-  -> budget_customer.Party
-  -> products.Party
-
-  દ્વારા આખું dashboard filter થશે.
-*/
 let odParties = [];
 
+const budgetPageSize = 25;
 
-/* ==============================
-   FORMATTERS
-============================== */
-
-const fmt = n =>
-  new Intl.NumberFormat(
-    'en-IN',
-    {
-      maximumFractionDigits: 2
-    }
-  ).format(
-    Number(n || 0)
-  );
-
-
-const money = n =>
-  '₹' +
-  new Intl.NumberFormat(
-    'en-IN',
-    {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }
-  ).format(
-    Number(n || 0)
-  );
-
-
-const esc = v => {
-
-  const d =
-    document.createElement('div');
-
-  d.textContent =
-    v ?? '';
-
-  return d.innerHTML;
-};
-
-
-/* ==============================
-   MONTH NAMES
-============================== */
 
 const monthNames = {
 
   Jan: 'January',
-
   Feb: 'February',
-
   Mar: 'March',
 
   Apr: 'April',
-
   May: 'May',
 
   Jun: 'June',
-
   June: 'June',
 
   Jul: 'July',
-
   July: 'July',
 
   Aug: 'August',
 
   Sep: 'September',
-
   Sept: 'September',
 
   Oct: 'October',
-
   Nov: 'November',
-
   Dec: 'December'
 
 };
 
-
-/* ==============================
-   BUDGET MONTH MAPPING
-============================== */
 
 const budgetMonthMap = {
 
@@ -199,14 +137,55 @@ const budgetMonthMap = {
 };
 
 
-/* ==============================
-   SUPABASE RPC
-============================== */
+const el =
+  id =>
+    document.getElementById(id);
+
+
+const fmt =
+  n =>
+    new Intl.NumberFormat(
+      'en-IN',
+      {
+        maximumFractionDigits: 2
+      }
+    ).format(
+      Number(n || 0)
+    );
+
+
+const money =
+  n =>
+    '₹' +
+    new Intl.NumberFormat(
+      'en-IN',
+      {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }
+    ).format(
+      Number(n || 0)
+    );
+
+
+const esc =
+  v => {
+
+    const d =
+      document.createElement('div');
+
+    d.textContent =
+      v ?? '';
+
+    return d.innerHTML;
+
+  };
+
 
 async function rpc(
   name,
   params = {}
-){
+) {
 
   const {
     data,
@@ -218,7 +197,7 @@ async function rpc(
     );
 
 
-  if(error){
+  if (error) {
 
     throw error;
 
@@ -226,29 +205,26 @@ async function rpc(
 
 
   return data;
+
 }
 
 
-/* ==============================
-   SALES FILTER OBJECT
-============================== */
+/* =========================================
+   EFFECTIVE FILTER OBJECT
+========================================= */
 
-function effectiveFilterObject(){
+function effectiveFilterObject() {
 
   const obj = {};
 
 
-  /*
-    બધા normal filters
-  */
-
-  for(
+  for (
     const c of filters
-  ){
+  ) {
 
-    if(
+    if (
       selected[c].length
-    ){
+    ) {
 
       obj[c] =
         [...selected[c]];
@@ -260,12 +236,13 @@ function effectiveFilterObject(){
 
   /*
     OD selected હોય તો
-    ODના customers sales Party પર apply થશે.
+    budget_customer Party list
+    sales Party filterમાં apply થશે.
   */
 
-  if(
+  if (
     selected.budgetOD.length
-  ){
+  ) {
 
     let parties =
       odParties.map(
@@ -274,13 +251,13 @@ function effectiveFilterObject(){
 
 
     /*
-      જો customer/party પણ manually selected હોય,
-      તો intersection લેવાશે.
+      Party manually selected હોય તો
+      OD Party + selected Party intersection.
     */
 
-    if(
+    if (
       selected.Party.length
-    ){
+    ) {
 
       const allowed =
         new Set(
@@ -300,14 +277,16 @@ function effectiveFilterObject(){
 
 
     /*
-      જો OD select કર્યું પણ
-      matching customer જ ન મળે
-      તો grand total ન આવવું જોઈએ.
+      OD selected but no matching Party:
+      grand total ન આવવો જોઈએ.
     */
 
     obj.Party =
+
       parties.length
+
         ? parties
+
         : [
             '__RAJ_NO_MATCHING_PARTY__'
           ];
@@ -316,102 +295,129 @@ function effectiveFilterObject(){
 
 
   return obj;
+
 }
 
 
-/* ==============================
-   MAIN DASHBOARD ARGUMENTS
-============================== */
+/* =========================================
+   DASHBOARD ARGUMENTS
+========================================= */
 
-const args = () => ({
+const args =
+  () => ({
 
-  p_filters:
-    effectiveFilterObject(),
+    p_filters:
+      effectiveFilterObject(),
 
-  p_months:
-    selected.month,
+    p_months:
+      selected.month,
 
-  p_sale_status:
-    document
-      .getElementById(
-        'productSaleStatus'
-      )
-      .value,
+    p_sale_status:
 
-  p_search:
-    document
-      .getElementById(
-        'search'
-      )
-      .value
-      .trim()
+      el('productSaleStatus')
 
-});
+        ? el('productSaleStatus').value
 
+        : 'All',
 
-/* ==============================
-   CUSTOMER BUDGET ARGUMENTS
-============================== */
+    p_search:
 
-const budgetArgs = () => ({
+      el('search')
 
-  p_sms:
-    selected.SM.length
-      ? selected.SM
-      : null,
+        ? el('search').value.trim()
 
-  p_cities:
-    selected.City.length
-      ? selected.City
-      : null,
+        : ''
 
-  p_pincodes:
-    selected.Pincode.length
-      ? selected.Pincode
-      : null,
-
-  p_divisions:
-    selected.Division.length
-      ? selected.Division
-      : null,
-
-  p_parties:
-    selected.Party.length
-      ? selected.Party
-      : null,
-
-  p_ods:
-    selected.budgetOD.length
-      ? selected.budgetOD
-      : null,
-
-  p_target_mode:
-    document
-      .getElementById(
-        'budgetTarget'
-      )
-      .value,
-
-  p_status:
-    document
-      .getElementById(
-        'budgetStatus'
-      )
-      .value,
-
-  p_months:
-    selected.month.length
-      ? selected.month
-      : null
-
-});
+  });
 
 
-/* ==============================
-   SELECT ALL / UNSELECT ALL
-============================== */
+/* =========================================
+   BUDGET ARGUMENTS
+========================================= */
 
-function bulkButtons(id){
+const budgetArgs =
+  () => ({
+
+    p_sms:
+
+      selected.SM.length
+
+        ? selected.SM
+
+        : null,
+
+    p_cities:
+
+      selected.City.length
+
+        ? selected.City
+
+        : null,
+
+    p_pincodes:
+
+      selected.Pincode.length
+
+        ? selected.Pincode
+
+        : null,
+
+    p_divisions:
+
+      selected.Division.length
+
+        ? selected.Division
+
+        : null,
+
+    p_parties:
+
+      selected.Party.length
+
+        ? selected.Party
+
+        : null,
+
+    p_ods:
+
+      selected.budgetOD.length
+
+        ? selected.budgetOD
+
+        : null,
+
+    p_target_mode:
+
+      el('budgetTarget')
+
+        ? el('budgetTarget').value
+
+        : 'all',
+
+    p_status:
+
+      el('budgetStatus')
+
+        ? el('budgetStatus').value
+
+        : 'all',
+
+    p_months:
+
+      selected.month.length
+
+        ? selected.month
+
+        : null
+
+  });
+
+
+/* =========================================
+   SELECT ALL / UNSELECT ALL BUTTONS
+========================================= */
+
+function bulkButtons(id) {
 
   return `
 
@@ -424,7 +430,7 @@ function bulkButtons(id){
         position:sticky;
         top:0;
         background:#fff;
-        z-index:2;
+        z-index:5;
       "
     >
 
@@ -464,22 +470,31 @@ function bulkButtons(id){
     </div>
 
   `;
+
 }
 
 
-/* ==============================
-   BUILD NORMAL FILTER UI
-============================== */
+/* =========================================
+   BUILD FILTER UI
+========================================= */
 
-function buildFilterUI(){
+function buildFilterUI() {
 
-  document
-    .getElementById(
-      'filterGrid'
-    )
-    .innerHTML =
+  const grid =
+    el('filterGrid');
+
+
+  if (!grid) {
+
+    return;
+
+  }
+
+
+  grid.innerHTML =
 
     filterDefs
+
       .map(
         (
           [
@@ -548,18 +563,19 @@ function buildFilterUI(){
 
         `
       )
+
       .join('');
 
 }
 
 
-/* ==============================
+/* =========================================
    UPDATE NORMAL FILTER LABEL
-============================== */
+========================================= */
 
 function updateMultiLabel(
   column
-){
+) {
 
   const def =
     filterDefs.find(
@@ -568,157 +584,188 @@ function updateMultiLabel(
     );
 
 
-  document
-    .getElementById(
+  const label =
+    el(
       'label_' + column
-    )
-    .textContent =
-
-    selected[column].length
-
-      ? `${selected[column].length} selected`
-
-      : def[2];
+    );
 
 
-  document
-    .getElementById(
+  const chips =
+    el(
       'chips_' + column
-    )
-    .innerHTML =
-
-    selected[column]
-      .slice(
-        0,
-        4
-      )
-      .map(
-        v =>
-          `<span class="chip">
-            ${esc(v)}
-          </span>`
-      )
-      .join('')
-
-    +
-
-    (
-      selected[column].length > 4
-
-        ? `<span class="chip">
-            +${selected[column].length - 4}
-          </span>`
-
-        : ''
     );
+
+
+  if (label) {
+
+    label.textContent =
+
+      selected[column].length
+
+        ? `${selected[column].length} selected`
+
+        : def[2];
+
+  }
+
+
+  if (chips) {
+
+    chips.innerHTML =
+
+      selected[column]
+
+        .slice(
+          0,
+          4
+        )
+
+        .map(
+          v =>
+            `<span class="chip">
+              ${esc(v)}
+            </span>`
+        )
+
+        .join('')
+
+      +
+
+      (
+        selected[column].length > 4
+
+          ? `<span class="chip">
+              +${selected[column].length - 4}
+            </span>`
+
+          : ''
+      );
+
+  }
 
 }
 
 
-/* ==============================
+/* =========================================
    UPDATE MONTH LABEL
-============================== */
+========================================= */
 
-function updateMonthLabel(){
+function updateMonthLabel() {
 
-  document
-    .getElementById(
-      'label_month'
-    )
-    .textContent =
-
-    selected.month.length
-
-      ? `${selected.month.length} selected`
-
-      : 'All Months / Total';
+  const label =
+    el('label_month');
 
 
-  document
-    .getElementById(
-      'chips_month'
-    )
-    .innerHTML =
+  const chips =
+    el('chips_month');
 
-    selected.month
 
-      .map(
-        v =>
-          `<span class="chip">
-            ${esc(
-              monthNames[v] || v
-            )}
-          </span>`
-      )
+  if (label) {
 
-      .join('');
+    label.textContent =
+
+      selected.month.length
+
+        ? `${selected.month.length} selected`
+
+        : 'All Months / Total';
+
+  }
+
+
+  if (chips) {
+
+    chips.innerHTML =
+
+      selected.month
+
+        .map(
+          v =>
+            `<span class="chip">
+              ${esc(
+                monthNames[v] || v
+              )}
+            </span>`
+        )
+
+        .join('');
+
+  }
 
 }
 
 
-/* ==============================
+/* =========================================
    UPDATE OD LABEL
-============================== */
+========================================= */
 
-function updateODLabel(){
+function updateODLabel() {
 
-  document
-    .getElementById(
-      'label_budgetOD'
-    )
-    .textContent =
-
-    selected.budgetOD.length
-
-      ? `${selected.budgetOD.length} selected`
-
-      : 'All OD';
+  const label =
+    el('label_budgetOD');
 
 
-  document
-    .getElementById(
-      'chips_budgetOD'
-    )
-    .innerHTML =
+  const chips =
+    el('chips_budgetOD');
 
-    selected.budgetOD
 
-      .slice(
-        0,
-        4
-      )
+  if (label) {
 
-      .map(
-        v =>
-          `<span class="chip">
-            ${esc(v)}
-          </span>`
-      )
+    label.textContent =
 
-      .join('')
+      selected.budgetOD.length
 
-    +
+        ? `${selected.budgetOD.length} selected`
 
-    (
-      selected.budgetOD.length > 4
+        : 'All OD';
 
-        ? `<span class="chip">
-            +${selected.budgetOD.length - 4}
-          </span>`
+  }
 
-        : ''
-    );
+
+  if (chips) {
+
+    chips.innerHTML =
+
+      selected.budgetOD
+
+        .slice(
+          0,
+          4
+        )
+
+        .map(
+          v =>
+            `<span class="chip">
+              ${esc(v)}
+            </span>`
+        )
+
+        .join('')
+
+      +
+
+      (
+        selected.budgetOD.length > 4
+
+          ? `<span class="chip">
+              +${selected.budgetOD.length - 4}
+            </span>`
+
+          : ''
+      );
+
+  }
 
 }
 
 
-/* ==============================
-   GET ALL CHECKBOX VALUES
-============================== */
+/* =========================================
+   GET CHECKBOX VALUES
+========================================= */
 
 function valuesFromOptions(
   id
-){
+) {
 
   return [
 
@@ -735,24 +782,216 @@ function valuesFromOptions(
 }
 
 
-/* ==============================
+/* =========================================
+   STABLE SEARCH
+========================================= */
+
+function applySearchFilter(
+  id
+) {
+
+  const search =
+    el(
+      'search_' + id
+    );
+
+
+  if (!search) {
+
+    return;
+
+  }
+
+
+  const text =
+
+    (
+      searchState[id]
+      ??
+      search.value
+      ??
+      ''
+    )
+
+      .toLowerCase()
+
+      .trim();
+
+
+  search.value =
+    searchState[id]
+    ??
+    search.value
+    ??
+    '';
+
+
+  document
+    .querySelectorAll(
+      `#options_${id} .multi-option`
+    )
+    .forEach(
+      option => {
+
+        const optionText =
+
+          String(
+            option.dataset.text || ''
+          )
+            .toLowerCase();
+
+
+        option.style.display =
+
+          optionText.includes(
+            text
+          )
+
+            ? 'flex'
+
+            : 'none';
+
+      }
+    );
+
+}
+
+
+/* =========================================
+   KEEP FILTER OPEN AFTER SELECTION
+========================================= */
+
+function restoreOpenFilter(
+  id
+) {
+
+  const search =
+    el(
+      'search_' + id
+    );
+
+
+  const multi =
+    el(
+      'multi_' + id
+    );
+
+
+  if (search) {
+
+    search.value =
+      searchState[id]
+      || '';
+
+  }
+
+
+  applySearchFilter(
+    id
+  );
+
+
+  if (multi) {
+
+    multi.classList.add(
+      'open'
+    );
+
+  }
+
+
+  if (search) {
+
+    requestAnimationFrame(
+      () => {
+
+        search.focus();
+
+
+        const len =
+          search.value.length;
+
+
+        try {
+
+          search.setSelectionRange(
+            len,
+            len
+          );
+
+        } catch (_) {
+
+        }
+
+      }
+    );
+
+  }
+
+}
+
+
+/* =========================================
+   SEARCH INPUT EVENT
+========================================= */
+
+function wireSearchBox(
+  id
+) {
+
+  const search =
+    el(
+      'search_' + id
+    );
+
+
+  if (!search) {
+
+    return;
+
+  }
+
+
+  search.value =
+    searchState[id]
+    || '';
+
+
+  search.oninput =
+    () => {
+
+      searchState[id] =
+        search.value;
+
+
+      applySearchFilter(
+        id
+      );
+
+    };
+
+}
+
+
+/* =========================================
    SELECT ALL / UNSELECT ALL
-============================== */
+========================================= */
 
 async function applyBulkSelection(
   id,
   selectAll
-){
+) {
 
   /*
     MONTH
   */
 
-  if(
+  if (
     id === 'month'
-  ){
+  ) {
 
     selected.month =
+
       selectAll
 
         ? valuesFromOptions(
@@ -785,7 +1024,13 @@ async function applyBulkSelection(
     );
 
 
+    restoreOpenFilter(
+      'month'
+    );
+
+
     return;
+
   }
 
 
@@ -793,11 +1038,12 @@ async function applyBulkSelection(
     OD
   */
 
-  if(
+  if (
     id === 'budgetOD'
-  ){
+  ) {
 
     selected.budgetOD =
+
       selectAll
 
         ? valuesFromOptions(
@@ -833,17 +1079,23 @@ async function applyBulkSelection(
     );
 
 
+    restoreOpenFilter(
+      'budgetOD'
+    );
+
+
     return;
+
   }
 
 
   /*
-    NORMAL FILTERS
+    NORMAL FILTER
   */
 
-  if(
+  if (
     !filters.includes(id)
-  ){
+  ) {
 
     return;
 
@@ -851,6 +1103,7 @@ async function applyBulkSelection(
 
 
   selected[id] =
+
     selectAll
 
       ? valuesFromOptions(id)
@@ -869,7 +1122,9 @@ async function applyBulkSelection(
     );
 
 
-  updateMultiLabel(id);
+  updateMultiLabel(
+    id
+  );
 
 
   page = 1;
@@ -880,20 +1135,31 @@ async function applyBulkSelection(
     true
   );
 
+
+  restoreOpenFilter(
+    id
+  );
+
 }
 
 
-/* ==============================
+/* =========================================
    BUILD MONTH FILTER
-============================== */
+========================================= */
 
-function buildMonths(){
+function buildMonths() {
 
   const box =
-    document
-      .getElementById(
-        'options_month'
-      );
+    el(
+      'options_month'
+    );
+
+
+  if (!box) {
+
+    return;
+
+  }
 
 
   box.innerHTML =
@@ -905,6 +1171,7 @@ function buildMonths(){
     +
 
     months
+
       .map(
         m => `
 
@@ -912,8 +1179,10 @@ function buildMonths(){
             class="multi-option"
             data-text="${esc(
               (
-                monthNames[m] || m
-              ).toLowerCase()
+                monthNames[m]
+                || m
+              )
+                .toLowerCase()
             )}"
           >
 
@@ -925,15 +1194,17 @@ function buildMonths(){
                   .includes(
                     String(m)
                   )
+
                   ? 'checked'
+
                   : ''
               }
             >
 
-
             <span>
               ${esc(
-                monthNames[m] || m
+                monthNames[m]
+                || m
               )}
             </span>
 
@@ -941,6 +1212,7 @@ function buildMonths(){
 
         `
       )
+
       .join('');
 
 
@@ -949,36 +1221,38 @@ function buildMonths(){
       'input[type="checkbox"]'
     )
     .forEach(
-      c => {
+      checkbox => {
 
-        c.onchange =
+        checkbox.onchange =
           async () => {
 
-            if(
-              c.checked
-            ){
+            if (
+              checkbox.checked
+            ) {
 
-              if(
+              if (
                 !selected.month
                   .includes(
-                    c.value
+                    checkbox.value
                   )
-              ){
+              ) {
 
                 selected.month
                   .push(
-                    c.value
+                    checkbox.value
                   );
 
               }
 
-            }else{
+            } else {
 
               selected.month =
+
                 selected.month
                   .filter(
                     x =>
-                      x !== c.value
+                      x !==
+                      checkbox.value
                   );
 
             }
@@ -995,23 +1269,34 @@ function buildMonths(){
               true
             );
 
+
+            restoreOpenFilter(
+              'month'
+            );
+
           };
 
       }
     );
 
+
+  applySearchFilter(
+    'month'
+  );
+
 }
 
 
-/* ==============================
-   LOAD NORMAL FILTER VALUES
-============================== */
+/* =========================================
+   LOAD NORMAL FILTER
+========================================= */
 
 async function loadFilter(
   column
-){
+) {
 
   const data =
+
     await rpc(
       'raj_filter_values',
       {
@@ -1026,10 +1311,16 @@ async function loadFilter(
 
 
   const box =
-    document
-      .getElementById(
-        'options_' + column
-      );
+    el(
+      'options_' + column
+    );
+
+
+  if (!box) {
+
+    return;
+
+  }
 
 
   box.innerHTML =
@@ -1061,11 +1352,12 @@ async function loadFilter(
                   .includes(
                     String(v)
                   )
+
                   ? 'checked'
+
                   : ''
               }
             >
-
 
             <span>
               ${esc(v)}
@@ -1084,36 +1376,38 @@ async function loadFilter(
       'input[type="checkbox"]'
     )
     .forEach(
-      x => {
+      checkbox => {
 
-        x.onchange =
+        checkbox.onchange =
           async () => {
 
-            if(
-              x.checked
-            ){
+            if (
+              checkbox.checked
+            ) {
 
-              if(
+              if (
                 !selected[column]
                   .includes(
-                    x.value
+                    checkbox.value
                   )
-              ){
+              ) {
 
                 selected[column]
                   .push(
-                    x.value
+                    checkbox.value
                   );
 
               }
 
-            }else{
+            } else {
 
               selected[column] =
+
                 selected[column]
                   .filter(
                     v =>
-                      v !== x.value
+                      v !==
+                      checkbox.value
                   );
 
             }
@@ -1132,23 +1426,43 @@ async function loadFilter(
               true
             );
 
+
+            /*
+              હવે search text stable રહેશે,
+              dropdown open રહેશે.
+            */
+
+            restoreOpenFilter(
+              column
+            );
+
           };
 
       }
     );
 
+
+  /*
+    Filter reload થયા પછી
+    typed search ફરી apply.
+  */
+
+  applySearchFilter(
+    column
+  );
+
 }
 
 
-/* ==============================
-   REFRESH ALL NORMAL FILTERS
-============================== */
+/* =========================================
+   REFRESH FILTERS
+========================================= */
 
-async function refreshFilters(){
+async function refreshFilters() {
 
-  for(
+  for (
     const column of filters
-  ){
+  ) {
 
     await loadFilter(
       column
@@ -1159,23 +1473,30 @@ async function refreshFilters(){
 }
 
 
-/* ==============================
+/* =========================================
    LOAD OD OPTIONS
-============================== */
+========================================= */
 
-async function loadODOptions(){
+async function loadODOptions() {
 
-  const data =
-    await rpc(
-      'raj_budget_od_values'
+  const box =
+    el(
+      'options_budgetOD'
     );
 
 
-  const box =
-    document
-      .getElementById(
-        'options_budgetOD'
-      );
+  if (!box) {
+
+    return;
+
+  }
+
+
+  const data =
+
+    await rpc(
+      'raj_budget_od_values'
+    );
 
 
   box.innerHTML =
@@ -1194,8 +1515,9 @@ async function loadODOptions(){
           <label
             class="multi-option"
             data-text="${esc(
-              String(row.OD)
-                .toLowerCase()
+              String(
+                row.OD
+              ).toLowerCase()
             )}"
           >
 
@@ -1207,13 +1529,16 @@ async function loadODOptions(){
               ${
                 selected.budgetOD
                   .includes(
-                    String(row.OD)
+                    String(
+                      row.OD
+                    )
                   )
+
                   ? 'checked'
+
                   : ''
               }
             >
-
 
             <span>
               ${esc(
@@ -1234,36 +1559,38 @@ async function loadODOptions(){
       'input[type="checkbox"]'
     )
     .forEach(
-      input => {
+      checkbox => {
 
-        input.onchange =
+        checkbox.onchange =
           async () => {
 
-            if(
-              input.checked
-            ){
+            if (
+              checkbox.checked
+            ) {
 
-              if(
+              if (
                 !selected.budgetOD
                   .includes(
-                    input.value
+                    checkbox.value
                   )
-              ){
+              ) {
 
                 selected.budgetOD
                   .push(
-                    input.value
+                    checkbox.value
                   );
 
               }
 
-            }else{
+            } else {
 
               selected.budgetOD =
+
                 selected.budgetOD
                   .filter(
                     v =>
-                      v !== input.value
+                      v !==
+                      checkbox.value
                   );
 
             }
@@ -1272,17 +1599,8 @@ async function loadODOptions(){
             updateODLabel();
 
 
-            /*
-              selected ODના customer
-              Party list refresh.
-            */
-
             await refreshODPartyScope();
 
-
-            /*
-              આખું dashboard reload.
-            */
 
             page = 1;
             budgetPage = 1;
@@ -1292,23 +1610,33 @@ async function loadODOptions(){
               true
             );
 
+
+            restoreOpenFilter(
+              'budgetOD'
+            );
+
           };
 
       }
     );
 
+
+  applySearchFilter(
+    'budgetOD'
+  );
+
 }
 
 
-/* ==============================
+/* =========================================
    OD -> PARTY LIST
-============================== */
+========================================= */
 
-async function refreshODPartyScope(){
+async function refreshODPartyScope() {
 
-  if(
+  if (
     !selected.budgetOD.length
-  ){
+  ) {
 
     odParties = [];
 
@@ -1318,6 +1646,7 @@ async function refreshODPartyScope(){
 
 
   const data =
+
     await rpc(
       'raj_budget_od_parties',
       {
@@ -1330,12 +1659,14 @@ async function refreshODPartyScope(){
 
 
   odParties =
+
     (data || [])
 
       .map(
-        r =>
+        row =>
           String(
-            r.Party || ''
+            row.Party
+            || ''
           ).trim()
       )
 
@@ -1346,19 +1677,28 @@ async function refreshODPartyScope(){
 }
 
 
-/* ==============================
-   MONTH CARDS
-============================== */
+/* =========================================
+   MONTH SUMMARY CARDS
+========================================= */
 
 function renderMonths(
   monthData
-){
+) {
 
-  document
-    .getElementById(
+  const container =
+    el(
       'monthlyCards'
-    )
-    .innerHTML =
+    );
+
+
+  if (!container) {
+
+    return;
+
+  }
+
+
+  container.innerHTML =
 
     months
 
@@ -1468,24 +1808,30 @@ function renderMonths(
 }
 
 
-/* ==============================
-   DETAIL SALES TABLE
-============================== */
+/* =========================================
+   DETAIL TABLE
+========================================= */
 
 function renderRows(
   rows
-){
+) {
 
   const body =
-    document
-      .getElementById(
-        'tableBody'
-      );
+    el(
+      'tableBody'
+    );
 
 
-  if(
+  if (!body) {
+
+    return;
+
+  }
+
+
+  if (
     !rows?.length
-  ){
+  ) {
 
     body.innerHTML = `
 
@@ -1561,119 +1907,420 @@ function renderRows(
 }
 
 
-/* ==============================
+/* =========================================
    ANALYSIS VIEW
-============================== */
+   MONTH WISE SALE
+========================================= */
 
-async function loadGroupSummary(){
+async function loadGroupSummary() {
 
-  const data =
-    await rpc(
-      'raj_group_summary',
-      {
-
-        p_view:
-          currentView,
-
-        ...args()
-
-      }
+  const body =
+    el(
+      'groupSummaryBody'
     );
 
 
-  const body =
-    document
-      .getElementById(
-        'groupSummaryBody'
-      );
-
-
-  if(
-    !data?.length
-  ){
-
-    body.innerHTML =
-
-      '<tr><td class="empty" colspan="7">No summary data found.</td></tr>';
-
+  if (!body) {
 
     return;
 
   }
 
 
-  body.innerHTML =
-
-    data
-
-      .map(
-        x => `
-
-          <tr>
-
-            <td>
-              ${esc(
-                x.label
-              )}
-            </td>
+  const table =
+    body.closest(
+      'table'
+    );
 
 
-            <td>
-              ${fmt(
-                x.qty
-              )}
-            </td>
+  if (!table) {
+
+    return;
+
+  }
 
 
-            <td>
-              ${money(
-                x.taxable
-              )}
-            </td>
+  const headRow =
+    table.querySelector(
+      'thead tr'
+    );
 
 
-            <td>
-              ${money(
-                x.sale
-              )}
-            </td>
+  if (!headRow) {
+
+    return;
+
+  }
 
 
-            <td>
-              ${fmt(
-                x.productsSold
-              )}
-            </td>
+  const analysisMonths =
+
+    selected.month.length
+
+      ? selected.month
+
+      : months;
 
 
-            <td>
-              ${fmt(
-                x.customersBilled
-              )}
-            </td>
+  try {
+
+    const totalPromise =
+
+      rpc(
+        'raj_group_summary',
+        {
+
+          p_view:
+            currentView,
+
+          ...args()
+
+        }
+      );
 
 
-            <td>
-              ${fmt(
-                x.records
-              )}
-            </td>
+    const monthPromises =
 
-          </tr>
+      analysisMonths
 
-        `
-      )
+        .map(
+          month =>
 
-      .join('');
+            rpc(
+              'raj_group_summary',
+              {
+
+                p_view:
+                  currentView,
+
+                ...args(),
+
+                p_months:
+                  [month]
+
+              }
+            )
+
+        );
+
+
+    const results =
+
+      await Promise.all([
+
+        totalPromise,
+
+        ...monthPromises
+
+      ]);
+
+
+    const totalData =
+      results[0]
+      || [];
+
+
+    const monthlyData =
+      results.slice(1);
+
+
+    const viewName =
+
+      ({
+
+        Party:
+          'Customer / Party',
+
+        MainGrp:
+          'Company / Main Group',
+
+        ItemName:
+          'Product / Item Name',
+
+        SM:
+          'SM',
+
+        Division:
+          'Division',
+
+        Pincode:
+          'Pincode'
+
+      })[
+        currentView
+      ]
+
+      || currentView;
+
+
+    let header =
+
+      `<th id="viewLabel">
+        ${esc(
+          viewName
+        )}
+      </th>`;
+
+
+    analysisMonths.forEach(
+      month => {
+
+        header +=
+
+          `<th>
+            ${esc(
+              monthNames[month]
+              || month
+            )}
+            Sale
+          </th>`;
+
+      }
+    );
+
+
+    header +=
+
+      '<th>Qty</th>'
+
+      +
+
+      '<th>Taxable</th>'
+
+      +
+
+      '<th>Total Sale</th>'
+
+      +
+
+      '<th>Products Sold</th>'
+
+      +
+
+      '<th>Customers Billed</th>'
+
+      +
+
+      '<th>Records</th>';
+
+
+    headRow.innerHTML =
+      header;
+
+
+    if (
+      !totalData.length
+    ) {
+
+      body.innerHTML = `
+
+        <tr>
+
+          <td
+            class="empty"
+            colspan="${
+              7
+              +
+              analysisMonths.length
+            }"
+          >
+
+            No summary data found.
+
+          </td>
+
+        </tr>
+
+      `;
+
+
+      return;
+
+    }
+
+
+    const monthMaps =
+
+      monthlyData
+
+        .map(
+          rows => {
+
+            const map =
+              new Map();
+
+
+            (rows || [])
+
+              .forEach(
+                row => {
+
+                  map.set(
+
+                    String(
+                      row.label
+                    ),
+
+                    Number(
+                      row.sale
+                      || 0
+                    )
+
+                  );
+
+                }
+              );
+
+
+            return map;
+
+          }
+        );
+
+
+    body.innerHTML =
+
+      totalData
+
+        .map(
+          row => {
+
+            let monthCells =
+              '';
+
+
+            analysisMonths
+
+              .forEach(
+                (
+                  month,
+                  index
+                ) => {
+
+                  const monthSale =
+
+                    monthMaps[index]
+                      ?.get(
+                        String(
+                          row.label
+                        )
+                      )
+
+                    || 0;
+
+
+                  monthCells +=
+
+                    `<td>
+                      ${money(
+                        monthSale
+                      )}
+                    </td>`;
+
+                }
+              );
+
+
+            return `
+
+              <tr>
+
+                <td>
+                  ${esc(
+                    row.label
+                  )}
+                </td>
+
+
+                ${monthCells}
+
+
+                <td>
+                  ${fmt(
+                    row.qty
+                  )}
+                </td>
+
+
+                <td>
+                  ${money(
+                    row.taxable
+                  )}
+                </td>
+
+
+                <td>
+                  ${money(
+                    row.sale
+                  )}
+                </td>
+
+
+                <td>
+                  ${fmt(
+                    row.productsSold
+                  )}
+                </td>
+
+
+                <td>
+                  ${fmt(
+                    row.customersBilled
+                  )}
+                </td>
+
+
+                <td>
+                  ${fmt(
+                    row.records
+                  )}
+                </td>
+
+              </tr>
+
+            `;
+
+          }
+        )
+
+        .join('');
+
+
+  } catch (error) {
+
+    console.error(
+      'Analysis View Error:',
+      error
+    );
+
+
+    body.innerHTML = `
+
+      <tr>
+
+        <td class="empty">
+
+          Analysis error:
+          ${esc(
+            error.message
+          )}
+
+        </td>
+
+      </tr>
+
+    `;
+
+  }
 
 }
 
 
-/* ==============================
+/* =========================================
    BUDGET MONTHS
-============================== */
+========================================= */
 
-function budgetMonthsToShow(){
+function budgetMonthsToShow() {
 
   const chosen =
 
@@ -1684,12 +2331,13 @@ function budgetMonthsToShow(){
       : months;
 
 
-  const normalized = [];
+  const normalized =
+    [];
 
 
-  for(
+  for (
     const month of chosen
-  ){
+  ) {
 
     const key =
 
@@ -1708,12 +2356,13 @@ function budgetMonthsToShow(){
             : month;
 
 
-    if(
-      budgetMonthMap[key] &&
+    if (
+      budgetMonthMap[key]
+      &&
       !normalized.includes(
         key
       )
-    ){
+    ) {
 
       normalized.push(
         key
@@ -1725,19 +2374,17 @@ function budgetMonthsToShow(){
 
 
   return normalized;
+
 }
 
 
-/* ==============================
-   DIFF COLOR
-============================== */
-
 function diffClass(
   value
-){
+) {
 
   return Number(
-    value || 0
+    value
+    || 0
   ) < 0
 
     ? 'budget-negative'
@@ -1747,30 +2394,30 @@ function diffClass(
 }
 
 
-/* ==============================
+/* =========================================
    RENDER BUDGET
-============================== */
+========================================= */
 
-function renderBudget(){
+function renderBudget() {
 
   const panel =
-    document
-      .getElementById(
-        'budgetPanel'
-      );
+    el(
+      'budgetPanel'
+    );
 
 
-  /*
-    Customer budget
-    Company Wise અને Product Wiseમાં
-    intentionally hidden.
-  */
+  if (!panel) {
 
-  if(
+    return;
+
+  }
+
+
+  if (
     currentView === 'MainGrp'
     ||
     currentView === 'ItemName'
-  ){
+  ) {
 
     panel.classList.add(
       'budget-hidden'
@@ -1779,13 +2426,12 @@ function renderBudget(){
 
     return;
 
-  }else{
-
-    panel.classList.remove(
-      'budget-hidden'
-    );
-
   }
+
+
+  panel.classList.remove(
+    'budget-hidden'
+  );
 
 
   const showMonths =
@@ -1843,11 +2489,11 @@ function renderBudget(){
   );
 
 
-  if(
+  if (
     multiSelected
     ||
     !selected.month.length
-  ){
+  ) {
 
     head +=
 
@@ -1872,22 +2518,34 @@ function renderBudget(){
   }
 
 
-  document
-    .getElementById(
+  const budgetHead =
+    el(
       'budgetTableHead'
-    )
-    .innerHTML =
+    );
+
+
+  if (budgetHead) {
+
+    budgetHead.innerHTML =
       head;
 
+  }
 
-  document
-    .getElementById(
+
+  const count =
+    el(
       'budgetCount'
-    )
-    .textContent =
+    );
+
+
+  if (count) {
+
+    count.textContent =
       fmt(
         budgetRows.length
       );
+
+  }
 
 
   const totalBudgetPages =
@@ -1908,11 +2566,8 @@ function renderBudget(){
   budgetPage =
 
     Math.min(
-
       budgetPage,
-
       totalBudgetPages
-
     );
 
 
@@ -1934,15 +2589,21 @@ function renderBudget(){
 
 
   const body =
-    document
-      .getElementById(
-        'budgetTableBody'
-      );
+    el(
+      'budgetTableBody'
+    );
 
 
-  if(
+  if (!body) {
+
+    return;
+
+  }
+
+
+  if (
     !rows.length
-  ){
+  ) {
 
     body.innerHTML = `
 
@@ -1967,7 +2628,7 @@ function renderBudget(){
 
     `;
 
-  }else{
+  } else {
 
     body.innerHTML =
 
@@ -1980,7 +2641,8 @@ function renderBudget(){
 
               `<td>
                 ${esc(
-                  row.SalesMan || ''
+                  row.SalesMan
+                  || ''
                 )}
               </td>`
 
@@ -1988,7 +2650,8 @@ function renderBudget(){
 
               `<td>
                 ${esc(
-                  row.Party || ''
+                  row.Party
+                  || ''
                 )}
               </td>`
 
@@ -1996,7 +2659,8 @@ function renderBudget(){
 
               `<td>
                 ${esc(
-                  row.Target || ''
+                  row.Target
+                  || ''
                 )}
               </td>`
 
@@ -2004,7 +2668,8 @@ function renderBudget(){
 
               `<td>
                 ${esc(
-                  row.Order || ''
+                  row.Order
+                  || ''
                 )}
               </td>`;
 
@@ -2013,11 +2678,9 @@ function renderBudget(){
               month => {
 
                 const [
-
                   budgetKey,
                   salesKey,
                   diffKey
-
                 ] =
                   budgetMonthMap[
                     month
@@ -2058,11 +2721,11 @@ function renderBudget(){
             );
 
 
-            if(
+            if (
               multiSelected
               ||
               !selected.month.length
-            ){
+            ) {
 
               cells +=
 
@@ -2146,42 +2809,62 @@ function renderBudget(){
   }
 
 
-  document
-    .getElementById(
+  const pageInfo =
+    el(
       'budgetPageInfo'
-    )
-    .textContent =
+    );
+
+
+  if (pageInfo) {
+
+    pageInfo.textContent =
 
       `Page ${budgetPage} of ${totalBudgetPages} • ${fmt(
         budgetRows.length
       )} customers`;
 
+  }
 
-  document
-    .getElementById(
+
+  const prev =
+    el(
       'budgetPrev'
-    )
-    .disabled =
+    );
 
+
+  if (prev) {
+
+    prev.disabled =
       budgetPage <= 1;
 
+  }
 
-  document
-    .getElementById(
+
+  const next =
+    el(
       'budgetNext'
-    )
-    .disabled =
+    );
 
+
+  if (next) {
+
+    next.disabled =
       budgetPage
       >=
       totalBudgetPages;
 
+  }
 
-  document
-    .getElementById(
+
+  const note =
+    el(
       'budgetNote'
-    )
-    .textContent =
+    );
+
+
+  if (note) {
+
+    note.textContent =
 
       selected.month.length
 
@@ -2197,20 +2880,22 @@ function renderBudget(){
 
         : 'No month selected: showing all available months side-by-side.';
 
+  }
+
 }
 
 
-/* ==============================
+/* =========================================
    LOAD BUDGET
-============================== */
+========================================= */
 
-async function loadBudget(){
+async function loadBudget() {
 
-  if(
+  if (
     currentView === 'MainGrp'
     ||
     currentView === 'ItemName'
-  ){
+  ) {
 
     renderBudget();
 
@@ -2220,27 +2905,27 @@ async function loadBudget(){
 
 
   const loading =
-    document
-      .getElementById(
-        'budgetLoading'
-      );
+    el(
+      'budgetLoading'
+    );
 
 
-  loading.classList.add(
-    'show'
-  );
+  if (loading) {
+
+    loading.classList.add(
+      'show'
+    );
+
+  }
 
 
-  try{
+  try {
 
     budgetRows =
 
       await rpc(
-
         'raj_customer_budget_report',
-
         budgetArgs()
-
       )
 
       || [];
@@ -2248,20 +2933,25 @@ async function loadBudget(){
 
     renderBudget();
 
-  }catch(error){
+
+  } catch (error) {
 
     console.error(
       error
     );
 
 
-    document
-      .getElementById(
+    const body =
+      el(
         'budgetTableBody'
-      )
-      .innerHTML =
+      );
 
-        `<tr>
+
+    if (body) {
+
+      body.innerHTML = `
+
+        <tr>
 
           <td class="empty">
 
@@ -2272,50 +2962,60 @@ async function loadBudget(){
 
           </td>
 
-        </tr>`;
+        </tr>
 
-  }finally{
+      `;
 
-    loading.classList.remove(
-      'show'
-    );
+    }
+
+
+  } finally {
+
+    if (loading) {
+
+      loading.classList.remove(
+        'show'
+      );
+
+    }
 
   }
 
 }
 
 
-/* ==============================
+/* =========================================
    MAIN DASHBOARD LOAD
-============================== */
+========================================= */
 
 async function loadDashboard(
   reload = false
-){
+) {
 
   const loading =
-    document
-      .getElementById(
-        'loading'
-      );
+    el(
+      'loading'
+    );
 
 
-  loading.classList.add(
-    'show'
-  );
+  if (loading) {
+
+    loading.classList.add(
+      'show'
+    );
+
+  }
 
 
-  try{
+  try {
 
     const a =
       args();
 
 
     const [
-
       summaryResult,
       rowsResult
-
     ] =
 
       await Promise.all([
@@ -2338,11 +3038,11 @@ async function loadDashboard(
 
               Number(
 
-                document
-                  .getElementById(
-                    'pageSize'
-                  )
-                  .value
+                el('pageSize')
+
+                  ? el('pageSize').value
+
+                  : 25
 
               )
 
@@ -2357,70 +3057,76 @@ async function loadDashboard(
       || {};
 
 
-    document
-      .getElementById(
-        'totalQty'
-      )
-      .textContent =
+    if (
+      el('totalQty')
+    ) {
 
+      el('totalQty').textContent =
         fmt(
           summary.TotalQty
         );
 
+    }
 
-    document
-      .getElementById(
-        'totalTaxable'
-      )
-      .textContent =
 
+    if (
+      el('totalTaxable')
+    ) {
+
+      el('totalTaxable').textContent =
         money(
           summary.TotalTaxable
         );
 
+    }
 
-    document
-      .getElementById(
-        'totalSale'
-      )
-      .textContent =
 
+    if (
+      el('totalSale')
+    ) {
+
+      el('totalSale').textContent =
         money(
           summary.TotalSale
         );
 
+    }
 
-    document
-      .getElementById(
-        'productsSold'
-      )
-      .textContent =
 
+    if (
+      el('productsSold')
+    ) {
+
+      el('productsSold').textContent =
         fmt(
           summary.ProductsSold
         );
 
+    }
 
-    document
-      .getElementById(
-        'customersBilled'
-      )
-      .textContent =
 
+    if (
+      el('customersBilled')
+    ) {
+
+      el('customersBilled').textContent =
         fmt(
           summary.CustomersBilled
         );
 
+    }
 
-    document
-      .getElementById(
-        'recordCount'
-      )
-      .textContent =
 
+    if (
+      el('recordCount')
+    ) {
+
+      el('recordCount').textContent =
         fmt(
           rowsResult.totalRows
         );
+
+    }
 
 
     renderMonths(
@@ -2441,42 +3147,53 @@ async function loadDashboard(
       rowsResult.totalPages;
 
 
-    document
-      .getElementById(
-        'pageInfo'
-      )
-      .textContent =
+    if (
+      el('pageInfo')
+    ) {
+
+      el('pageInfo').textContent =
 
         `Page ${page} of ${totalPages} • ${fmt(
           rowsResult.totalRows
         )} records`;
 
+    }
 
-    document
-      .getElementById(
-        'prevPage'
-      )
-      .disabled =
 
+    if (
+      el('prevPage')
+    ) {
+
+      el('prevPage').disabled =
         page <= 1;
 
+    }
 
-    document
-      .getElementById(
-        'nextPage'
-      )
-      .disabled =
 
+    if (
+      el('nextPage')
+    ) {
+
+      el('nextPage').disabled =
         page >= totalPages;
 
+    }
 
-    if(
+
+    /*
+      Filter options reload થાય છે,
+      પણ searchState preserve થાય છે.
+    */
+
+    if (
       reload
-    ){
+    ) {
 
       await refreshFilters();
 
       buildMonths();
+
+      await loadODOptions();
 
     }
 
@@ -2490,7 +3207,7 @@ async function loadDashboard(
     ]);
 
 
-  }catch(error){
+  } catch (error) {
 
     console.error(
       error
@@ -2507,96 +3224,34 @@ async function loadDashboard(
 
     );
 
-  }finally{
 
-    loading.classList.remove(
-      'show'
-    );
+  } finally {
 
-  }
+    if (loading) {
 
-}
-
-
-/* ==============================
-   SEARCH INSIDE MULTI SELECT
-============================== */
-
-function wireSearchBox(
-  id
-){
-
-  const el =
-    document
-      .getElementById(
-        'search_' + id
+      loading.classList.remove(
+        'show'
       );
 
-
-  if(
-    !el
-  ){
-
-    return;
+    }
 
   }
-
-
-  el.oninput =
-    event => {
-
-      const text =
-
-        event.target.value
-          .toLowerCase();
-
-
-      document
-        .querySelectorAll(
-          `#options_${id} .multi-option`
-        )
-        .forEach(
-          option => {
-
-            option.style.display =
-
-              option.dataset.text
-                .includes(
-                  text
-                )
-
-                ? 'flex'
-
-                : 'none';
-
-          }
-        );
-
-    };
 
 }
 
 
-/* ==============================
+/* =========================================
    PAGE START
-============================== */
+========================================= */
 
 document.addEventListener(
   'DOMContentLoaded',
   async () => {
 
-    try{
-
-      /*
-        Build filter UI
-      */
+    try {
 
       buildFilterUI();
 
-
-      /*
-        Get schema
-      */
 
       const schema =
         await rpc(
@@ -2614,38 +3269,39 @@ document.addEventListener(
         || [];
 
 
-      /*
-        Detailed table columns
-      */
-
-      document
-        .getElementById(
+      const tableHead =
+        el(
           'tableHead'
-        )
-        .innerHTML =
+        );
+
+
+      if (tableHead) {
+
+        tableHead.innerHTML =
 
           columns
 
             .map(
               column =>
+
                 `<th>
-                  ${esc(column)}
+                  ${esc(
+                    column
+                  )}
                 </th>`
+
             )
 
             .join('');
 
+      }
 
-      /*
-        Month filter
-      */
 
       buildMonths();
 
 
       /*
-        Open / close dropdown
-        Select All / Unselect All
+        CLICK HANDLER
       */
 
       document.addEventListener(
@@ -2663,9 +3319,9 @@ document.addEventListener(
             );
 
 
-          if(
+          if (
             selectAllButton
-          ){
+          ) {
 
             event.preventDefault();
 
@@ -2699,9 +3355,9 @@ document.addEventListener(
             );
 
 
-          if(
+          if (
             unselectAllButton
-          ){
+          ) {
 
             event.preventDefault();
 
@@ -2735,18 +3391,25 @@ document.addEventListener(
             );
 
 
-          if(
+          if (
             button
-          ){
+          ) {
+
+            const id =
+              button.dataset.open;
+
 
             const box =
+              el(
+                'multi_' + id
+              );
 
-              document
-                .getElementById(
-                  'multi_'
-                  +
-                  button.dataset.open
-                );
+
+            if (!box) {
+
+              return;
+
+            }
 
 
             document
@@ -2756,9 +3419,9 @@ document.addEventListener(
               .forEach(
                 x => {
 
-                  if(
+                  if (
                     x !== box
-                  ){
+                  ) {
 
                     x.classList.remove(
                       'open'
@@ -2775,20 +3438,59 @@ document.addEventListener(
             );
 
 
+            /*
+              ફરી dropdown open કરીએ ત્યારે
+              જૂનો typed search visible રહે.
+            */
+
+            if (
+              box.classList.contains(
+                'open'
+              )
+            ) {
+
+              const search =
+                el(
+                  'search_' + id
+                );
+
+
+              if (search) {
+
+                search.value =
+                  searchState[id]
+                  || '';
+
+
+                applySearchFilter(
+                  id
+                );
+
+
+                requestAnimationFrame(
+                  () =>
+                    search.focus()
+                );
+
+              }
+
+            }
+
+
             return;
 
           }
 
 
           /*
-            CLICK OUTSIDE CLOSE
+            CLICK OUTSIDE
           */
 
-          if(
+          if (
             !event.target.closest(
               '.multi'
             )
-          ){
+          ) {
 
             document
               .querySelectorAll(
@@ -2808,12 +3510,12 @@ document.addEventListener(
 
 
       /*
-        Normal filter searches
+        SEARCH BOXES
       */
 
-      for(
+      for (
         const [id] of filterDefs
-      ){
+      ) {
 
         wireSearchBox(
           id
@@ -2822,18 +3524,10 @@ document.addEventListener(
       }
 
 
-      /*
-        Month search
-      */
-
       wireSearchBox(
         'month'
       );
 
-
-      /*
-        OD search
-      */
 
       wireSearchBox(
         'budgetOD'
@@ -2841,7 +3535,7 @@ document.addEventListener(
 
 
       /*
-        Initial data
+        INITIAL LOAD
       */
 
       await refreshFilters();
@@ -2852,346 +3546,370 @@ document.addEventListener(
 
 
       /*
-        Product sale status
+        PRODUCT SALE
       */
 
-      document
-        .getElementById(
-          'productSaleStatus'
-        )
-        .onchange =
+      if (
+        el('productSaleStatus')
+      ) {
 
-        async () => {
+        el('productSaleStatus').onchange =
+          async () => {
 
-          page = 1;
-
-          await loadDashboard(
-            true
-          );
-
-        };
+            page = 1;
 
 
-      /*
-        Budget Status
-      */
-
-      document
-        .getElementById(
-          'budgetStatus'
-        )
-        .onchange =
-
-        async () => {
-
-          budgetPage = 1;
-
-          await loadBudget();
-
-        };
-
-
-      /*
-        Budget Target
-      */
-
-      document
-        .getElementById(
-          'budgetTarget'
-        )
-        .onchange =
-
-        async () => {
-
-          budgetPage = 1;
-
-          await loadBudget();
-
-        };
-
-
-      /*
-        Global Search
-      */
-
-      document
-        .getElementById(
-          'search'
-        )
-        .oninput =
-
-        () => {
-
-          clearTimeout(
-            timer
-          );
-
-
-          timer =
-            setTimeout(
-
-              async () => {
-
-                page = 1;
-
-
-                await loadDashboard(
-                  true
-                );
-
-              },
-
-              350
-
+            await loadDashboard(
+              true
             );
 
-        };
+          };
+
+      }
 
 
       /*
-        Page Size
+        BUDGET STATUS
       */
 
-      document
-        .getElementById(
-          'pageSize'
-        )
-        .onchange =
+      if (
+        el('budgetStatus')
+      ) {
 
-        async () => {
+        el('budgetStatus').onchange =
+          async () => {
 
-          page = 1;
+            budgetPage = 1;
 
-          await loadDashboard();
 
-        };
+            await loadBudget();
+
+          };
+
+      }
 
 
       /*
-        Previous Sales Page
+        BUDGET TARGET
       */
 
-      document
-        .getElementById(
-          'prevPage'
-        )
-        .onclick =
+      if (
+        el('budgetTarget')
+      ) {
 
-        async () => {
+        el('budgetTarget').onchange =
+          async () => {
 
-          if(
-            page > 1
-          ){
+            budgetPage = 1;
 
-            page--;
 
-            await loadDashboard();
+            await loadBudget();
 
-          }
+          };
 
-        };
+      }
 
 
       /*
-        Next Sales Page
+        GLOBAL SEARCH
       */
 
-      document
-        .getElementById(
-          'nextPage'
-        )
-        .onclick =
+      if (
+        el('search')
+      ) {
 
-        async () => {
+        el('search').oninput =
+          () => {
 
-          if(
-            page < totalPages
-          ){
-
-            page++;
-
-            await loadDashboard();
-
-          }
-
-        };
-
-
-      /*
-        Budget Previous
-      */
-
-      document
-        .getElementById(
-          'budgetPrev'
-        )
-        .onclick =
-
-        () => {
-
-          if(
-            budgetPage > 1
-          ){
-
-            budgetPage--;
-
-            renderBudget();
-
-          }
-
-        };
-
-
-      /*
-        Budget Next
-      */
-
-      document
-        .getElementById(
-          'budgetNext'
-        )
-        .onclick =
-
-        () => {
-
-          const pages =
-
-            Math.max(
-
-              1,
-
-              Math.ceil(
-
-                budgetRows.length
-                /
-                budgetPageSize
-
-              )
-
+            clearTimeout(
+              timer
             );
 
 
-          if(
-            budgetPage < pages
-          ){
+            timer =
 
-            budgetPage++;
+              setTimeout(
 
-            renderBudget();
+                async () => {
 
-          }
+                  page = 1;
 
-        };
+
+                  await loadDashboard(
+                    true
+                  );
+
+                },
+
+                350
+
+              );
+
+          };
+
+      }
+
+
+      /*
+        PAGE SIZE
+      */
+
+      if (
+        el('pageSize')
+      ) {
+
+        el('pageSize').onchange =
+          async () => {
+
+            page = 1;
+
+
+            await loadDashboard();
+
+          };
+
+      }
+
+
+      /*
+        PREVIOUS PAGE
+      */
+
+      if (
+        el('prevPage')
+      ) {
+
+        el('prevPage').onclick =
+          async () => {
+
+            if (
+              page > 1
+            ) {
+
+              page--;
+
+
+              await loadDashboard();
+
+            }
+
+          };
+
+      }
+
+
+      /*
+        NEXT PAGE
+      */
+
+      if (
+        el('nextPage')
+      ) {
+
+        el('nextPage').onclick =
+          async () => {
+
+            if (
+              page < totalPages
+            ) {
+
+              page++;
+
+
+              await loadDashboard();
+
+            }
+
+          };
+
+      }
+
+
+      /*
+        BUDGET PREVIOUS
+      */
+
+      if (
+        el('budgetPrev')
+      ) {
+
+        el('budgetPrev').onclick =
+          () => {
+
+            if (
+              budgetPage > 1
+            ) {
+
+              budgetPage--;
+
+
+              renderBudget();
+
+            }
+
+          };
+
+      }
+
+
+      /*
+        BUDGET NEXT
+      */
+
+      if (
+        el('budgetNext')
+      ) {
+
+        el('budgetNext').onclick =
+          () => {
+
+            const pages =
+
+              Math.max(
+
+                1,
+
+                Math.ceil(
+                  budgetRows.length
+                  /
+                  budgetPageSize
+                )
+
+              );
+
+
+            if (
+              budgetPage < pages
+            ) {
+
+              budgetPage++;
+
+
+              renderBudget();
+
+            }
+
+          };
+
+      }
 
 
       /*
         CLEAR ALL FILTERS
       */
 
-      document
-        .getElementById(
-          'clearFilters'
-        )
-        .onclick =
+      if (
+        el('clearFilters')
+      ) {
 
-        async () => {
+        el('clearFilters').onclick =
+          async () => {
 
-          document
-            .getElementById(
-              'search'
-            )
-            .value = '';
+            if (
+              el('search')
+            ) {
 
-
-          /*
-            Month
-          */
-
-          selected.month = [];
-
-
-          /*
-            OD
-          */
-
-          selected.budgetOD = [];
-
-          odParties = [];
-
-
-          /*
-            Product Sale
-          */
-
-          document
-            .getElementById(
-              'productSaleStatus'
-            )
-            .value =
-              'All';
-
-
-          /*
-            Budget Status
-          */
-
-          document
-            .getElementById(
-              'budgetStatus'
-            )
-            .value =
-              'all';
-
-
-          /*
-            Budget Target
-          */
-
-          document
-            .getElementById(
-              'budgetTarget'
-            )
-            .value =
-              'all';
-
-
-          /*
-            All normal filters
-          */
-
-          filters.forEach(
-            column => {
-
-              selected[column] = [];
-
-              updateMultiLabel(
-                column
-              );
+              el('search').value =
+                '';
 
             }
-          );
 
 
-          updateMonthLabel();
-
-          updateODLabel();
-
-
-          page = 1;
-
-          budgetPage = 1;
+            selected.month =
+              [];
 
 
-          buildMonths();
+            selected.budgetOD =
+              [];
 
 
-          await loadODOptions();
+            odParties =
+              [];
 
-          await refreshFilters();
 
-          await loadDashboard();
+            /*
+              Filter search text પણ clear.
+            */
 
-        };
+            for (
+              const key of Object.keys(
+                searchState
+              )
+            ) {
+
+              searchState[key] =
+                '';
+
+            }
+
+
+            if (
+              el('productSaleStatus')
+            ) {
+
+              el('productSaleStatus').value =
+                'All';
+
+            }
+
+
+            if (
+              el('budgetStatus')
+            ) {
+
+              el('budgetStatus').value =
+                'all';
+
+            }
+
+
+            if (
+              el('budgetTarget')
+            ) {
+
+              el('budgetTarget').value =
+                'all';
+
+            }
+
+
+            filters.forEach(
+              column => {
+
+                selected[column] =
+                  [];
+
+
+                updateMultiLabel(
+                  column
+                );
+
+              }
+            );
+
+
+            updateMonthLabel();
+
+            updateODLabel();
+
+
+            page = 1;
+
+            budgetPage = 1;
+
+
+            buildMonths();
+
+
+            await loadODOptions();
+
+            await refreshFilters();
+
+            await loadDashboard();
+
+          };
+
+      }
 
 
       /*
@@ -3229,39 +3947,6 @@ document.addEventListener(
                   button.dataset.view;
 
 
-                document
-                  .getElementById(
-                    'viewLabel'
-                  )
-                  .textContent =
-
-                    ({
-
-                      Party:
-                        'Customer / Party',
-
-                      MainGrp:
-                        'Company / Main Group',
-
-                      ItemName:
-                        'Product / Item Name',
-
-                      SM:
-                        'SM',
-
-                      Division:
-                        'Division',
-
-                      Pincode:
-                        'Pincode'
-
-                    })[
-                      currentView
-                    ]
-
-                    || currentView;
-
-
                 await Promise.all([
 
                   loadGroupSummary(),
@@ -3276,7 +3961,7 @@ document.addEventListener(
         );
 
 
-    }catch(error){
+    } catch (error) {
 
       console.error(
         error
