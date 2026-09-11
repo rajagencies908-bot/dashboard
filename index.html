@@ -7,14 +7,14 @@
 
   <meta
     name="viewport"
-    content="width=device-width,initial-scale=1"
+    content="width=device-width, initial-scale=1"
   >
 
   <title>Sales Intelligence Dashboard</title>
 
   <link
     rel="stylesheet"
-    href="style.css?v=online11"
+    href="style.css?v=online15"
   >
 
   <style>
@@ -111,849 +111,849 @@
 </header>
 
 
-
 <main class="container">
 
 
-<!-- HERO -->
+  <!-- HERO -->
 
-<section class="hero">
-
-  <div>
-
-    <span class="eyebrow">
-      Business Overview
-    </span>
-
-    <h2>
-      Sales Performance Dashboard
-    </h2>
-
-    <p>
-      Sales, taxable comparison, customer budget and zero-sales tracking.
-    </p>
-
-  </div>
-
-  <button
-    id="clearFilters"
-    class="clear-btn"
-  >
-    Clear All Filters
-  </button>
-
-</section>
-
-
-
-<!-- TOP SUMMARY -->
-
-<section class="summary-grid five">
-
-  <article class="summary-card">
-
-    <span>Total Qty</span>
-
-    <strong id="totalQty">
-      0
-    </strong>
-
-    <small>
-      Filtered quantity
-    </small>
-
-  </article>
-
-
-  <article class="summary-card">
-
-    <span>Total Taxable</span>
-
-    <strong id="totalTaxable">
-      ₹0
-    </strong>
-
-    <small>
-      Filtered taxable value
-    </small>
-
-  </article>
-
-
-  <article class="summary-card">
-
-    <span>Total Sale</span>
-
-    <strong id="totalSale">
-      ₹0
-    </strong>
-
-    <small>
-      Filtered invoice amount
-    </small>
-
-  </article>
-
-
-  <article class="summary-card">
-
-    <span>Products Sold</span>
-
-    <strong id="productsSold">
-      0
-    </strong>
-
-    <small>
-      Distinct item codes
-    </small>
-
-  </article>
-
-
-  <article class="summary-card">
-
-    <span>Customers Billed</span>
-
-    <strong id="customersBilled">
-      0
-    </strong>
-
-    <small>
-      Actual sales customers
-    </small>
-
-  </article>
-
-
-  <article class="summary-card">
-
-    <span>Matching Records</span>
-
-    <strong id="recordCount">
-      0
-    </strong>
-
-    <small>
-      Rows after filters
-    </small>
-
-  </article>
-
-</section>
-
-
-
-<!-- FILTERS -->
-
-<section class="panel">
-
-  <div class="panel-head">
+  <section class="hero">
 
     <div>
 
-      <h3>
-        Filters
-      </h3>
-
-      <p>
-        All filters also update customer budget calculations.
-      </p>
-
-    </div>
-
-  </div>
-
-
-  <div class="search-grid">
-
-
-    <div class="field wide">
-
-      <label>
-        Global Search
-      </label>
-
-      <input
-        id="search"
-        type="search"
-        placeholder="Search party, product, code, group, SM, division, pincode..."
-      >
-
-    </div>
-
-
-    <div class="field">
-
-      <label>
-        Month
-      </label>
-
-      <div
-        class="multi"
-        id="multi_month"
-      >
-
-        <button
-          type="button"
-          class="multi-btn"
-          data-open="month"
-        >
-
-          <span id="label_month">
-            All Months / Total
-          </span>
-
-          <span>▾</span>
-
-        </button>
-
-
-        <div class="multi-menu">
-
-          <input
-            class="multi-search"
-            id="search_month"
-            placeholder="Search month..."
-          >
-
-          <div
-            class="multi-options"
-            id="options_month"
-          ></div>
-
-        </div>
-
-      </div>
-
-
-      <div
-        class="selected-chips"
-        id="chips_month"
-      ></div>
-
-    </div>
-
-
-    <div class="field">
-
-      <label>
-        Product Sale
-      </label>
-
-      <select id="productSaleStatus">
-
-        <option value="All">
-          All Products
-        </option>
-
-        <option value="Sold">
-          Only Sold Products
-        </option>
-
-        <option value="NoSale">
-          No Sale Products
-        </option>
-
-      </select>
-
-    </div>
-
-  </div>
-
-
-  <div
-    id="filterGrid"
-    class="filters"
-  ></div>
-
-
-  <div class="budget-filter-title">
-    Customer Budget / OD Filters
-  </div>
-
-
-  <div class="budget-filters">
-
-
-    <div class="field">
-
-      <label>
-        Sales / Budget Status
-      </label>
-
-      <select id="budgetStatus">
-
-        <option value="all">
-          All
-        </option>
-
-        <option value="zero_sales">
-          Zero Sales
-        </option>
-
-        <option value="below_budget">
-          Below Budget
-        </option>
-
-        <option value="achieved">
-          Budget Achieved
-        </option>
-
-      </select>
-
-    </div>
-
-
-    <div class="field">
-
-      <label>
-        Budget Target
-      </label>
-
-      <select id="budgetTarget">
-
-        <option value="all">
-          All Customers
-        </option>
-
-        <option value="target">
-          Target Customers
-        </option>
-
-        <option value="non_target">
-          Non-Target Customers
-        </option>
-
-      </select>
-
-    </div>
-
-
-    <div class="field">
-
-      <label>
-        OD Team
-      </label>
-
-      <div
-        class="multi"
-        id="multi_budgetOD"
-      >
-
-        <button
-          type="button"
-          class="multi-btn"
-          data-open="budgetOD"
-        >
-
-          <span id="label_budgetOD">
-            All OD
-          </span>
-
-          <span>▾</span>
-
-        </button>
-
-
-        <div class="multi-menu">
-
-          <input
-            class="multi-search"
-            id="search_budgetOD"
-            placeholder="Search OD..."
-          >
-
-          <div
-            class="multi-options"
-            id="options_budgetOD"
-          ></div>
-
-        </div>
-
-      </div>
-
-
-      <div
-        class="selected-chips"
-        id="chips_budgetOD"
-      ></div>
-
-    </div>
-
-  </div>
-
-</section>
-
-
-
-<!-- SALES COMPARISON -->
-
-<section class="panel">
-
-  <div class="panel-head">
-
-    <div>
-
-      <h3>
-        Sales Comparison
-      </h3>
-
-      <p>
-        Comparison uses Taxable Sales only.
-      </p>
-
-    </div>
-
-  </div>
-
-
-  <div class="compare-controls">
-
-
-    <div class="field">
-
-      <label>
-        Compare Months
-      </label>
-
-      <div
-        class="multi"
-        id="multi_compareMonths"
-      >
-
-        <button
-          type="button"
-          class="multi-btn"
-          data-open="compareMonths"
-        >
-
-          <span id="label_compareMonths">
-            Select Compare Months
-          </span>
-
-          <span>▾</span>
-
-        </button>
-
-
-        <div class="multi-menu">
-
-          <input
-            class="multi-search"
-            id="search_compareMonths"
-            placeholder="Search month..."
-          >
-
-          <div
-            class="multi-options"
-            id="options_compareMonths"
-          ></div>
-
-        </div>
-
-      </div>
-
-
-      <div
-        class="selected-chips"
-        id="chips_compareMonths"
-      ></div>
-
-    </div>
-
-
-    <div class="field">
-
-      <label>
-        Actual Month
-      </label>
-
-      <select id="actualCompareMonth">
-
-        <option value="">
-          Select Actual Month
-        </option>
-
-      </select>
-
-    </div>
-
-  </div>
-
-
-  <div class="compare-grid">
-
-
-    <div class="compare-card">
-
-      <span>Compare Months</span>
-
-      <strong id="compareMonthsText">
-        Select months
-      </strong>
-
-    </div>
-
-
-    <div class="compare-card">
-
-      <span>
-        Compare Avg Taxable Sale
+      <span class="eyebrow">
+        Business Overview
       </span>
 
-      <strong id="compareAvgSale">
-        ₹0
-      </strong>
-
-    </div>
-
-
-    <div class="compare-card">
-
-      <span>Actual Month</span>
-
-      <strong id="compareActualMonth">
-        -
-      </strong>
-
-    </div>
-
-
-    <div class="compare-card">
-
-      <span>
-        Actual Month Taxable Sale
-      </span>
-
-      <strong id="compareActualSale">
-        ₹0
-      </strong>
-
-    </div>
-
-
-    <div class="compare-card">
-
-      <span>
-        Taxable Difference
-      </span>
-
-      <strong id="compareDifference">
-        ₹0
-      </strong>
-
-    </div>
-
-
-    <div class="compare-card">
-
-      <span>Change %</span>
-
-      <strong id="comparePercent">
-        0%
-      </strong>
-
-    </div>
-
-
-    <div class="compare-card">
-
-      <span>Status</span>
-
-      <strong
-        id="compareStatus"
-        class="compare-neutral"
-      >
-        Select months
-      </strong>
-
-    </div>
-
-  </div>
-
-</section>
-
-
-
-<!-- MONTH SUMMARY -->
-
-<section class="panel">
-
-  <div class="panel-head">
-
-    <div>
-
-      <h3>
-        Month-wise Summary
-      </h3>
+      <h2>
+        Sales Performance Dashboard
+      </h2>
 
       <p>
-        Sales, filtered budget, zero-sales customers and zero-sales budget.
+        Sales, Taxable comparison, Customer Budget and Target tracking.
       </p>
 
     </div>
-
-  </div>
-
-
-  <div
-    id="monthlyCards"
-    class="monthly-grid"
-  ></div>
-
-</section>
-
-
-
-<!-- ANALYSIS -->
-
-<section class="panel">
-
-  <div class="panel-head">
-
-    <div>
-
-      <h3>
-        Analysis View
-      </h3>
-
-      <p>
-        Month-wise values use Taxable Sales.
-      </p>
-
-    </div>
-
-  </div>
-
-
-  <div
-    class="tabs"
-    id="viewTabs"
-  >
 
     <button
-      data-view="Party"
-      class="active"
+      id="clearFilters"
+      class="clear-btn"
     >
-      Customer Wise
+      Clear All Filters
     </button>
 
-    <button data-view="MainGrp">
-      Company Wise
-    </button>
-
-    <button data-view="ItemName">
-      Product Wise
-    </button>
-
-    <button data-view="SM">
-      SM Wise
-    </button>
-
-    <button data-view="Division">
-      Division Wise
-    </button>
-
-    <button data-view="Pincode">
-      Pincode Wise
-    </button>
-
-  </div>
+  </section>
 
 
-  <div class="summary-table-wrap">
+  <!-- TOP SUMMARY -->
 
-    <table class="summary-table">
+  <section class="summary-grid five">
 
-      <thead>
+    <article class="summary-card">
 
-        <tr>
+      <span>Total Qty</span>
 
-          <th id="viewLabel">
-            Customer / Party
-          </th>
-
-        </tr>
-
-      </thead>
-
-
-      <tbody
-        id="groupSummaryBody"
-      ></tbody>
-
-    </table>
-
-  </div>
-
-</section>
-
-
-
-<!-- CUSTOMER BUDGET -->
-
-<section
-  class="panel"
-  id="budgetPanel"
->
-
-  <div class="panel-head budget-head">
-
-    <div>
-
-      <h3>
-        Customer Budget vs Actual Sales
-      </h3>
-
-      <p id="budgetNote">
-        Budget comes from budget_customer and sales comes from products.
-      </p>
-
-    </div>
-
-
-    <div class="budget-count">
-
-      Matching Customers:
-
-      <strong id="budgetCount">
+      <strong id="totalQty">
         0
       </strong>
 
+      <small>
+        Filtered quantity
+      </small>
+
+    </article>
+
+
+    <article class="summary-card">
+
+      <span>Total Taxable</span>
+
+      <strong id="totalTaxable">
+        ₹0
+      </strong>
+
+      <small>
+        Filtered taxable value
+      </small>
+
+    </article>
+
+
+    <article class="summary-card">
+
+      <span>Total Sale</span>
+
+      <strong id="totalSale">
+        ₹0
+      </strong>
+
+      <small>
+        Filtered invoice amount
+      </small>
+
+    </article>
+
+
+    <article class="summary-card">
+
+      <span>Products Sold</span>
+
+      <strong id="productsSold">
+        0
+      </strong>
+
+      <small>
+        Distinct item codes
+      </small>
+
+    </article>
+
+
+    <article class="summary-card">
+
+      <span>Customers Billed</span>
+
+      <strong id="customersBilled">
+        0
+      </strong>
+
+      <small>
+        Actual sales customers
+      </small>
+
+    </article>
+
+
+    <article class="summary-card">
+
+      <span>Matching Records</span>
+
+      <strong id="recordCount">
+        0
+      </strong>
+
+      <small>
+        Rows after filters
+      </small>
+
+    </article>
+
+  </section>
+
+
+  <!-- FILTERS -->
+
+  <section class="panel">
+
+    <div class="panel-head">
+
+      <div>
+
+        <h3>
+          Filters
+        </h3>
+
+        <p>
+          All selected filters work together.
+        </p>
+
+      </div>
+
     </div>
 
-  </div>
+
+    <div class="search-grid">
 
 
-  <div
-    id="budgetLoading"
-    class="loading"
+      <div class="field wide">
+
+        <label>
+          Global Search
+        </label>
+
+        <input
+          id="search"
+          type="search"
+          placeholder="Search party, product, code, group, SM, division, pincode..."
+        >
+
+      </div>
+
+
+      <div class="field">
+
+        <label>
+          Month
+        </label>
+
+        <div
+          class="multi"
+          id="multi_month"
+        >
+
+          <button
+            type="button"
+            class="multi-btn"
+            data-open="month"
+          >
+
+            <span id="label_month">
+              All Months / Total
+            </span>
+
+            <span>▾</span>
+
+          </button>
+
+
+          <div class="multi-menu">
+
+            <input
+              class="multi-search"
+              id="search_month"
+              placeholder="Search month..."
+            >
+
+            <div
+              class="multi-options"
+              id="options_month"
+            ></div>
+
+          </div>
+
+        </div>
+
+
+        <div
+          class="selected-chips"
+          id="chips_month"
+        ></div>
+
+      </div>
+
+
+      <div class="field">
+
+        <label>
+          Product Sale
+        </label>
+
+        <select id="productSaleStatus">
+
+          <option value="All">
+            All Products
+          </option>
+
+          <option value="Sold">
+            Only Sold Products
+          </option>
+
+          <option value="NoSale">
+            No Sale Products
+          </option>
+
+        </select>
+
+      </div>
+
+    </div>
+
+
+    <div
+      id="filterGrid"
+      class="filters"
+    ></div>
+
+
+    <div class="budget-filter-title">
+      Customer Budget / OD Filters
+    </div>
+
+
+    <div class="budget-filters">
+
+
+      <div class="field">
+
+        <label>
+          Sales / Budget Status
+        </label>
+
+        <select id="budgetStatus">
+
+          <option value="all">
+            All
+          </option>
+
+          <option value="zero_sales">
+            Zero Sales
+          </option>
+
+          <option value="below_budget">
+            Below Budget
+          </option>
+
+          <option value="achieved">
+            Budget Achieved
+          </option>
+
+        </select>
+
+      </div>
+
+
+      <div class="field">
+
+        <label>
+          Budget Target
+        </label>
+
+        <select id="budgetTarget">
+
+          <option value="all">
+            All Customers
+          </option>
+
+          <option value="target">
+            Target Customers
+          </option>
+
+          <option value="non_target">
+            Non-Target Customers
+          </option>
+
+        </select>
+
+      </div>
+
+
+      <div class="field">
+
+        <label>
+          OD Team
+        </label>
+
+        <div
+          class="multi"
+          id="multi_budgetOD"
+        >
+
+          <button
+            type="button"
+            class="multi-btn"
+            data-open="budgetOD"
+          >
+
+            <span id="label_budgetOD">
+              All OD
+            </span>
+
+            <span>▾</span>
+
+          </button>
+
+
+          <div class="multi-menu">
+
+            <input
+              class="multi-search"
+              id="search_budgetOD"
+              placeholder="Search OD..."
+            >
+
+            <div
+              class="multi-options"
+              id="options_budgetOD"
+            ></div>
+
+          </div>
+
+        </div>
+
+
+        <div
+          class="selected-chips"
+          id="chips_budgetOD"
+        ></div>
+
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- SALES COMPARISON -->
+
+  <section class="panel">
+
+    <div class="panel-head">
+
+      <div>
+
+        <h3>
+          Sales Comparison
+        </h3>
+
+        <p>
+          Comparison uses Taxable Sales.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div class="compare-controls">
+
+
+      <div class="field">
+
+        <label>
+          Compare Months
+        </label>
+
+        <div
+          class="multi"
+          id="multi_compareMonths"
+        >
+
+          <button
+            type="button"
+            class="multi-btn"
+            data-open="compareMonths"
+          >
+
+            <span id="label_compareMonths">
+              Select Compare Months
+            </span>
+
+            <span>▾</span>
+
+          </button>
+
+
+          <div class="multi-menu">
+
+            <input
+              class="multi-search"
+              id="search_compareMonths"
+              placeholder="Search month..."
+            >
+
+            <div
+              class="multi-options"
+              id="options_compareMonths"
+            ></div>
+
+          </div>
+
+        </div>
+
+
+        <div
+          class="selected-chips"
+          id="chips_compareMonths"
+        ></div>
+
+      </div>
+
+
+      <div class="field">
+
+        <label>
+          Actual Month
+        </label>
+
+        <select id="actualCompareMonth">
+
+          <option value="">
+            Select Actual Month
+          </option>
+
+        </select>
+
+      </div>
+
+    </div>
+
+
+    <div class="compare-grid">
+
+
+      <div class="compare-card">
+
+        <span>
+          Compare Months
+        </span>
+
+        <strong id="compareMonthsText">
+          Select months
+        </strong>
+
+      </div>
+
+
+      <div class="compare-card">
+
+        <span>
+          Compare Avg Taxable Sale
+        </span>
+
+        <strong id="compareAvgSale">
+          ₹0
+        </strong>
+
+      </div>
+
+
+      <div class="compare-card">
+
+        <span>
+          Actual Month
+        </span>
+
+        <strong id="compareActualMonth">
+          -
+        </strong>
+
+      </div>
+
+
+      <div class="compare-card">
+
+        <span>
+          Actual Month Taxable Sale
+        </span>
+
+        <strong id="compareActualSale">
+          ₹0
+        </strong>
+
+      </div>
+
+
+      <div class="compare-card">
+
+        <span>
+          Taxable Difference
+        </span>
+
+        <strong id="compareDifference">
+          ₹0
+        </strong>
+
+      </div>
+
+
+      <div class="compare-card">
+
+        <span>
+          Change %
+        </span>
+
+        <strong id="comparePercent">
+          0%
+        </strong>
+
+      </div>
+
+
+      <div class="compare-card">
+
+        <span>
+          Status
+        </span>
+
+        <strong
+          id="compareStatus"
+          class="compare-neutral"
+        >
+          Select months
+        </strong>
+
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- MONTH SUMMARY -->
+
+  <section class="panel">
+
+    <div class="panel-head">
+
+      <div>
+
+        <h3>
+          Month-wise Summary
+        </h3>
+
+        <p>
+          Sales, Budget Customers, Total Budget and Zero Sales Budget.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div
+      id="monthlyCards"
+      class="monthly-grid"
+    ></div>
+
+  </section>
+
+
+  <!-- ANALYSIS VIEW -->
+
+  <section class="panel">
+
+    <div class="panel-head">
+
+      <div>
+
+        <h3>
+          Analysis View
+        </h3>
+
+        <p>
+          Month-wise values use Taxable Sales.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div
+      class="tabs"
+      id="viewTabs"
+    >
+
+      <button
+        data-view="Party"
+        class="active"
+      >
+        Customer Wise
+      </button>
+
+      <button data-view="MainGrp">
+        Company Wise
+      </button>
+
+      <button data-view="ItemName">
+        Product Wise
+      </button>
+
+      <button data-view="SM">
+        SM Wise
+      </button>
+
+      <button data-view="Division">
+        Division Wise
+      </button>
+
+      <button data-view="Pincode">
+        Pincode Wise
+      </button>
+
+    </div>
+
+
+    <div class="summary-table-wrap">
+
+      <table class="summary-table">
+
+        <thead>
+
+          <tr>
+
+            <th id="viewLabel">
+              Customer / Party
+            </th>
+
+          </tr>
+
+        </thead>
+
+
+        <tbody
+          id="groupSummaryBody"
+        ></tbody>
+
+      </table>
+
+    </div>
+
+  </section>
+
+
+  <!-- CUSTOMER BUDGET -->
+
+  <section
+    class="panel"
+    id="budgetPanel"
   >
-    Loading budget report...
-  </div>
+
+    <div class="panel-head budget-head">
+
+      <div>
+
+        <h3>
+          Customer Budget vs Actual Sales
+        </h3>
+
+        <p id="budgetNote">
+          Budget and actual sales customer comparison.
+        </p>
+
+      </div>
 
 
-  <div class="budget-table-wrap">
+      <div class="budget-count">
 
-    <table class="budget-table">
+        Matching Customers:
 
-      <thead>
-        <tr id="budgetTableHead"></tr>
-      </thead>
+        <strong id="budgetCount">
+          0
+        </strong>
 
-      <tbody
-        id="budgetTableBody"
-      ></tbody>
-
-    </table>
-
-  </div>
-
-
-  <div class="pager">
-
-    <button id="budgetPrev">
-      Previous
-    </button>
-
-    <span id="budgetPageInfo">
-      Page 1 of 1
-    </span>
-
-    <button id="budgetNext">
-      Next
-    </button>
-
-  </div>
-
-</section>
-
-
-
-<!-- DETAIL DATA -->
-
-<section class="panel table-panel">
-
-  <div class="panel-head table-head">
-
-    <div>
-
-      <h3>
-        Detailed Sales Data
-      </h3>
-
-      <p>
-        Original database columns plus calculated Avg Sales.
-      </p>
+      </div>
 
     </div>
 
 
-    <div class="row-count">
+    <div
+      id="budgetLoading"
+      class="loading"
+    >
+      Loading budget report...
+    </div>
 
-      <label>
-        Rows
-      </label>
 
-      <select id="pageSize">
+    <div class="budget-table-wrap">
 
-        <option>10</option>
+      <table class="budget-table">
 
-        <option selected>
-          25
-        </option>
+        <thead>
+          <tr id="budgetTableHead"></tr>
+        </thead>
 
-        <option>50</option>
+        <tbody
+          id="budgetTableBody"
+        ></tbody>
 
-        <option>100</option>
-
-      </select>
+      </table>
 
     </div>
 
-  </div>
+
+    <div class="pager">
+
+      <button id="budgetPrev">
+        Previous
+      </button>
+
+      <span id="budgetPageInfo">
+        Page 1 of 1
+      </span>
+
+      <button id="budgetNext">
+        Next
+      </button>
+
+    </div>
+
+  </section>
 
 
-  <div
-    id="loading"
-    class="loading"
-  >
-    Loading data...
-  </div>
+  <!-- DETAIL DATA -->
+
+  <section class="panel table-panel">
+
+    <div class="panel-head table-head">
+
+      <div>
+
+        <h3>
+          Detailed Sales Data
+        </h3>
+
+        <p>
+          Original sales columns plus calculated Avg Sales.
+        </p>
+
+      </div>
 
 
-  <div class="table-wrap">
+      <div class="row-count">
 
-    <table>
+        <label>
+          Rows
+        </label>
 
-      <thead>
-        <tr id="tableHead"></tr>
-      </thead>
+        <select id="pageSize">
 
-      <tbody id="tableBody"></tbody>
+          <option>10</option>
 
-    </table>
+          <option selected>
+            25
+          </option>
 
-  </div>
+          <option>50</option>
+
+          <option>100</option>
+
+        </select>
+
+      </div>
+
+    </div>
 
 
-  <div class="pager">
+    <div
+      id="loading"
+      class="loading"
+    >
+      Loading data...
+    </div>
 
-    <button id="prevPage">
-      Previous
-    </button>
 
-    <span id="pageInfo">
-      Page 1 of 1
-    </span>
+    <div class="table-wrap">
 
-    <button id="nextPage">
-      Next
-    </button>
+      <table>
 
-  </div>
+        <thead>
+          <tr id="tableHead"></tr>
+        </thead>
 
-</section>
+        <tbody id="tableBody"></tbody>
+
+      </table>
+
+    </div>
+
+
+    <div class="pager">
+
+      <button id="prevPage">
+        Previous
+      </button>
+
+      <span id="pageInfo">
+        Page 1 of 1
+      </span>
+
+      <button id="nextPage">
+        Next
+      </button>
+
+    </div>
+
+  </section>
 
 
 </main>
@@ -963,9 +963,9 @@
   src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
 ></script>
 
-<script src="config.js?v=online11"></script>
+<script src="config.js?v=online15"></script>
 
-<script src="script.js?v=online12"></script>
+<script src="script.js?v=online15"></script>
 
 
 </body>
