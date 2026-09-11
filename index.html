@@ -2,6 +2,7 @@
 <html lang="en">
 
 <head>
+
   <meta charset="UTF-8">
 
   <meta
@@ -13,10 +14,11 @@
 
   <link
     rel="stylesheet"
-    href="style.css?v=online9"
+    href="style.css?v=online10"
   >
 
   <style>
+
     .compare-controls{
       display:grid;
       grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
@@ -66,10 +68,14 @@
       border:1px solid #dbeafe;
       background:#eff6ff;
     }
+
   </style>
+
 </head>
 
+
 <body>
+
 
 <header class="topbar">
 
@@ -80,11 +86,15 @@
     </div>
 
     <div>
-      <h1>Sales Intelligence</h1>
+
+      <h1>
+        Sales Intelligence
+      </h1>
 
       <p>
         Customer • Product • Group • SM • Division • Pincode
       </p>
+
     </div>
 
   </div>
@@ -96,12 +106,11 @@
 </header>
 
 
+
 <main class="container">
 
 
-<!-- =========================
-     HERO
-========================= -->
+<!-- HERO -->
 
 <section class="hero">
 
@@ -116,7 +125,8 @@
     </h2>
 
     <p>
-      Multi-select filters, average sales, budget tracking and month comparison.
+      Multi-select filters, taxable sales comparison,
+      average sales and customer budget tracking.
     </p>
 
   </div>
@@ -131,71 +141,139 @@
 </section>
 
 
-<!-- =========================
-     TOP SUMMARY
-========================= -->
+
+<!-- TOP SUMMARY -->
 
 <section class="summary-grid five">
 
   <article class="summary-card">
-    <span>Total Qty</span>
-    <strong id="totalQty">0</strong>
-    <small>Filtered quantity</small>
+
+    <span>
+      Total Qty
+    </span>
+
+    <strong id="totalQty">
+      0
+    </strong>
+
+    <small>
+      Filtered quantity
+    </small>
+
   </article>
 
-  <article class="summary-card">
-    <span>Total Taxable</span>
-    <strong id="totalTaxable">₹0</strong>
-    <small>Filtered taxable value</small>
-  </article>
 
   <article class="summary-card">
-    <span>Total Sale</span>
-    <strong id="totalSale">₹0</strong>
-    <small>Filtered sales value</small>
+
+    <span>
+      Total Taxable
+    </span>
+
+    <strong id="totalTaxable">
+      ₹0
+    </strong>
+
+    <small>
+      Filtered taxable value
+    </small>
+
   </article>
 
-  <article class="summary-card">
-    <span>Products Sold</span>
-    <strong id="productsSold">0</strong>
-    <small>Distinct item codes sold</small>
-  </article>
 
   <article class="summary-card">
-    <span>Customers Billed</span>
-    <strong id="customersBilled">0</strong>
-    <small>Distinct customers with billing</small>
+
+    <span>
+      Total Sale
+    </span>
+
+    <strong id="totalSale">
+      ₹0
+    </strong>
+
+    <small>
+      Filtered invoice amount
+    </small>
+
   </article>
 
+
   <article class="summary-card">
-    <span>Matching Records</span>
-    <strong id="recordCount">0</strong>
-    <small>Rows after filters</small>
+
+    <span>
+      Products Sold
+    </span>
+
+    <strong id="productsSold">
+      0
+    </strong>
+
+    <small>
+      Distinct item codes sold
+    </small>
+
+  </article>
+
+
+  <article class="summary-card">
+
+    <span>
+      Customers Billed
+    </span>
+
+    <strong id="customersBilled">
+      0
+    </strong>
+
+    <small>
+      Distinct customers with billing
+    </small>
+
+  </article>
+
+
+  <article class="summary-card">
+
+    <span>
+      Matching Records
+    </span>
+
+    <strong id="recordCount">
+      0
+    </strong>
+
+    <small>
+      Rows after filters
+    </small>
+
   </article>
 
 </section>
 
 
-<!-- =========================
-     FILTERS
-========================= -->
+
+<!-- FILTERS -->
 
 <section class="panel">
 
   <div class="panel-head">
 
     <div>
-      <h3>Filters</h3>
+
+      <h3>
+        Filters
+      </h3>
 
       <p>
         Searchable multi-select filters with Select All and Unselect All.
       </p>
+
     </div>
 
   </div>
 
 
   <div class="search-grid">
+
 
     <div class="field wide">
 
@@ -233,7 +311,9 @@
             All Months / Total
           </span>
 
-          <span>▾</span>
+          <span>
+            ▾
+          </span>
 
         </button>
 
@@ -254,6 +334,7 @@
         </div>
 
       </div>
+
 
       <div
         class="selected-chips"
@@ -302,6 +383,7 @@
 
 
   <div class="budget-filters">
+
 
     <div class="field">
 
@@ -378,7 +460,9 @@
             All OD
           </span>
 
-          <span>▾</span>
+          <span>
+            ▾
+          </span>
 
         </button>
 
@@ -413,9 +497,8 @@
 </section>
 
 
-<!-- =========================
-     SALES COMPARISON
-========================= -->
+
+<!-- SALES COMPARISON -->
 
 <section class="panel">
 
@@ -428,7 +511,8 @@
       </h3>
 
       <p>
-        Select comparison months and one actual month. All main dashboard filters are applied automatically.
+        Comparison is based on Taxable Sales only.
+        Select comparison months and one actual month.
       </p>
 
     </div>
@@ -438,8 +522,6 @@
 
   <div class="compare-controls">
 
-
-    <!-- COMPARE MONTHS -->
 
     <div class="field">
 
@@ -462,7 +544,9 @@
             Select Compare Months
           </span>
 
-          <span>▾</span>
+          <span>
+            ▾
+          </span>
 
         </button>
 
@@ -493,8 +577,6 @@
     </div>
 
 
-    <!-- ACTUAL MONTH -->
-
     <div class="field">
 
       <label>
@@ -516,6 +598,7 @@
 
   <div class="compare-grid">
 
+
     <div class="compare-card">
 
       <span>
@@ -532,7 +615,7 @@
     <div class="compare-card">
 
       <span>
-        Compare Avg Sale
+        Compare Avg Taxable Sale
       </span>
 
       <strong id="compareAvgSale">
@@ -558,7 +641,7 @@
     <div class="compare-card">
 
       <span>
-        Actual Month Sale
+        Actual Month Taxable Sale
       </span>
 
       <strong id="compareActualSale">
@@ -571,7 +654,7 @@
     <div class="compare-card">
 
       <span>
-        Difference
+        Taxable Difference
       </span>
 
       <strong id="compareDifference">
@@ -614,9 +697,8 @@
 </section>
 
 
-<!-- =========================
-     MONTH SUMMARY
-========================= -->
+
+<!-- MONTH SUMMARY -->
 
 <section class="panel">
 
@@ -629,7 +711,7 @@
       </h3>
 
       <p>
-        Sales metrics plus Budget Customers, Sales Customers and Zero Sales Customers.
+        Qty, Taxable, Sale, Products, Customers and Budget Customer status.
       </p>
 
     </div>
@@ -645,9 +727,8 @@
 </section>
 
 
-<!-- =========================
-     ANALYSIS
-========================= -->
+
+<!-- ANALYSIS -->
 
 <section class="panel">
 
@@ -660,7 +741,7 @@
       </h3>
 
       <p>
-        Month-wise sales and average sales for every analysis group.
+        Month-wise analysis uses Taxable Sales, not Amt / invoice sales.
       </p>
 
     </div>
@@ -715,12 +796,25 @@
             Customer / Party
           </th>
 
-          <th>Qty</th>
-          <th>Taxable</th>
-          <th>Total Sale</th>
-          <th>Products Sold</th>
-          <th>Customers Billed</th>
-          <th>Records</th>
+          <th>
+            Qty
+          </th>
+
+          <th>
+            Total Taxable Sale
+          </th>
+
+          <th>
+            Products Sold
+          </th>
+
+          <th>
+            Customers Billed
+          </th>
+
+          <th>
+            Records
+          </th>
 
         </tr>
 
@@ -738,9 +832,8 @@
 </section>
 
 
-<!-- =========================
-     BUDGET
-========================= -->
+
+<!-- BUDGET -->
 
 <section
   class="panel"
@@ -791,7 +884,9 @@
         <tr id="budgetTableHead"></tr>
       </thead>
 
-      <tbody id="budgetTableBody"></tbody>
+      <tbody
+        id="budgetTableBody"
+      ></tbody>
 
     </table>
 
@@ -817,9 +912,8 @@
 </section>
 
 
-<!-- =========================
-     DETAIL TABLE
-========================= -->
+
+<!-- DETAIL DATA -->
 
 <section class="panel table-panel">
 
@@ -846,14 +940,21 @@
 
       <select id="pageSize">
 
-        <option>10</option>
+        <option>
+          10
+        </option>
 
         <option selected>
           25
         </option>
 
-        <option>50</option>
-        <option>100</option>
+        <option>
+          50
+        </option>
+
+        <option>
+          100
+        </option>
 
       </select>
 
@@ -878,7 +979,9 @@
         <tr id="tableHead"></tr>
       </thead>
 
-      <tbody id="tableBody"></tbody>
+      <tbody
+        id="tableBody"
+      ></tbody>
 
     </table>
 
@@ -911,9 +1014,14 @@
   src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
 ></script>
 
-<script src="config.js?v=online9"></script>
+<script
+  src="config.js?v=online10"
+></script>
 
-<script src="script.js?v=online9"></script>
+<script
+  src="script.js?v=online10"
+></script>
+
 
 </body>
 </html>
