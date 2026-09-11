@@ -1,13 +1,30 @@
 <!DOCTYPE html>
+
 <html lang="en">
+
 <head>
+
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Sales Intelligence Dashboard</title>
-<link rel="stylesheet" href="style.css?v=online4">
+
+<meta
+  name="viewport"
+  content="width=device-width,initial-scale=1"
+>
+
+<title>
+  Sales Intelligence Dashboard
+</title>
+
+<link
+  rel="stylesheet"
+  href="style.css?v=online5"
+>
+
 </head>
 
+
 <body>
+
 
 <header class="topbar">
 
@@ -17,20 +34,30 @@
       R
     </div>
 
+
     <div>
-      <h1>Sales Intelligence</h1>
+
+      <h1>
+        Sales Intelligence
+      </h1>
+
       <p>
         Customer • Product • Group • SM • Division • Pincode
       </p>
+
     </div>
 
   </div>
 
+
   <div class="live">
+
     ● Supabase Online
+
   </div>
 
 </header>
+
 
 
 <main class="container">
@@ -44,15 +71,18 @@
       Business Overview
     </span>
 
+
     <h2>
       Sales Performance Dashboard
     </h2>
+
 
     <p>
       Multi-select filters, searchable dropdowns and month-wise product sales analysis.
     </p>
 
   </div>
+
 
   <button
     id="clearFilters"
@@ -64,7 +94,9 @@
 </section>
 
 
+
 <section class="summary-grid five">
+
 
   <article class="summary-card">
 
@@ -81,6 +113,7 @@
     </small>
 
   </article>
+
 
 
   <article class="summary-card">
@@ -100,6 +133,7 @@
   </article>
 
 
+
   <article class="summary-card">
 
     <span>
@@ -115,6 +149,7 @@
     </small>
 
   </article>
+
 
 
   <article class="summary-card">
@@ -134,6 +169,7 @@
   </article>
 
 
+
   <article class="summary-card">
 
     <span>
@@ -149,6 +185,7 @@
     </small>
 
   </article>
+
 
 
   <article class="summary-card">
@@ -167,7 +204,9 @@
 
   </article>
 
+
 </section>
+
 
 
 <section class="panel">
@@ -181,13 +220,15 @@
         Filters
       </h3>
 
+
       <p>
-        You can select multiple values in every dropdown. Use the search box inside each filter.
+        Every multi-select filter has Search, Select All and Unselect All.
       </p>
 
     </div>
 
   </div>
+
 
 
   <div class="search-grid">
@@ -199,6 +240,7 @@
         Global Search
       </label>
 
+
       <input
         id="search"
         type="search"
@@ -208,16 +250,19 @@
     </div>
 
 
+
     <div class="field">
 
       <label>
         Month
       </label>
 
+
       <div
         class="multi"
         id="multi_month"
       >
+
 
         <button
           type="button"
@@ -236,7 +281,9 @@
         </button>
 
 
+
         <div class="multi-menu">
+
 
           <input
             class="multi-search"
@@ -244,14 +291,18 @@
             placeholder="Search month..."
           >
 
+
           <div
             class="multi-options"
             id="options_month"
           ></div>
 
+
         </div>
 
+
       </div>
+
 
 
       <div
@@ -259,7 +310,9 @@
         id="chips_month"
       ></div>
 
+
     </div>
+
 
 
     <div class="field">
@@ -268,26 +321,33 @@
         Product Sale
       </label>
 
+
       <select id="productSaleStatus">
+
 
         <option value="All">
           All Products
         </option>
 
+
         <option value="Sold">
           Only Sold Products
         </option>
+
 
         <option value="NoSale">
           No Sale Products
         </option>
 
+
       </select>
+
 
     </div>
 
 
   </div>
+
 
 
   <div
@@ -299,7 +359,7 @@
 
   <div class="budget-filter-title">
 
-    Customer Budget Filters
+    Customer Budget / OD Filters
 
   </div>
 
@@ -310,55 +370,70 @@
 
     <div class="field">
 
+
       <label>
         Sales / Budget Status
       </label>
 
+
       <select id="budgetStatus">
+
 
         <option value="all">
           All
         </option>
 
+
         <option value="zero_sales">
           Zero Sales
         </option>
+
 
         <option value="below_budget">
           Below Budget
         </option>
 
+
         <option value="achieved">
           Budget Achieved
         </option>
 
+
       </select>
+
 
     </div>
 
 
 
     <div class="field">
+
 
       <label>
         Budget Target
       </label>
 
+
       <select id="budgetTarget">
+
 
         <option value="all">
           All Customers
         </option>
 
+
         <option value="target">
           Target Customers
         </option>
+
 
         <option value="non_target">
           Non-Target Customers
         </option>
 
+
       </select>
+
 
     </div>
 
@@ -366,17 +441,81 @@
 
     <div class="field">
 
+
       <label>
         OD Team
       </label>
 
-      <select id="budgetOD">
 
-        <option value="">
-          All OD
-        </option>
 
-      </select>
+      <div
+        class="multi"
+        id="multi_budgetOD"
+      >
+
+
+        <button
+          type="button"
+          class="multi-btn"
+          data-open="budgetOD"
+        >
+
+
+          <span id="label_budgetOD">
+            All OD
+          </span>
+
+
+          <span>
+            ▾
+          </span>
+
+
+        </button>
+
+
+
+        <div class="multi-menu">
+
+
+          <input
+            class="multi-search"
+            id="search_budgetOD"
+            placeholder="Search OD..."
+          >
+
+
+          <div
+            class="multi-options"
+            id="options_budgetOD"
+          ></div>
+
+
+        </div>
+
+
+      </div>
+
+
+
+      <div
+        class="selected-chips"
+        id="chips_budgetOD"
+      ></div>
+
+
+      <small
+        style="
+          display:block;
+          margin-top:6px;
+          color:#64748b;
+        "
+      >
+
+        OD selection applies to the full sales dashboard through customer Party matching.
+
+      </small>
+
 
     </div>
 
@@ -393,19 +532,25 @@
 
   <div class="panel-head">
 
+
     <div>
+
 
       <h3>
         Month-wise Summary
       </h3>
 
+
       <p>
-        Each month includes Qty, Taxable, Sale and distinct Products Sold.
+        Each month includes Qty, Taxable, Sale, Products Sold and Customers Billed.
       </p>
+
 
     </div>
 
+
   </div>
+
 
 
   <div
@@ -423,19 +568,25 @@
 
   <div class="panel-head">
 
+
     <div>
+
 
       <h3>
         Analysis View
       </h3>
 
+
       <p>
         Customer, company, product, SM, division and pincode wise summary.
       </p>
 
+
     </div>
 
+
   </div>
+
 
 
   <div
@@ -448,93 +599,127 @@
       data-view="Party"
       class="active"
     >
+
       Customer Wise
+
     </button>
+
 
 
     <button
       data-view="MainGrp"
     >
+
       Company Wise
+
     </button>
+
 
 
     <button
       data-view="ItemName"
     >
+
       Product Wise
+
     </button>
+
 
 
     <button
       data-view="SM"
     >
+
       SM Wise
+
     </button>
+
 
 
     <button
       data-view="Division"
     >
+
       Division Wise
+
     </button>
+
 
 
     <button
       data-view="Pincode"
     >
+
       Pincode Wise
+
     </button>
 
 
   </div>
 
 
+
   <div class="summary-table-wrap">
+
 
     <table class="summary-table">
 
+
       <thead>
 
+
         <tr>
+
 
           <th id="viewLabel">
             Customer / Party
           </th>
 
+
           <th>
             Qty
           </th>
+
 
           <th>
             Taxable
           </th>
 
+
           <th>
             Sale
           </th>
+
 
           <th>
             Products Sold
           </th>
 
+
           <th>
             Customers Billed
           </th>
+
 
           <th>
             Records
           </th>
 
+
         </tr>
 
+
       </thead>
+
+
 
       <tbody
         id="groupSummaryBody"
       ></tbody>
 
+
     </table>
+
 
   </div>
 
@@ -554,29 +739,37 @@
 
     <div>
 
+
       <h3>
         Customer Budget vs Actual Sales
       </h3>
+
 
       <p id="budgetNote">
         Budget comes from budget_customer; actual sales comes live from products.
       </p>
 
+
     </div>
+
 
 
     <div class="budget-count">
 
+
       Matching Customers:
+
 
       <strong id="budgetCount">
         0
       </strong>
 
+
     </div>
 
 
   </div>
+
 
 
   <div
@@ -589,6 +782,7 @@
   </div>
 
 
+
   <div class="budget-table-wrap">
 
 
@@ -597,12 +791,19 @@
 
       <thead>
 
-        <tr id="budgetTableHead"></tr>
+
+        <tr
+          id="budgetTableHead"
+        ></tr>
+
 
       </thead>
 
 
-      <tbody id="budgetTableBody"></tbody>
+
+      <tbody
+        id="budgetTableBody"
+      ></tbody>
 
 
     </table>
@@ -611,21 +812,34 @@
   </div>
 
 
+
   <div class="pager">
 
 
-    <button id="budgetPrev">
+    <button
+      id="budgetPrev"
+    >
+
       Previous
+
     </button>
 
 
+
     <span id="budgetPageInfo">
+
       Page 1 of 1
+
     </span>
 
 
-    <button id="budgetNext">
+
+    <button
+      id="budgetNext"
+    >
+
       Next
+
     </button>
 
 
@@ -644,47 +858,61 @@
 
     <div>
 
+
       <h3>
         Detailed Sales Data
       </h3>
+
 
       <p>
         Only your actual sheet columns.
       </p>
 
+
     </div>
 
 
+
     <div class="row-count">
+
 
       <label>
         Rows
       </label>
 
+
+
       <select id="pageSize">
+
 
         <option>
           10
         </option>
 
+
         <option selected>
           25
         </option>
+
 
         <option>
           50
         </option>
 
+
         <option>
           100
         </option>
 
+
       </select>
+
 
     </div>
 
 
   </div>
+
 
 
   <div
@@ -697,6 +925,7 @@
   </div>
 
 
+
   <div class="table-wrap">
 
 
@@ -705,12 +934,19 @@
 
       <thead>
 
-        <tr id="tableHead"></tr>
+
+        <tr
+          id="tableHead"
+        ></tr>
+
 
       </thead>
 
 
-      <tbody id="tableBody"></tbody>
+
+      <tbody
+        id="tableBody"
+      ></tbody>
 
 
     </table>
@@ -719,21 +955,34 @@
   </div>
 
 
+
   <div class="pager">
 
 
-    <button id="prevPage">
+    <button
+      id="prevPage"
+    >
+
       Previous
+
     </button>
 
 
+
     <span id="pageInfo">
+
       Page 1 of 1
+
     </span>
 
 
-    <button id="nextPage">
+
+    <button
+      id="nextPage"
+    >
+
       Next
+
     </button>
 
 
@@ -747,12 +996,21 @@
 
 
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script
+  src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+></script>
 
-<script src="config.js?v=online4"></script>
 
-<script src="script.js?v=online4"></script>
+<script
+  src="config.js?v=online5"
+></script>
+
+
+<script
+  src="script.js?v=online5"
+></script>
 
 
 </body>
+
 </html>
