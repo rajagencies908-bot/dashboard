@@ -4,73 +4,167 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Sales Intelligence Dashboard</title>
-<link rel="stylesheet" href="style.css?v=online3">
+<link rel="stylesheet" href="style.css?v=online4">
 </head>
+
 <body>
 
 <header class="topbar">
+
   <div class="brand">
-    <div class="logo">R</div>
+
+    <div class="logo">
+      R
+    </div>
+
     <div>
       <h1>Sales Intelligence</h1>
-      <p>Customer • Product • Group • SM • Division • Pincode</p>
+      <p>
+        Customer • Product • Group • SM • Division • Pincode
+      </p>
     </div>
+
   </div>
 
-  <div class="live">● Supabase Online</div>
+  <div class="live">
+    ● Supabase Online
+  </div>
+
 </header>
+
 
 <main class="container">
 
+
 <section class="hero">
+
   <div>
-    <span class="eyebrow">Business Overview</span>
-    <h2>Sales Performance Dashboard</h2>
-    <p>Multi-select filters, searchable dropdowns and month-wise product sales analysis.</p>
+
+    <span class="eyebrow">
+      Business Overview
+    </span>
+
+    <h2>
+      Sales Performance Dashboard
+    </h2>
+
+    <p>
+      Multi-select filters, searchable dropdowns and month-wise product sales analysis.
+    </p>
+
   </div>
 
-  <button id="clearFilters" class="clear-btn">
+  <button
+    id="clearFilters"
+    class="clear-btn"
+  >
     Clear All Filters
   </button>
+
 </section>
 
 
 <section class="summary-grid five">
 
   <article class="summary-card">
-    <span>Total Qty</span>
-    <strong id="totalQty">0</strong>
-    <small>Filtered quantity</small>
+
+    <span>
+      Total Qty
+    </span>
+
+    <strong id="totalQty">
+      0
+    </strong>
+
+    <small>
+      Filtered quantity
+    </small>
+
   </article>
 
-  <article class="summary-card">
-    <span>Total Taxable</span>
-    <strong id="totalTaxable">₹0</strong>
-    <small>Filtered taxable value</small>
-  </article>
 
   <article class="summary-card">
-    <span>Total Sale</span>
-    <strong id="totalSale">₹0</strong>
-    <small>Filtered sales value</small>
+
+    <span>
+      Total Taxable
+    </span>
+
+    <strong id="totalTaxable">
+      ₹0
+    </strong>
+
+    <small>
+      Filtered taxable value
+    </small>
+
   </article>
 
-  <article class="summary-card">
-    <span>Products Sold</span>
-    <strong id="productsSold">0</strong>
-    <small>Distinct item codes sold</small>
-  </article>
 
   <article class="summary-card">
-    <span>Customers Billed</span>
-    <strong id="customersBilled">0</strong>
-    <small>Distinct customers with billing</small>
+
+    <span>
+      Total Sale
+    </span>
+
+    <strong id="totalSale">
+      ₹0
+    </strong>
+
+    <small>
+      Filtered sales value
+    </small>
+
   </article>
 
+
   <article class="summary-card">
-    <span>Matching Records</span>
-    <strong id="recordCount">0</strong>
-    <small>Rows after filters</small>
+
+    <span>
+      Products Sold
+    </span>
+
+    <strong id="productsSold">
+      0
+    </strong>
+
+    <small>
+      Distinct item codes sold
+    </small>
+
+  </article>
+
+
+  <article class="summary-card">
+
+    <span>
+      Customers Billed
+    </span>
+
+    <strong id="customersBilled">
+      0
+    </strong>
+
+    <small>
+      Distinct customers with billing
+    </small>
+
+  </article>
+
+
+  <article class="summary-card">
+
+    <span>
+      Matching Records
+    </span>
+
+    <strong id="recordCount">
+      0
+    </strong>
+
+    <small>
+      Rows after filters
+    </small>
+
   </article>
 
 </section>
@@ -78,40 +172,69 @@
 
 <section class="panel">
 
+
   <div class="panel-head">
+
     <div>
-      <h3>Filters</h3>
-      <p>You can select multiple values in every dropdown. Use the search box inside each filter.</p>
+
+      <h3>
+        Filters
+      </h3>
+
+      <p>
+        You can select multiple values in every dropdown. Use the search box inside each filter.
+      </p>
+
     </div>
+
   </div>
+
 
   <div class="search-grid">
 
+
     <div class="field wide">
-      <label>Global Search</label>
+
+      <label>
+        Global Search
+      </label>
+
       <input
         id="search"
         type="search"
         placeholder="Search party, product, code, group, SM, division, pincode..."
       >
+
     </div>
 
 
     <div class="field">
-      <label>Month</label>
 
-      <div class="multi" id="multi_month">
+      <label>
+        Month
+      </label>
+
+      <div
+        class="multi"
+        id="multi_month"
+      >
 
         <button
           type="button"
           class="multi-btn"
           data-open="month"
         >
+
           <span id="label_month">
             All Months / Total
           </span>
-          <span>▾</span>
+
+          <span>
+            ▾
+          </span>
+
         </button>
+
 
         <div class="multi-menu">
 
@@ -127,17 +250,23 @@
           ></div>
 
         </div>
+
       </div>
+
 
       <div
         class="selected-chips"
         id="chips_month"
       ></div>
+
     </div>
 
 
     <div class="field">
-      <label>Product Sale</label>
+
+      <label>
+        Product Sale
+      </label>
 
       <select id="productSaleStatus">
 
@@ -154,7 +283,9 @@
         </option>
 
       </select>
+
     </div>
+
 
   </div>
 
@@ -165,12 +296,17 @@
   ></div>
 
 
+
   <div class="budget-filter-title">
+
     Customer Budget Filters
+
   </div>
 
 
+
   <div class="budget-filters">
+
 
     <div class="field">
 
@@ -201,6 +337,7 @@
     </div>
 
 
+
     <div class="field">
 
       <label>
@@ -226,26 +363,38 @@
     </div>
 
 
-   <div class="field">
 
-  <label>
-    OD Team
-  </label>
+    <div class="field">
 
-  <select id="budgetOD">
-    <option value="">All OD</option>
-  </select>
+      <label>
+        OD Team
+      </label>
 
-</div>
+      <select id="budgetOD">
+
+        <option value="">
+          All OD
+        </option>
+
+      </select>
+
+    </div>
+
+
+  </div>
+
 
 </section>
 
 
+
 <section class="panel">
+
 
   <div class="panel-head">
 
     <div>
+
       <h3>
         Month-wise Summary
       </h3>
@@ -253,23 +402,29 @@
       <p>
         Each month includes Qty, Taxable, Sale and distinct Products Sold.
       </p>
+
     </div>
 
   </div>
+
 
   <div
     id="monthlyCards"
     class="monthly-grid"
   ></div>
 
+
 </section>
+
 
 
 <section class="panel">
 
+
   <div class="panel-head">
 
     <div>
+
       <h3>
         Analysis View
       </h3>
@@ -277,6 +432,7 @@
       <p>
         Customer, company, product, SM, division and pincode wise summary.
       </p>
+
     </div>
 
   </div>
@@ -287,6 +443,7 @@
     id="viewTabs"
   >
 
+
     <button
       data-view="Party"
       class="active"
@@ -294,25 +451,41 @@
       Customer Wise
     </button>
 
-    <button data-view="MainGrp">
+
+    <button
+      data-view="MainGrp"
+    >
       Company Wise
     </button>
 
-    <button data-view="ItemName">
+
+    <button
+      data-view="ItemName"
+    >
       Product Wise
     </button>
 
-    <button data-view="SM">
+
+    <button
+      data-view="SM"
+    >
       SM Wise
     </button>
 
-    <button data-view="Division">
+
+    <button
+      data-view="Division"
+    >
       Division Wise
     </button>
 
-    <button data-view="Pincode">
+
+    <button
+      data-view="Pincode"
+    >
       Pincode Wise
     </button>
+
 
   </div>
 
@@ -329,24 +502,45 @@
             Customer / Party
           </th>
 
-          <th>Qty</th>
-          <th>Taxable</th>
-          <th>Sale</th>
-          <th>Products Sold</th>
-          <th>Customers Billed</th>
-          <th>Records</th>
+          <th>
+            Qty
+          </th>
+
+          <th>
+            Taxable
+          </th>
+
+          <th>
+            Sale
+          </th>
+
+          <th>
+            Products Sold
+          </th>
+
+          <th>
+            Customers Billed
+          </th>
+
+          <th>
+            Records
+          </th>
 
         </tr>
 
       </thead>
 
-      <tbody id="groupSummaryBody"></tbody>
+      <tbody
+        id="groupSummaryBody"
+      ></tbody>
 
     </table>
 
   </div>
 
+
 </section>
+
 
 
 <section
@@ -354,7 +548,9 @@
   id="budgetPanel"
 >
 
+
   <div class="panel-head budget-head">
+
 
     <div>
 
@@ -379,6 +575,7 @@
 
     </div>
 
+
   </div>
 
 
@@ -386,13 +583,17 @@
     id="budgetLoading"
     class="loading"
   >
+
     Loading budget report...
+
   </div>
 
 
   <div class="budget-table-wrap">
 
+
     <table class="budget-table">
+
 
       <thead>
 
@@ -400,35 +601,46 @@
 
       </thead>
 
+
       <tbody id="budgetTableBody"></tbody>
 
+
     </table>
+
 
   </div>
 
 
   <div class="pager">
 
+
     <button id="budgetPrev">
       Previous
     </button>
+
 
     <span id="budgetPageInfo">
       Page 1 of 1
     </span>
 
+
     <button id="budgetNext">
       Next
     </button>
 
+
   </div>
+
 
 </section>
 
 
+
 <section class="panel table-panel">
 
+
   <div class="panel-head table-head">
+
 
     <div>
 
@@ -451,19 +663,26 @@
 
       <select id="pageSize">
 
-        <option>10</option>
+        <option>
+          10
+        </option>
 
         <option selected>
           25
         </option>
 
-        <option>50</option>
+        <option>
+          50
+        </option>
 
-        <option>100</option>
+        <option>
+          100
+        </option>
 
       </select>
 
     </div>
+
 
   </div>
 
@@ -472,13 +691,17 @@
     id="loading"
     class="loading"
   >
+
     Loading data...
+
   </div>
 
 
   <div class="table-wrap">
 
+
     <table>
+
 
       <thead>
 
@@ -486,39 +709,50 @@
 
       </thead>
 
+
       <tbody id="tableBody"></tbody>
 
+
     </table>
+
 
   </div>
 
 
   <div class="pager">
 
+
     <button id="prevPage">
       Previous
     </button>
+
 
     <span id="pageInfo">
       Page 1 of 1
     </span>
 
+
     <button id="nextPage">
       Next
     </button>
 
+
   </div>
 
+
 </section>
+
 
 </main>
 
 
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<script src="config.js?v=online3"></script>
+<script src="config.js?v=online4"></script>
 
-<script src="script.js?v=online3"></script>
+<script src="script.js?v=online4"></script>
+
 
 </body>
 </html>
