@@ -1,325 +1,147 @@
 const { createClient } = supabase;
 
-
 const sb = createClient(
   RAJ_CONFIG.supabaseUrl,
   RAJ_CONFIG.supabasePublishableKey
 );
 
 
-
-/* =========================================
+/* ==============================
    FILTER DEFINITIONS
-========================================= */
+============================== */
 
 const filterDefs = [
-
-  [
-    'MainGrp',
-    'Main Group',
-    'All Main Groups'
-  ],
-
-  [
-    'ItemGroup',
-    'Item Group',
-    'All Item Groups'
-  ],
-
-  [
-    'Party',
-    'Customer / Party',
-    'All Customers'
-  ],
-
-  [
-    'ItemCode',
-    'Item Code',
-    'All Item Codes'
-  ],
-
-  [
-    'ItemName',
-    'Product / Item Name',
-    'All Products'
-  ],
-
-  [
-    'SM',
-    'SM',
-    'All SM'
-  ],
-
-  [
-    'Division',
-    'Division',
-    'All Divisions'
-  ],
-
-  [
-    'City',
-    'City',
-    'All Cities'
-  ],
-
-  [
-    'Pincode',
-    'Pincode',
-    'All Pincodes'
-  ]
-
+  ['MainGrp','Main Group','All Main Groups'],
+  ['ItemGroup','Item Group','All Item Groups'],
+  ['Party','Customer / Party','All Customers'],
+  ['ItemCode','Item Code','All Item Codes'],
+  ['ItemName','Product / Item Name','All Products'],
+  ['SM','SM','All SM'],
+  ['Division','Division','All Divisions'],
+  ['City','City','All Cities'],
+  ['Pincode','Pincode','All Pincodes']
 ];
 
-
-const filters =
-  filterDefs.map(
-    x => x[0]
-  );
-
-
-
-/* =========================================
-   STATE
-========================================= */
+const filters = filterDefs.map(x => x[0]);
 
 const selected = {};
-
 const searchState = {};
 
-
-filters.forEach(
-  f => {
-
-    selected[f] = [];
-
-    searchState[f] = '';
-
-  }
-);
-
+filters.forEach(f => {
+  selected[f] = [];
+  searchState[f] = '';
+});
 
 selected.month = [];
-
 selected.budgetOD = [];
 
-
 searchState.month = '';
-
 searchState.budgetOD = '';
 
-
 let columns = [];
-
 let months = [];
 
-
 let page = 1;
-
 let totalPages = 1;
-
 
 let currentView = 'Party';
 
-
 let timer = null;
 
-
 let budgetPage = 1;
-
 let budgetRows = [];
-
 
 let odParties = [];
 
-
 let budgetMonthStats = {};
-
 
 const budgetPageSize = 25;
 
 
-
-/* =========================================
+/* ==============================
    MONTH NAMES
-========================================= */
+============================== */
 
 const monthNames = {
-
   Jan:'January',
-
   Feb:'February',
-
   Mar:'March',
-
   Apr:'April',
-
   May:'May',
-
   Jun:'June',
-
   June:'June',
-
   Jul:'July',
-
   July:'July',
-
   Aug:'August',
-
   Sep:'September',
-
   Sept:'September',
-
   Oct:'October',
-
   Nov:'November',
-
   Dec:'December'
-
 };
 
 
-
-/* =========================================
+/* ==============================
    BUDGET MONTH MAP
-========================================= */
+============================== */
 
 const budgetMonthMap = {
-
-
-  Apr:[
-    'AprBudget',
-    'AprSales',
-    'AprDiff'
-  ],
-
-
-  May:[
-    'MayBudget',
-    'MaySales',
-    'MayDiff'
-  ],
-
-
-  Jun:[
-    'JuneBudget',
-    'JuneSales',
-    'JuneDiff'
-  ],
-
-
-  June:[
-    'JuneBudget',
-    'JuneSales',
-    'JuneDiff'
-  ],
-
-
-  Jul:[
-    'JulyBudget',
-    'JulySales',
-    'JulyDiff'
-  ],
-
-
-  July:[
-    'JulyBudget',
-    'JulySales',
-    'JulyDiff'
-  ],
-
-
-  Aug:[
-    'AugBudget',
-    'AugSales',
-    'AugDiff'
-  ],
-
-
-  Sep:[
-    'SepBudget',
-    'SepSales',
-    'SepDiff'
-  ],
-
-
-  Sept:[
-    'SepBudget',
-    'SepSales',
-    'SepDiff'
-  ]
-
-
+  Apr:['AprBudget','AprSales','AprDiff'],
+  May:['MayBudget','MaySales','MayDiff'],
+  Jun:['JuneBudget','JuneSales','JuneDiff'],
+  June:['JuneBudget','JuneSales','JuneDiff'],
+  Jul:['JulyBudget','JulySales','JulyDiff'],
+  July:['JulyBudget','JulySales','JulyDiff'],
+  Aug:['AugBudget','AugSales','AugDiff'],
+  Sep:['SepBudget','SepSales','SepDiff'],
+  Sept:['SepBudget','SepSales','SepDiff']
 };
 
 
+/* ==============================
+   HELPERS
+============================== */
 
-/* =========================================
-   BASIC HELPERS
-========================================= */
+const el = id =>
+  document.getElementById(id);
 
-const el =
-  id =>
-    document.getElementById(
-      id
-    );
+const fmt = n =>
+  new Intl.NumberFormat(
+    'en-IN',
+    {
+      maximumFractionDigits:2
+    }
+  ).format(
+    Number(n || 0)
+  );
 
+const money = n =>
+  '₹' +
+  new Intl.NumberFormat(
+    'en-IN',
+    {
+      minimumFractionDigits:2,
+      maximumFractionDigits:2
+    }
+  ).format(
+    Number(n || 0)
+  );
 
+const esc = v => {
 
-const fmt =
-  n =>
-    new Intl.NumberFormat(
-      'en-IN',
-      {
-        maximumFractionDigits:2
-      }
-    ).format(
-      Number(
-        n || 0
-      )
-    );
+  const d =
+    document.createElement('div');
 
+  d.textContent =
+    v ?? '';
 
-
-const money =
-  n =>
-    '₹'
-    +
-    new Intl.NumberFormat(
-      'en-IN',
-      {
-        minimumFractionDigits:2,
-        maximumFractionDigits:2
-      }
-    ).format(
-      Number(
-        n || 0
-      )
-    );
+  return d.innerHTML;
+};
 
 
-
-const esc =
-  v => {
-
-    const d =
-      document.createElement(
-        'div'
-      );
-
-
-    d.textContent =
-      v ?? '';
-
-
-    return d.innerHTML;
-
-  };
-
-
-
-/* =========================================
-   RPC HELPER
-========================================= */
+/* ==============================
+   RPC
+============================== */
 
 async function rpc(
   name,
@@ -329,612 +151,336 @@ async function rpc(
   const {
     data,
     error
-  } =
-    await sb.rpc(
-      name,
-      params
-    );
-
-
-  if(
-    error
-  ){
-
-    throw error;
-
-  }
-
-
-  return data;
-
-}
-
-
-
-/* =========================================
-   MONTH HELPERS
-========================================= */
-
-function normalizeMonth(
-  month
-){
-
-  if(
-    month === 'Jun'
-  ){
-
-    return 'June';
-
-  }
-
-
-  if(
-    month === 'Jul'
-  ){
-
-    return 'July';
-
-  }
-
-
-  if(
-    month === 'Sep'
-  ){
-
-    return 'Sept';
-
-  }
-
-
-  return month;
-
-}
-
-
-
-function monthAmountColumn(
-  month
-){
-
-  const candidates = [
-
-
-    `${month}Amt`,
-
-
-    `${normalizeMonth(
-      month
-    )}Amt`,
-
-
-    month === 'June'
-      ? 'JuneAmt'
-      : '',
-
-
-    month === 'July'
-      ? 'JulyAmt'
-      : '',
-
-
-    month === 'Sept'
-      ? 'SeptAmt'
-      : ''
-
-
-  ].filter(
-    Boolean
+  } = await sb.rpc(
+    name,
+    params
   );
 
+  if(error){
+    throw error;
+  }
 
-  return candidates.find(
-    c =>
-      columns.includes(
-        c
-      )
-  )
-  ||
-  null;
-
+  return data;
 }
 
+
+/* ==============================
+   MONTH HELPERS
+============================== */
+
+function normalizeMonth(m){
+
+  if(m === 'Jun'){
+    return 'June';
+  }
+
+  if(m === 'Jul'){
+    return 'July';
+  }
+
+  if(m === 'Sep'){
+    return 'Sept';
+  }
+
+  return m;
+}
+
+
+function monthAmountColumn(month){
+
+  const candidates = [
+    `${month}Amt`,
+    `${normalizeMonth(month)}Amt`,
+    month === 'June' ? 'JuneAmt' : '',
+    month === 'July' ? 'JulyAmt' : '',
+    month === 'Sept' ? 'SeptAmt' : ''
+  ].filter(Boolean);
+
+  return (
+    candidates.find(
+      c => columns.includes(c)
+    )
+    ||
+    null
+  );
+}
 
 
 function activeAverageMonths(){
 
   return selected.month.length
-
     ? selected.month
-
     : months;
-
 }
 
 
-
-function rowAverageSale(
-  row
-){
+function rowAverageSale(row){
 
   const activeMonths =
     activeAverageMonths();
 
-
-  if(
-    !activeMonths.length
-  ){
-
+  if(!activeMonths.length){
     return 0;
-
   }
 
-
   let total = 0;
-
   let count = 0;
 
-
-  for(
-    const month of activeMonths
-  ){
+  for(const month of activeMonths){
 
     const column =
-      monthAmountColumn(
-        month
-      );
+      monthAmountColumn(month);
 
-
-    if(
-      column
-    ){
+    if(column){
 
       total +=
         Number(
-          row[column]
-          ||
-          0
+          row[column] || 0
         );
 
-
       count++;
-
     }
-
   }
 
-
   return count
-
     ? total / count
-
     : 0;
-
 }
 
 
-
-/* =========================================
+/* ==============================
    EFFECTIVE FILTER OBJECT
-========================================= */
+============================== */
 
 function effectiveFilterObject(){
 
   const obj = {};
 
+  for(const column of filters){
 
-  for(
-    const column of filters
-  ){
-
-    if(
-      selected[column].length
-    ){
+    if(selected[column].length){
 
       obj[column] =
         [...selected[column]];
-
     }
-
   }
 
-
-
   /*
-    OD Logic
-
+    OD:
     budget_customer Order
-          ↓
-       Party list
-          ↓
-    products Party
+    -> Party list
+    -> products Party
   */
 
-  if(
-    selected.budgetOD.length
-  ){
+  if(selected.budgetOD.length){
 
     let parties =
-      odParties.map(
-        String
-      );
+      odParties.map(String);
 
-
-
-    /*
-      Manual Party filter હોય
-      તો Party + OD intersection.
-    */
-
-    if(
-      selected.Party.length
-    ){
+    if(selected.Party.length){
 
       const allowed =
-        new Set(
-          parties
-        );
-
+        new Set(parties);
 
       parties =
         selected.Party.filter(
-          party =>
+          p =>
             allowed.has(
-              String(
-                party
-              )
+              String(p)
             )
         );
-
     }
 
-
-
-    /*
-      OD selected but no Party match હોય
-      તો grand total ન આવવો જોઈએ.
-    */
-
     obj.Party =
-
       parties.length
-
         ? parties
-
-        : [
-            '__RAJ_NO_MATCHING_PARTY__'
-          ];
-
+        : ['__RAJ_NO_MATCHING_PARTY__'];
   }
 
-
   return obj;
-
 }
 
 
+/* ==============================
+   FILTER OPTIONS
 
-/* =========================================
-   FILTER OPTIONS OBJECT
+   Current filter's own value
+   remove કરીએ છીએ જેથી
+   same searchમાં multiple select
+   stable રહે.
+============================== */
 
-   Current filter's own selection remove થાય
-   જેથી same searchમાંથી multiple selection
-   ચાલુ રાખી શકાય.
-========================================= */
-
-function filterObjectForOptions(
-  column
-){
+function filterObjectForOptions(column){
 
   const obj =
     effectiveFilterObject();
 
-
-
-  if(
-    column !== 'Party'
-  ){
+  if(column !== 'Party'){
 
     delete obj[column];
 
-  }
-  else if(
-    selected.budgetOD.length
-  ){
+  }else if(selected.budgetOD.length){
 
     obj.Party =
-
       odParties.length
-
         ? [...odParties]
+        : ['__RAJ_NO_MATCHING_PARTY__'];
 
-        : [
-            '__RAJ_NO_MATCHING_PARTY__'
-          ];
-
-  }
-  else{
+  }else{
 
     delete obj.Party;
-
   }
 
-
   return obj;
-
 }
 
 
+/* ==============================
+   MAIN ARGS
+============================== */
 
-/* =========================================
-   MAIN DASHBOARD ARGUMENTS
-========================================= */
+const args = () => ({
 
-const args =
-  () => ({
+  p_filters:
+    effectiveFilterObject(),
 
+  p_months:
+    selected.month,
 
-    p_filters:
-      effectiveFilterObject(),
+  p_sale_status:
+    el('productSaleStatus')
+      ? el('productSaleStatus').value
+      : 'All',
 
+  p_search:
+    el('search')
+      ? el('search').value.trim()
+      : ''
+});
 
-    p_months:
-      selected.month,
 
+/* ==============================
+   FILTER ARGS
+============================== */
+
+const filterArgs = column => ({
 
-    p_sale_status:
+  p_filters:
+    filterObjectForOptions(column),
 
-      el(
-        'productSaleStatus'
-      )
+  p_months:
+    selected.month,
 
-        ? el(
-            'productSaleStatus'
-          ).value
+  p_sale_status:
+    el('productSaleStatus')
+      ? el('productSaleStatus').value
+      : 'All',
 
-        : 'All',
+  p_search:
+    el('search')
+      ? el('search').value.trim()
+      : ''
+});
 
 
-    p_search:
+/* ==============================
+   BUDGET ARGS
+============================== */
 
-      el(
-        'search'
-      )
+const budgetArgs = () => ({
 
-        ? el(
-            'search'
-          ).value.trim()
+  p_sms:
+    selected.SM.length
+      ? selected.SM
+      : null,
 
-        : ''
+  p_cities:
+    selected.City.length
+      ? selected.City
+      : null,
 
+  p_pincodes:
+    selected.Pincode.length
+      ? selected.Pincode
+      : null,
 
-  });
+  p_divisions:
+    selected.Division.length
+      ? selected.Division
+      : null,
 
+  p_parties:
+    selected.Party.length
+      ? selected.Party
+      : null,
 
+  p_ods:
+    selected.budgetOD.length
+      ? selected.budgetOD
+      : null,
 
-/* =========================================
-   FILTER VALUE ARGUMENTS
-========================================= */
+  p_target_mode:
+    el('budgetTarget')
+      ? el('budgetTarget').value
+      : 'all',
 
-const filterArgs =
-  column => ({
+  p_status:
+    el('budgetStatus')
+      ? el('budgetStatus').value
+      : 'all',
 
+  p_months:
+    selected.month.length
+      ? selected.month
+      : null
+});
 
-    p_filters:
-      filterObjectForOptions(
-        column
-      ),
 
+/* ==============================
+   BUDGET MONTH SUMMARY ARGS
+============================== */
 
-    p_months:
-      selected.month,
+const budgetSummaryArgs = () => ({
 
+  p_sms:
+    selected.SM.length
+      ? selected.SM
+      : null,
 
-    p_sale_status:
+  p_parties:
+    selected.Party.length
+      ? selected.Party
+      : null,
 
-      el(
-        'productSaleStatus'
-      )
+  p_ods:
+    selected.budgetOD.length
+      ? selected.budgetOD
+      : null,
 
-        ? el(
-            'productSaleStatus'
-          ).value
+  p_target_mode:
+    el('budgetTarget')
+      ? el('budgetTarget').value
+      : 'all'
+});
 
-        : 'All',
 
+/* ==============================
+   SELECT ALL BUTTONS
+============================== */
 
-    p_search:
-
-      el(
-        'search'
-      )
-
-        ? el(
-            'search'
-          ).value.trim()
-
-        : ''
-
-
-  });
-
-
-
-/* =========================================
-   BUDGET REPORT ARGUMENTS
-========================================= */
-
-const budgetArgs =
-  () => ({
-
-
-    p_sms:
-
-      selected.SM.length
-
-        ? selected.SM
-
-        : null,
-
-
-    p_cities:
-
-      selected.City.length
-
-        ? selected.City
-
-        : null,
-
-
-    p_pincodes:
-
-      selected.Pincode.length
-
-        ? selected.Pincode
-
-        : null,
-
-
-    p_divisions:
-
-      selected.Division.length
-
-        ? selected.Division
-
-        : null,
-
-
-    p_parties:
-
-      selected.Party.length
-
-        ? selected.Party
-
-        : null,
-
-
-    p_ods:
-
-      selected.budgetOD.length
-
-        ? selected.budgetOD
-
-        : null,
-
-
-    p_target_mode:
-
-      el(
-        'budgetTarget'
-      )
-
-        ? el(
-            'budgetTarget'
-          ).value
-
-        : 'all',
-
-
-    p_status:
-
-      el(
-        'budgetStatus'
-      )
-
-        ? el(
-            'budgetStatus'
-          ).value
-
-        : 'all',
-
-
-    p_months:
-
-      selected.month.length
-
-        ? selected.month
-
-        : null
-
-
-  });
-
-
-
-/* =========================================
-   BUDGET MONTH SUMMARY ARGUMENTS
-========================================= */
-
-const budgetSummaryArgs =
-  () => ({
-
-
-    p_sms:
-
-      selected.SM.length
-
-        ? selected.SM
-
-        : null,
-
-
-    p_parties:
-
-      selected.Party.length
-
-        ? selected.Party
-
-        : null,
-
-
-    p_ods:
-
-      selected.budgetOD.length
-
-        ? selected.budgetOD
-
-        : null,
-
-
-    p_target_mode:
-
-      el(
-        'budgetTarget'
-      )
-
-        ? el(
-            'budgetTarget'
-          ).value
-
-        : 'all'
-
-
-  });
-
-
-
-/* =========================================
-   SELECT ALL / UNSELECT ALL BUTTONS
-========================================= */
-
-function bulkButtons(
-  id
-){
+function bulkButtons(id){
 
   return `
-
-    <div
-      style="
-        display:flex;
-        gap:8px;
-        padding:8px 6px 10px;
-        border-bottom:1px solid #e5e7eb;
-        position:sticky;
-        top:0;
-        background:#fff;
-        z-index:5;
-      "
-    >
-
+    <div style="
+      display:flex;
+      gap:8px;
+      padding:8px 6px 10px;
+      border-bottom:1px solid #e5e7eb;
+      position:sticky;
+      top:0;
+      background:#fff;
+      z-index:5;
+    ">
 
       <button
         type="button"
@@ -952,7 +498,6 @@ function bulkButtons(
         Select All
       </button>
 
-
       <button
         type="button"
         data-unselect-all="${id}"
@@ -969,63 +514,39 @@ function bulkButtons(
         Unselect All
       </button>
 
-
     </div>
-
   `;
-
 }
 
 
-
-/* =========================================
-   BUILD DYNAMIC FILTER UI
-========================================= */
+/* ==============================
+   BUILD FILTER UI
+============================== */
 
 function buildFilterUI(){
 
   const grid =
-    el(
-      'filterGrid'
-    );
+    el('filterGrid');
 
-
-  if(
-    !grid
-  ){
-
+  if(!grid){
     return;
-
   }
 
-
   grid.innerHTML =
-
     filterDefs
-
       .map(
-        (
-          [
-            id,
-            label,
-            allText
-          ]
-        ) => `
-
+        ([id,label,all]) => `
 
           <div class="field">
-
 
             <label>
               ${label}
             </label>
 
-
             <div
               class="multi"
               id="multi_${id}"
             >
-
 
               <button
                 type="button"
@@ -1033,25 +554,17 @@ function buildFilterUI(){
                 data-open="${id}"
               >
 
-
-                <span
-                  id="label_${id}"
-                >
-                  ${allText}
+                <span id="label_${id}">
+                  ${all}
                 </span>
-
 
                 <span>
                   ▾
                 </span>
 
-
               </button>
 
-
-
               <div class="multi-menu">
-
 
                 <input
                   class="multi-search"
@@ -1059,264 +572,141 @@ function buildFilterUI(){
                   placeholder="Search ${label}..."
                 >
 
-
                 <div
                   class="multi-options"
                   id="options_${id}"
                 ></div>
 
-
               </div>
 
-
             </div>
-
-
 
             <div
               class="selected-chips"
               id="chips_${id}"
             ></div>
 
-
           </div>
-
 
         `
       )
-
       .join('');
-
 }
 
 
+/* ==============================
+   LABELS
+============================== */
 
-/* =========================================
-   UPDATE NORMAL FILTER LABEL
-========================================= */
+function updateMultiLabel(column){
 
-function updateMultiLabel(
-  column
-){
-
-  const definition =
+  const def =
     filterDefs.find(
-      x =>
-        x[0] === column
+      x => x[0] === column
     );
 
+  if(el('label_' + column)){
 
-  const label =
     el(
       'label_' + column
-    );
-
-
-  const chips =
-    el(
-      'chips_' + column
-    );
-
-
-  if(
-    label
-  ){
-
-    label.textContent =
-
+    ).textContent =
       selected[column].length
-
         ? `${selected[column].length} selected`
-
-        : definition[2];
-
+        : def[2];
   }
 
+  if(el('chips_' + column)){
 
-  if(
-    chips
-  ){
-
-    chips.innerHTML =
+    el(
+      'chips_' + column
+    ).innerHTML =
 
       selected[column]
-
-        .slice(
-          0,
-          4
-        )
-
+        .slice(0,4)
         .map(
-          value =>
-            `<span class="chip">
-              ${esc(
-                value
-              )}
-            </span>`
+          v =>
+            `<span class="chip">${esc(v)}</span>`
         )
-
         .join('')
 
-
       +
-
 
       (
         selected[column].length > 4
-
-          ? `<span class="chip">
-              +${selected[column].length - 4}
-            </span>`
-
+          ? `<span class="chip">+${selected[column].length - 4}</span>`
           : ''
       );
-
   }
-
 }
 
-
-
-/* =========================================
-   UPDATE MONTH LABEL
-========================================= */
 
 function updateMonthLabel(){
 
-  const label =
+  if(el('label_month')){
+
     el(
       'label_month'
-    );
+    ).textContent =
+      selected.month.length
+        ? `${selected.month.length} selected`
+        : 'All Months / Total';
+  }
 
+  if(el('chips_month')){
 
-  const chips =
     el(
       'chips_month'
-    );
-
-
-  if(
-    label
-  ){
-
-    label.textContent =
-
-      selected.month.length
-
-        ? `${selected.month.length} selected`
-
-        : 'All Months / Total';
-
-  }
-
-
-  if(
-    chips
-  ){
-
-    chips.innerHTML =
-
+    ).innerHTML =
       selected.month
-
         .map(
-          month =>
-            `<span class="chip">
-              ${esc(
-                monthNames[month]
-                ||
-                month
-              )}
-            </span>`
+          v =>
+            `<span class="chip">${esc(monthNames[v] || v)}</span>`
         )
-
         .join('');
-
   }
-
 }
 
-
-
-/* =========================================
-   UPDATE OD LABEL
-========================================= */
 
 function updateODLabel(){
 
-  const label =
+  if(el('label_budgetOD')){
+
     el(
       'label_budgetOD'
-    );
-
-
-  const chips =
-    el(
-      'chips_budgetOD'
-    );
-
-
-  if(
-    label
-  ){
-
-    label.textContent =
-
+    ).textContent =
       selected.budgetOD.length
-
         ? `${selected.budgetOD.length} selected`
-
         : 'All OD';
-
   }
 
+  if(el('chips_budgetOD')){
 
-  if(
-    chips
-  ){
-
-    chips.innerHTML =
+    el(
+      'chips_budgetOD'
+    ).innerHTML =
 
       selected.budgetOD
-
-        .slice(
-          0,
-          4
-        )
-
+        .slice(0,4)
         .map(
-          value =>
-            `<span class="chip">
-              ${esc(
-                value
-              )}
-            </span>`
+          v =>
+            `<span class="chip">${esc(v)}</span>`
         )
-
         .join('')
-
 
       +
 
-
       (
         selected.budgetOD.length > 4
-
-          ? `<span class="chip">
-              +${selected.budgetOD.length - 4}
-            </span>`
-
+          ? `<span class="chip">+${selected.budgetOD.length - 4}</span>`
           : ''
       );
-
   }
-
 }
 
 
-
-/* =========================================
-   OPTION VALUES
-========================================= */
+/* ==============================
+   MULTI SEARCH
+============================== */
 
 function valuesFromOptions(
   id,
@@ -1324,64 +714,34 @@ function valuesFromOptions(
 ){
 
   return [
-
     ...document.querySelectorAll(
       `#options_${id} input[type="checkbox"]`
     )
-
   ]
-
     .filter(
-      checkbox =>
-
+      x =>
         !visibleOnly
-
         ||
-
-        checkbox
-          .closest(
-            '.multi-option'
-          )
+        x.closest('.multi-option')
           ?.style
-          .display
-          !==
-          'none'
+          .display !== 'none'
     )
-
     .map(
-      checkbox =>
-        checkbox.value
+      x => x.value
     );
-
 }
 
 
-
-/* =========================================
-   STABLE SEARCH
-========================================= */
-
-function applySearchFilter(
-  id
-){
+function applySearchFilter(id){
 
   const search =
-    el(
-      'search_' + id
-    );
+    el('search_' + id);
 
-
-  if(
-    !search
-  ){
-
+  if(!search){
     return;
-
   }
 
-
   const text =
-
     String(
       searchState[id]
       ??
@@ -1389,196 +749,109 @@ function applySearchFilter(
       ??
       ''
     )
-
       .toLowerCase()
-
       .trim();
 
-
   search.value =
-
     searchState[id]
-
     ??
-
     search.value
-
     ??
-
     '';
 
-
   document
-
     .querySelectorAll(
       `#options_${id} .multi-option`
     )
-
     .forEach(
       option => {
 
-
         const optionText =
-
           String(
-            option.dataset.text
-            ||
-            ''
+            option.dataset.text || ''
           )
             .toLowerCase();
 
-
         option.style.display =
-
-          optionText.includes(
-            text
-          )
-
+          optionText.includes(text)
             ? 'flex'
-
             : 'none';
-
       }
     );
-
 }
 
 
-
-/* =========================================
-   KEEP FILTER OPEN
-========================================= */
-
-function restoreOpenFilter(
-  id
-){
+function restoreOpenFilter(id){
 
   const search =
-    el(
-      'search_' + id
-    );
-
+    el('search_' + id);
 
   const multi =
-    el(
-      'multi_' + id
-    );
+    el('multi_' + id);
 
-
-  if(
-    search
-  ){
+  if(search){
 
     search.value =
-      searchState[id]
-      ||
-      '';
-
+      searchState[id] || '';
   }
 
+  applySearchFilter(id);
 
-  applySearchFilter(
-    id
-  );
+  if(multi){
 
-
-  if(
-    multi
-  ){
-
-    multi.classList.add(
-      'open'
-    );
-
+    multi.classList.add('open');
   }
 
-
-  if(
-    search
-  ){
+  if(search){
 
     requestAnimationFrame(
       () => {
 
-
         search.focus();
 
-
-        const length =
+        const len =
           search.value.length;
-
 
         try{
 
           search.setSelectionRange(
-            length,
-            length
+            len,
+            len
           );
 
-        }
-        catch(
-          _
-        ){}
-
+        }catch(_){}
       }
     );
-
   }
-
 }
 
 
-
-/* =========================================
-   SEARCH BOX EVENT
-========================================= */
-
-function wireSearchBox(
-  id
-){
+function wireSearchBox(id){
 
   const search =
-    el(
-      'search_' + id
-    );
+    el('search_' + id);
 
-
-  if(
-    !search
-  ){
-
+  if(!search){
     return;
-
   }
 
-
   search.value =
-    searchState[id]
-    ||
-    '';
-
+    searchState[id] || '';
 
   search.oninput =
     () => {
 
-
       searchState[id] =
         search.value;
 
-
-      applySearchFilter(
-        id
-      );
-
+      applySearchFilter(id);
     };
-
 }
 
 
-
-/* =========================================
-   SELECT / UNSELECT ALL
-========================================= */
+/* ==============================
+   BULK SELECTION
+============================== */
 
 async function applyBulkSelection(
   id,
@@ -1586,358 +859,214 @@ async function applyBulkSelection(
 ){
 
   const visibleOnly =
-
     Boolean(
       (
-        searchState[id]
-        ||
-        ''
+        searchState[id] || ''
       ).trim()
     );
 
 
-
-  /* MONTH */
-
-  if(
-    id === 'month'
-  ){
+  if(id === 'month'){
 
     selected.month =
-
       selectAll
-
         ? valuesFromOptions(
             'month',
             visibleOnly
           )
-
         : [];
 
-
     document
-
       .querySelectorAll(
         '#options_month input[type="checkbox"]'
       )
-
       .forEach(
-        checkbox => {
-
+        x => {
 
           if(
             !visibleOnly
-
             ||
-
-            checkbox
-              .closest(
-                '.multi-option'
-              )
+            x.closest('.multi-option')
               ?.style
-              .display
-              !==
-              'none'
+              .display !== 'none'
           ){
 
-            checkbox.checked =
+            x.checked =
               selectAll;
-
           }
-
         }
       );
 
-
     updateMonthLabel();
 
-
     page = 1;
-
     budgetPage = 1;
 
+    await loadDashboard(true);
 
-    await loadDashboard(
-      true
-    );
-
-
-    restoreOpenFilter(
-      'month'
-    );
-
+    restoreOpenFilter('month');
 
     return;
-
   }
 
 
-
-  /* OD */
-
-  if(
-    id === 'budgetOD'
-  ){
+  if(id === 'budgetOD'){
 
     selected.budgetOD =
-
       selectAll
-
         ? valuesFromOptions(
             'budgetOD',
             visibleOnly
           )
-
         : [];
 
-
     document
-
       .querySelectorAll(
         '#options_budgetOD input[type="checkbox"]'
       )
-
       .forEach(
-        checkbox => {
-
+        x => {
 
           if(
             !visibleOnly
-
             ||
-
-            checkbox
-              .closest(
-                '.multi-option'
-              )
+            x.closest('.multi-option')
               ?.style
-              .display
-              !==
-              'none'
+              .display !== 'none'
           ){
 
-            checkbox.checked =
+            x.checked =
               selectAll;
-
           }
-
         }
       );
 
-
     updateODLabel();
-
 
     await refreshODPartyScope();
 
-
     page = 1;
-
     budgetPage = 1;
 
+    await loadDashboard(true);
 
-    await loadDashboard(
-      true
-    );
-
-
-    restoreOpenFilter(
-      'budgetOD'
-    );
-
+    restoreOpenFilter('budgetOD');
 
     return;
-
   }
 
 
-
-  /* NORMAL FILTER */
-
-  if(
-    !filters.includes(
-      id
-    )
-  ){
-
+  if(!filters.includes(id)){
     return;
-
   }
-
 
   selected[id] =
-
     selectAll
-
       ? valuesFromOptions(
           id,
           visibleOnly
         )
-
       : [];
 
-
   document
-
     .querySelectorAll(
       `#options_${id} input[type="checkbox"]`
     )
-
     .forEach(
-      checkbox => {
-
+      x => {
 
         if(
           !visibleOnly
-
           ||
-
-          checkbox
-            .closest(
-              '.multi-option'
-            )
+          x.closest('.multi-option')
             ?.style
-            .display
-            !==
-            'none'
+            .display !== 'none'
         ){
 
-          checkbox.checked =
+          x.checked =
             selectAll;
-
         }
-
       }
     );
 
-
-  updateMultiLabel(
-    id
-  );
-
+  updateMultiLabel(id);
 
   page = 1;
-
   budgetPage = 1;
 
+  await loadDashboard(true);
 
-  await loadDashboard(
-    true
-  );
-
-
-  restoreOpenFilter(
-    id
-  );
-
+  restoreOpenFilter(id);
 }
 
 
-
-/* =========================================
-   BUILD MONTH FILTER
-========================================= */
+/* ==============================
+   MONTH FILTER
+============================== */
 
 function buildMonths(){
 
   const box =
-    el(
-      'options_month'
-    );
+    el('options_month');
 
-
-  if(
-    !box
-  ){
-
+  if(!box){
     return;
-
   }
-
 
   box.innerHTML =
 
-    bulkButtons(
-      'month'
-    )
-
+    bulkButtons('month')
 
     +
 
-
     months
-
       .map(
         month => `
-
 
           <label
             class="multi-option"
             data-text="${esc(
               (
-                monthNames[month]
-                ||
-                month
-              )
-                .toLowerCase()
+                monthNames[month] || month
+              ).toLowerCase()
             )}"
           >
 
-
             <input
               type="checkbox"
-              value="${esc(
-                month
-              )}"
+              value="${esc(month)}"
               ${
                 selected.month.includes(
-                  String(
-                    month
-                  )
+                  String(month)
                 )
-
                   ? 'checked'
-
                   : ''
               }
             >
 
-
             <span>
               ${esc(
-                monthNames[month]
-                ||
-                month
+                monthNames[month] || month
               )}
             </span>
 
-
           </label>
-
 
         `
       )
-
       .join('');
 
-
   box
-
     .querySelectorAll(
       'input[type="checkbox"]'
     )
-
     .forEach(
       checkbox => {
-
 
         checkbox.onchange =
           async () => {
 
-
-            if(
-              checkbox.checked
-            ){
+            if(checkbox.checked){
 
               if(
                 !selected.month.includes(
@@ -1948,237 +1077,136 @@ function buildMonths(){
                 selected.month.push(
                   checkbox.value
                 );
-
               }
 
-            }
-            else{
+            }else{
 
               selected.month =
-
                 selected.month.filter(
                   month =>
-                    month !==
-                    checkbox.value
+                    month !== checkbox.value
                 );
-
             }
-
 
             updateMonthLabel();
 
-
             page = 1;
-
             budgetPage = 1;
 
+            await loadDashboard(true);
 
-            await loadDashboard(
-              true
-            );
-
-
-            restoreOpenFilter(
-              'month'
-            );
-
+            restoreOpenFilter('month');
           };
-
       }
     );
 
-
-  applySearchFilter(
-    'month'
-  );
-
+  applySearchFilter('month');
 }
 
 
+/* ==============================
+   LOAD FILTER VALUES
+============================== */
 
-/* =========================================
-   LOAD NORMAL FILTER OPTIONS
-========================================= */
-
-async function loadFilter(
-  column
-){
+async function loadFilter(column){
 
   const data =
-
     await rpc(
       'raj_filter_values',
       {
-
-        p_column:
-          column,
-
-        ...filterArgs(
-          column
-        )
-
+        p_column:column,
+        ...filterArgs(column)
       }
     );
 
-
   const box =
-    el(
-      'options_' + column
-    );
+    el('options_' + column);
 
-
-  if(
-    !box
-  ){
-
+  if(!box){
     return;
-
   }
 
-
-
   const rawValues =
-
     (data || [])
-
       .map(
         value =>
-
-
           typeof value === 'object'
-
           &&
-
           value !== null
-
-
             ? (
                 value.value
-
                 ??
-
                 value.Value
-
                 ??
-
-                Object.values(
-                  value
-                )[0]
+                Object.values(value)[0]
               )
-
             : value
       );
 
-
-
-  /*
-    Current selected values પણ preserve થાય.
-  */
-
   const values =
-
     [
       ...new Set(
         [
-
           ...rawValues.map(
             value =>
-              String(
-                value ?? ''
-              )
+              String(value ?? '')
           ),
-
           ...selected[column]
-
         ]
       )
     ]
-
-      .filter(
-        Boolean
-      );
-
-
+      .filter(Boolean);
 
   box.innerHTML =
 
-    bulkButtons(
-      column
-    )
-
+    bulkButtons(column)
 
     +
 
-
     values
-
       .map(
         value => `
-
 
           <label
             class="multi-option"
             data-text="${esc(
-              String(
-                value
-              )
-                .toLowerCase()
+              String(value).toLowerCase()
             )}"
           >
 
-
             <input
               type="checkbox"
-              value="${esc(
-                value
-              )}"
+              value="${esc(value)}"
               ${
                 selected[column].includes(
-                  String(
-                    value
-                  )
+                  String(value)
                 )
-
                   ? 'checked'
-
                   : ''
               }
             >
 
-
             <span>
-              ${esc(
-                value
-              )}
+              ${esc(value)}
             </span>
-
 
           </label>
 
-
         `
       )
-
       .join('');
 
-
   box
-
     .querySelectorAll(
       'input[type="checkbox"]'
     )
-
     .forEach(
       checkbox => {
-
 
         checkbox.onchange =
           async () => {
 
-
-            if(
-              checkbox.checked
-            ){
+            if(checkbox.checked){
 
               if(
                 !selected[column].includes(
@@ -2189,113 +1217,62 @@ async function loadFilter(
                 selected[column].push(
                   checkbox.value
                 );
-
               }
 
-            }
-            else{
+            }else{
 
               selected[column] =
-
                 selected[column].filter(
                   value =>
-                    value !==
-                    checkbox.value
+                    value !== checkbox.value
                 );
-
             }
 
-
-            updateMultiLabel(
-              column
-            );
-
+            updateMultiLabel(column);
 
             page = 1;
-
             budgetPage = 1;
 
+            await loadDashboard(true);
 
-            await loadDashboard(
-              true
-            );
-
-
-            /*
-              Search text + dropdown
-              બંને stable રહે.
-            */
-
-            restoreOpenFilter(
-              column
-            );
-
+            restoreOpenFilter(column);
           };
-
       }
     );
 
-
-  applySearchFilter(
-    column
-  );
-
+  applySearchFilter(column);
 }
 
-
-
-/* =========================================
-   REFRESH ALL FILTERS
-========================================= */
 
 async function refreshFilters(){
 
-  for(
-    const column of filters
-  ){
+  for(const column of filters){
 
-    await loadFilter(
-      column
-    );
-
+    await loadFilter(column);
   }
-
 }
 
 
-
-/* =========================================
-   LOAD OD OPTIONS
-========================================= */
+/* ==============================
+   OD
+============================== */
 
 async function loadODOptions(){
 
   const box =
-    el(
-      'options_budgetOD'
-    );
+    el('options_budgetOD');
 
-
-  if(
-    !box
-  ){
-
+  if(!box){
     return;
-
   }
 
-
   const data =
-
     await rpc(
       'raj_budget_od_values'
     );
 
-
   const values =
-
     (data || [])
-
       .map(
         row =>
           String(
@@ -2306,27 +1283,17 @@ async function loadODOptions(){
             ''
           )
       )
-
-      .filter(
-        Boolean
-      );
-
+      .filter(Boolean);
 
   box.innerHTML =
 
-    bulkButtons(
-      'budgetOD'
-    )
-
+    bulkButtons('budgetOD')
 
     +
 
-
     values
-
       .map(
         value => `
-
 
           <label
             class="multi-option"
@@ -2335,57 +1302,39 @@ async function loadODOptions(){
             )}"
           >
 
-
             <input
               type="checkbox"
-              value="${esc(
-                value
-              )}"
+              value="${esc(value)}"
               ${
                 selected.budgetOD.includes(
                   value
                 )
-
                   ? 'checked'
-
                   : ''
               }
             >
 
-
             <span>
-              ${esc(
-                value
-              )}
+              ${esc(value)}
             </span>
-
 
           </label>
 
-
         `
       )
-
       .join('');
 
-
   box
-
     .querySelectorAll(
       'input[type="checkbox"]'
     )
-
     .forEach(
       checkbox => {
-
 
         checkbox.onchange =
           async () => {
 
-
-            if(
-              checkbox.checked
-            ){
+            if(checkbox.checked){
 
               if(
                 !selected.budgetOD.includes(
@@ -2396,91 +1345,58 @@ async function loadODOptions(){
                 selected.budgetOD.push(
                   checkbox.value
                 );
-
               }
 
-            }
-            else{
+            }else{
 
               selected.budgetOD =
-
                 selected.budgetOD.filter(
                   value =>
-                    value !==
-                    checkbox.value
+                    value !== checkbox.value
                 );
-
             }
-
 
             updateODLabel();
 
-
             await refreshODPartyScope();
 
-
             page = 1;
-
             budgetPage = 1;
 
-
-            await loadDashboard(
-              true
-            );
-
+            await loadDashboard(true);
 
             restoreOpenFilter(
               'budgetOD'
             );
-
           };
-
       }
     );
-
 
   applySearchFilter(
     'budgetOD'
   );
-
 }
 
 
-
-/* =========================================
-   OD PARTY SCOPE
-========================================= */
-
 async function refreshODPartyScope(){
 
-  if(
-    !selected.budgetOD.length
-  ){
+  if(!selected.budgetOD.length){
 
     odParties = [];
 
     return;
-
   }
 
-
   const data =
-
     await rpc(
       'raj_budget_od_parties',
       {
-
-        p_ods:
-          selected.budgetOD
-
+        p_ods:selected.budgetOD
       }
     );
 
-
   odParties =
-
     (data || [])
-
       .map(
         row =>
           String(
@@ -2491,58 +1407,40 @@ async function refreshODPartyScope(){
             ''
           ).trim()
       )
-
-      .filter(
-        Boolean
-      );
-
+      .filter(Boolean);
 }
 
 
-
-/* =========================================
+/* ==============================
    BUDGET MONTH SUMMARY
-========================================= */
+============================== */
 
 async function loadBudgetMonthSummary(){
 
   try{
 
-
     const data =
-
       await rpc(
         'raj_budget_month_summary',
         budgetSummaryArgs()
       );
 
+    budgetMonthStats = {};
 
-    budgetMonthStats =
-      {};
-
-
-    for(
-      const row of (
-        data || []
-      )
-    ){
-
+    for(const row of (data || [])){
 
       const month =
-
         row.Month
-
         ??
-
         row.month;
 
-
+      if(!month){
+        continue;
+      }
 
       budgetMonthStats[month] = {
 
-
         BudgetCustomers:
-
           Number(
             row.BudgetCustomers
             ??
@@ -2551,9 +1449,7 @@ async function loadBudgetMonthSummary(){
             0
           ),
 
-
         SalesCustomers:
-
           Number(
             row.SalesCustomers
             ??
@@ -2562,9 +1458,7 @@ async function loadBudgetMonthSummary(){
             0
           ),
 
-
         ZeroSalesCustomers:
-
           Number(
             row.ZeroSalesCustomers
             ??
@@ -2572,170 +1466,95 @@ async function loadBudgetMonthSummary(){
             ??
             0
           )
-
-
       };
-
     }
 
-  }
-  catch(
-    error
-  ){
+  }catch(error){
 
     console.error(
       'Budget month summary error:',
       error
     );
 
-
-    budgetMonthStats =
-      {};
-
+    budgetMonthStats = {};
   }
-
 }
 
 
+/* ==============================
+   IMPORTANT ERROR FIX
+============================== */
 
-/* =========================================
-   GET BUDGET MONTH STATS
-========================================= */
+function budgetStatsForMonth(month){
 
-function budgetStatsForMonth(
-  month
-){
-
-  return
-
+  return (
     budgetMonthStats[month]
-
-
     ||
-
-
     budgetMonthStats[
-      normalizeMonth(
-        month
-      )
+      normalizeMonth(month)
     ]
-
-
     ||
-
-
     budgetMonthStats[
-
       month === 'Jun'
-
         ? 'June'
-
         : month === 'Jul'
-
           ? 'July'
-
           : month === 'Sep'
-
             ? 'Sept'
-
             : month
-
     ]
-
-
     ||
-
-
-    {};
-
+    {
+      BudgetCustomers:0,
+      SalesCustomers:0,
+      ZeroSalesCustomers:0
+    }
+  );
 }
 
 
-
-/* =========================================
+/* ==============================
    MONTH SUMMARY CARDS
-========================================= */
+============================== */
 
-function renderMonths(
-  monthData
-){
+function renderMonths(monthData){
 
   const container =
-    el(
-      'monthlyCards'
-    );
+    el('monthlyCards');
 
-
-  if(
-    !container
-  ){
-
+  if(!container){
     return;
-
   }
-
-
-
-  /*
-    Average Monthly Sale
-
-    Month selected હોય:
-    selected months avg
-
-    Month select ન હોય:
-    all available months avg
-  */
 
   const averageMonths =
     activeAverageMonths();
 
-
-
   const averageTotal =
-
     averageMonths.reduce(
-      (
-        total,
-        month
-      ) =>
-
+      (total,month) =>
         total
-
         +
-
         Number(
           monthData?.[month]?.Sale
-          ||
-          0
+          || 0
         ),
-
       0
     );
 
-
-
   const averageSale =
-
     averageMonths.length
-
       ? averageTotal
         /
         averageMonths.length
-
       : 0;
-
-
 
   const averageCard = `
 
-
     <div class="month-card avg-card">
-
 
       <h4>
         Average Monthly Sale
       </h4>
-
 
       <div class="metric">
 
@@ -2751,7 +1570,6 @@ function renderMonths(
 
       </div>
 
-
       <div class="metric">
 
         <span>
@@ -2766,39 +1584,27 @@ function renderMonths(
 
       </div>
 
-
     </div>
-
-
   `;
 
-
-
   const monthCards =
-
     months
-
       .map(
         month => {
-
 
           const sales =
             monthData?.[month]
             ||
             {};
 
-
           const budget =
             budgetStatsForMonth(
               month
             );
 
-
           return `
 
-
             <div class="month-card">
-
 
               <h4>
                 ${esc(
@@ -2808,190 +1614,82 @@ function renderMonths(
                 )}
               </h4>
 
-
               <div class="metric">
-
-                <span>
-                  Qty
-                </span>
-
-                <b>
-                  ${fmt(
-                    sales.Qty
-                  )}
-                </b>
-
+                <span>Qty</span>
+                <b>${fmt(sales.Qty)}</b>
               </div>
 
-
               <div class="metric">
-
-                <span>
-                  Taxable
-                </span>
-
-                <b>
-                  ${money(
-                    sales.Taxable
-                  )}
-                </b>
-
+                <span>Taxable</span>
+                <b>${money(sales.Taxable)}</b>
               </div>
 
-
               <div class="metric">
-
-                <span>
-                  Sale
-                </span>
-
-                <b>
-                  ${money(
-                    sales.Sale
-                  )}
-                </b>
-
+                <span>Sale</span>
+                <b>${money(sales.Sale)}</b>
               </div>
 
-
               <div class="metric">
-
-                <span>
-                  Products Sold
-                </span>
-
-                <b>
-                  ${fmt(
-                    sales.ProductsSold
-                  )}
-                </b>
-
+                <span>Products Sold</span>
+                <b>${fmt(sales.ProductsSold)}</b>
               </div>
 
-
               <div class="metric">
-
-                <span>
-                  Customers Billed
-                </span>
-
-                <b>
-                  ${fmt(
-                    sales.CustomersBilled
-                  )}
-                </b>
-
+                <span>Customers Billed</span>
+                <b>${fmt(sales.CustomersBilled)}</b>
               </div>
 
-
               <div class="metric">
-
-                <span>
-                  Budget Customers
-                </span>
-
-                <b>
-                  ${fmt(
-                    budget.BudgetCustomers
-                    ||
-                    0
-                  )}
-                </b>
-
+                <span>Budget Customers</span>
+                <b>${fmt(
+                  budget.BudgetCustomers || 0
+                )}</b>
               </div>
 
-
               <div class="metric">
-
-                <span>
-                  Sales Customers
-                </span>
-
-                <b>
-                  ${fmt(
-                    budget.SalesCustomers
-                    ||
-                    0
-                  )}
-                </b>
-
+                <span>Sales Customers</span>
+                <b>${fmt(
+                  budget.SalesCustomers || 0
+                )}</b>
               </div>
 
-
               <div class="metric">
-
-                <span>
-                  Zero Sales Customers
-                </span>
-
-                <b>
-                  ${fmt(
-                    budget.ZeroSalesCustomers
-                    ||
-                    0
-                  )}
-                </b>
-
+                <span>Zero Sales Customers</span>
+                <b>${fmt(
+                  budget.ZeroSalesCustomers || 0
+                )}</b>
               </div>
-
 
             </div>
-
-
           `;
-
         }
       )
-
       .join('');
 
-
-
   container.innerHTML =
-
     averageCard
-
     +
-
     monthCards;
-
 }
 
 
-
-/* =========================================
+/* ==============================
    DETAIL TABLE
-========================================= */
+============================== */
 
-function renderRows(
-  rows
-){
+function renderRows(rows){
 
   const body =
-    el(
-      'tableBody'
-    );
+    el('tableBody');
 
-
-  if(
-    !body
-  ){
-
+  if(!body){
     return;
-
   }
 
-
-  if(
-    !rows?.length
-  ){
+  if(!rows?.length){
 
     body.innerHTML = `
-
-
       <tr>
-
-
         <td
           class="empty"
           colspan="${Math.max(
@@ -3001,331 +1699,178 @@ function renderRows(
         >
           No matching data found.
         </td>
-
-
       </tr>
-
-
     `;
 
-
     return;
-
   }
 
-
   body.innerHTML =
-
     rows
-
       .map(
         row => {
 
-
           const normalCells =
-
             columns
-
               .map(
                 column => {
-
 
                   const value =
                     row[column]
                     ??
                     '';
 
-
                   return `
-
                     <td>
                       ${
                         esc(
-
                           /Qty|Taxable|Amt|Sale$/
-                            .test(
-                              column
-                            )
-
-                            ? fmt(
-                                value
-                              )
-
+                            .test(column)
+                            ? fmt(value)
                             : value
-
                         )
                       }
                     </td>
-
                   `;
-
                 }
               )
-
               .join('');
 
-
-
           const averageCell = `
-
             <td>
               ${money(
-                rowAverageSale(
-                  row
-                )
+                rowAverageSale(row)
               )}
             </td>
-
           `;
 
-
-
           return `
-
             <tr>
               ${normalCells}
               ${averageCell}
             </tr>
-
           `;
-
         }
       )
-
       .join('');
-
 }
 
 
-
-/* =========================================
+/* ==============================
    ANALYSIS VIEW
-========================================= */
+============================== */
 
 async function loadGroupSummary(){
 
   const body =
-    el(
-      'groupSummaryBody'
-    );
+    el('groupSummaryBody');
 
-
-  if(
-    !body
-  ){
-
+  if(!body){
     return;
-
   }
 
-
   const headRow =
-
     body
-      .closest(
-        'table'
-      )
+      .closest('table')
       ?.querySelector(
         'thead tr'
       );
 
-
-  if(
-    !headRow
-  ){
-
+  if(!headRow){
     return;
-
   }
-
-
 
   const analysisMonths =
     activeAverageMonths();
 
-
-
   try{
 
-
     const results =
-
       await Promise.all(
         [
-
-
-          /*
-            Main selected scope.
-          */
-
           rpc(
             'raj_group_summary',
             {
-
-              p_view:
-                currentView,
-
+              p_view:currentView,
               ...args()
-
             }
           ),
 
-
-
-          /*
-            Each month separately.
-          */
-
           ...analysisMonths.map(
             month =>
-
               rpc(
                 'raj_group_summary',
                 {
-
-                  p_view:
-                    currentView,
-
+                  p_view:currentView,
                   ...args(),
-
-                  p_months:[
-                    month
-                  ]
-
+                  p_months:[month]
                 }
               )
           )
-
-
         ]
       );
 
-
-
     const totalData =
-      results[0]
-      ||
-      [];
-
+      results[0] || [];
 
     const monthlyData =
-      results.slice(
-        1
-      );
-
-
+      results.slice(1);
 
     const viewName =
-
       ({
-
-        Party:
-          'Customer / Party',
-
-        MainGrp:
-          'Company / Main Group',
-
-        ItemName:
-          'Product / Item Name',
-
-        SM:
-          'SM',
-
-        Division:
-          'Division',
-
-        Pincode:
-          'Pincode'
-
-      })[
-        currentView
-      ]
-
+        Party:'Customer / Party',
+        MainGrp:'Company / Main Group',
+        ItemName:'Product / Item Name',
+        SM:'SM',
+        Division:'Division',
+        Pincode:'Pincode'
+      })[currentView]
       ||
-
       currentView;
 
-
-
     let header = `
-
       <th id="viewLabel">
-        ${esc(
-          viewName
-        )}
+        ${esc(viewName)}
       </th>
-
     `;
-
-
 
     analysisMonths.forEach(
       month => {
 
-
         header += `
-
           <th>
             ${esc(
               monthNames[month]
               ||
               month
-            )}
-            Sale
+            )} Sale
           </th>
-
         `;
-
       }
     );
 
-
-
     header +=
-
       '<th>Avg Sale</th>'
-
       +
-
       '<th>Qty</th>'
-
       +
-
       '<th>Taxable</th>'
-
       +
-
       '<th>Total Sale</th>'
-
       +
-
       '<th>Products Sold</th>'
-
       +
-
       '<th>Customers Billed</th>'
-
       +
-
       '<th>Records</th>';
-
-
 
     headRow.innerHTML =
       header;
 
-
-
-    if(
-      !totalData.length
-    ){
+    if(!totalData.length){
 
       body.innerHTML = `
-
-
         <tr>
-
-
           <td
             class="empty"
             colspan="${
@@ -3336,509 +1881,274 @@ async function loadGroupSummary(){
           >
             No summary data found.
           </td>
-
-
         </tr>
-
-
       `;
 
-
       return;
-
     }
 
-
-
     const monthMaps =
-
       monthlyData.map(
         rows => {
-
 
           const map =
             new Map();
 
-
-          (
-            rows || []
-          )
-
+          (rows || [])
             .forEach(
               row =>
-
                 map.set(
-                  String(
-                    row.label
-                  ),
+                  String(row.label),
                   Number(
-                    row.sale
-                    ||
-                    0
+                    row.sale || 0
                   )
                 )
             );
 
-
           return map;
-
         }
       );
 
-
-
     body.innerHTML =
-
       totalData
-
         .map(
           row => {
 
-
             const monthSales =
-
               analysisMonths.map(
-                (
-                  month,
-                  index
-                ) =>
-
+                (month,index) =>
                   monthMaps[index]
                     ?.get(
-                      String(
-                        row.label
-                      )
+                      String(row.label)
                     )
-
                   ||
-
                   0
               );
 
-
-
             const averageSale =
-
               monthSales.length
-
                 ? monthSales.reduce(
-                    (
-                      total,
-                      sale
-                    ) =>
+                    (total,sale) =>
                       total + sale,
-
                     0
                   )
                   /
                   monthSales.length
-
                 : 0;
 
-
-
             const monthCells =
-
               monthSales
-
                 .map(
-                  sale => `
-
-                    <td>
-                      ${money(
-                        sale
-                      )}
-                    </td>
-
-                  `
+                  sale =>
+                    `<td>${money(sale)}</td>`
                 )
-
                 .join('');
 
-
-
             return `
-
-
               <tr>
 
-
                 <td>
-                  ${esc(
-                    row.label
-                  )}
+                  ${esc(row.label)}
                 </td>
-
 
                 ${monthCells}
 
-
                 <td>
-                  ${money(
-                    averageSale
-                  )}
+                  ${money(averageSale)}
                 </td>
 
-
                 <td>
-                  ${fmt(
-                    row.qty
-                  )}
+                  ${fmt(row.qty)}
                 </td>
 
-
                 <td>
-                  ${money(
-                    row.taxable
-                  )}
+                  ${money(row.taxable)}
                 </td>
 
-
                 <td>
-                  ${money(
-                    row.sale
-                  )}
+                  ${money(row.sale)}
                 </td>
 
-
                 <td>
-                  ${fmt(
-                    row.productsSold
-                  )}
+                  ${fmt(row.productsSold)}
                 </td>
 
-
                 <td>
-                  ${fmt(
-                    row.customersBilled
-                  )}
+                  ${fmt(row.customersBilled)}
                 </td>
 
-
                 <td>
-                  ${fmt(
-                    row.records
-                  )}
+                  ${fmt(row.records)}
                 </td>
-
 
               </tr>
-
-
             `;
-
           }
         )
-
         .join('');
 
-
-  }
-  catch(
-    error
-  ){
+  }catch(error){
 
     console.error(
       'Analysis View Error:',
       error
     );
 
-
     body.innerHTML = `
-
-
       <tr>
-
         <td class="empty">
-
           Analysis error:
-          ${esc(
-            error.message
-          )}
-
+          ${esc(error.message)}
         </td>
-
       </tr>
-
-
     `;
-
   }
-
 }
 
 
-
-/* =========================================
+/* ==============================
    SALES COMPARISON
 
-   Top Month Filter ONLY
-
-   Example:
-
-   Apr + May + June + July
-
-   Compare:
-   Apr + May + June
-
-   Actual:
-   July
-========================================= */
+   SAME TOP MONTH FILTER
+============================== */
 
 async function loadComparison(){
 
   const setText =
-    (
-      id,
-      value
-    ) => {
-
+    (id,value) => {
 
       const node =
-        el(
-          id
-        );
+        el(id);
 
-
-      if(
-        node
-      ){
-
+      if(node){
         node.textContent =
           value;
-
       }
-
     };
 
+  const statusEl =
+    el('compareStatus');
 
 
-  const status =
-    el(
-      'compareStatus'
-    );
-
-
-
-  /*
-    Minimum 2 months required.
-  */
-
-  if(
-    selected.month.length < 2
-  ){
+  if(selected.month.length < 2){
 
     setText(
       'compareMonthsText',
       'Select at least 2 months'
     );
 
-
     setText(
       'compareActualMonth',
       '-'
     );
 
-
     setText(
       'compareAvgSale',
-      money(
-        0
-      )
+      money(0)
     );
-
 
     setText(
       'compareActualSale',
-      money(
-        0
-      )
+      money(0)
     );
-
 
     setText(
       'compareDifference',
-      money(
-        0
-      )
+      money(0)
     );
-
 
     setText(
       'comparePercent',
       '0%'
     );
 
+    if(statusEl){
 
-    if(
-      status
-    ){
-
-      status.textContent =
+      statusEl.textContent =
         'Select at least 2 months';
 
-
-      status.className =
+      statusEl.className =
         'compare-status compare-neutral';
-
     }
 
-
     return;
-
   }
-
 
 
   /*
-    Schema month order follow થાય.
-
-    User checkbox કયા orderમાં select કરે
-    એ matter નહીં કરે.
-
-    Example:
-    months = Apr May June July Aug Sept
-
-    selected = July, Apr, June
-
-    ordered becomes:
-    Apr, June, July
-
-    Actual = July
+    Schema order મુજબ selected months sort.
+    Last selected chronological month = Actual.
   */
 
   const orderedSelected =
-
     months.filter(
       month =>
-        selected.month.includes(
-          month
-        )
+        selected.month.includes(month)
     );
 
-
-
-  if(
-    orderedSelected.length < 2
-  ){
-
+  if(orderedSelected.length < 2){
     return;
-
   }
 
-
-
   const actualMonth =
-
     orderedSelected[
       orderedSelected.length - 1
     ];
 
-
-
   const compareMonths =
-
     orderedSelected.slice(
       0,
       -1
     );
 
-
-
   setText(
-
     'compareMonthsText',
-
     compareMonths
-
       .map(
         month =>
           monthNames[month]
           ||
           month
       )
-
-      .join(
-        ' + '
-      )
-
+      .join(' + ')
   );
-
-
 
   setText(
-
     'compareActualMonth',
-
     monthNames[actualMonth]
-
     ||
-
     actualMonth
-
   );
 
-
-
   try{
-
-
-    /*
-      Same dashboard filters.
-
-      માત્ર p_months overwrite થાય છે.
-    */
 
     const baseArgs =
       args();
 
-
-
     const compareResults =
-
       await Promise.all(
-
         compareMonths.map(
           month =>
-
             rpc(
               'raj_dashboard_summary',
               {
-
                 ...baseArgs,
-
-                p_months:[
-                  month
-                ]
-
+                p_months:[month]
               }
             )
-
         )
-
       );
 
-
-
     const actualResult =
-
       await rpc(
         'raj_dashboard_summary',
         {
-
           ...baseArgs,
-
-          p_months:[
-            actualMonth
-          ]
-
+          p_months:[actualMonth]
         }
       );
 
-
-
     const compareSales =
-
       compareResults.map(
         result =>
           Number(
@@ -3848,328 +2158,188 @@ async function loadComparison(){
           )
       );
 
-
-
     const compareTotal =
-
       compareSales.reduce(
-        (
-          total,
-          sale
-        ) =>
+        (total,sale) =>
           total + sale,
-
         0
       );
 
-
-
-    const compareAverage =
-
+    const compareAvg =
       compareSales.length
-
         ? compareTotal
           /
           compareSales.length
-
         : 0;
 
-
-
     const actualSale =
-
       Number(
-        actualResult?.summary?.TotalSale
+        actualResult
+          ?.summary
+          ?.TotalSale
         ||
         0
       );
 
-
-
-    const difference =
-
+    const diff =
       actualSale
-
       -
+      compareAvg;
 
-      compareAverage;
-
-
-
-    const percentage =
-
-      compareAverage !== 0
-
+    const pct =
+      compareAvg !== 0
         ? (
-            difference
+            diff
             /
-            compareAverage
+            compareAvg
           )
           *
           100
-
         : 0;
-
-
 
     setText(
       'compareAvgSale',
-      money(
-        compareAverage
-      )
+      money(compareAvg)
     );
-
-
 
     setText(
       'compareActualSale',
-      money(
-        actualSale
-      )
+      money(actualSale)
     );
 
-
-
     setText(
-
       'compareDifference',
-
       (
-        difference > 0
-
+        diff > 0
           ? '+'
-
           : ''
       )
-
       +
-
-      money(
-        difference
-      )
-
+      money(diff)
     );
-
-
 
     setText(
-
       'comparePercent',
-
       (
-        percentage > 0
-
+        pct > 0
           ? '+'
-
           : ''
       )
-
       +
-
-      fmt(
-        percentage
-      )
-
+      fmt(pct)
       +
-
       '%'
-
     );
 
+    if(statusEl){
 
+      if(diff > 0){
 
-    if(
-      status
-    ){
-
-
-      if(
-        difference > 0
-      ){
-
-        status.textContent =
+        statusEl.textContent =
           'Above Avg';
 
-
-        status.className =
+        statusEl.className =
           'compare-status compare-positive';
 
-      }
-      else if(
-        difference < 0
-      ){
+      }else if(diff < 0){
 
-        status.textContent =
+        statusEl.textContent =
           'Below Avg';
 
-
-        status.className =
+        statusEl.className =
           'compare-status compare-negative';
 
-      }
-      else{
+      }else{
 
-        status.textContent =
+        statusEl.textContent =
           'Equal to Avg';
 
-
-        status.className =
+        statusEl.className =
           'compare-status compare-neutral';
-
       }
-
     }
 
-
-  }
-  catch(
-    error
-  ){
+  }catch(error){
 
     console.error(
       'Comparison error:',
       error
     );
 
+    if(statusEl){
 
-    if(
-      status
-    ){
-
-      status.textContent =
+      statusEl.textContent =
         'Comparison error';
 
-
-      status.className =
+      statusEl.className =
         'compare-status compare-negative';
-
     }
-
   }
-
 }
 
 
-
-/* =========================================
-   BUDGET MONTHS TO DISPLAY
-========================================= */
+/* ==============================
+   BUDGET MONTH DISPLAY
+============================== */
 
 function budgetMonthsToShow(){
 
-  const chosenMonths =
-
+  const chosen =
     selected.month.length
-
       ? selected.month
-
       : months;
 
+  const normalized = [];
 
-  const normalized =
-    [];
-
-
-  for(
-    const month of chosenMonths
-  ){
+  for(const month of chosen){
 
     const key =
-
       month === 'Sept'
-
         ? 'Sep'
-
         : month === 'June'
-
           ? 'Jun'
-
           : month === 'July'
-
             ? 'Jul'
-
             : month;
-
 
     if(
       budgetMonthMap[key]
-
       &&
-
-      !normalized.includes(
-        key
-      )
+      !normalized.includes(key)
     ){
 
-      normalized.push(
-        key
-      );
-
+      normalized.push(key);
     }
-
   }
 
-
   return normalized;
-
 }
 
 
+function diffClass(value){
 
-/* =========================================
-   DIFFERENCE CLASS
-========================================= */
-
-function diffClass(
-  value
-){
-
-  return Number(
-    value
-    ||
-    0
-  ) < 0
-
+  return Number(value || 0) < 0
     ? 'budget-negative'
-
     : 'budget-positive';
-
 }
 
 
-
-/* =========================================
+/* ==============================
    RENDER BUDGET
-========================================= */
+============================== */
 
 function renderBudget(){
 
   const panel =
-    el(
-      'budgetPanel'
-    );
+    el('budgetPanel');
 
-
-  if(
-    !panel
-  ){
-
+  if(!panel){
     return;
-
   }
-
-
-
-  /*
-    Customer budget Company/Product
-    analysisમાં hide.
-  */
 
   if(
     currentView === 'MainGrp'
-
     ||
-
     currentView === 'ItemName'
   ){
 
@@ -4177,131 +2347,72 @@ function renderBudget(){
       'budget-hidden'
     );
 
-
     return;
-
   }
-
 
   panel.classList.remove(
     'budget-hidden'
   );
 
-
-
   const showMonths =
     budgetMonthsToShow();
-
-
 
   const multiSelected =
     selected.month.length > 1;
 
-
-
   let head =
-
     '<th>SM</th>'
-
     +
-
     '<th>Customer / Party</th>'
-
     +
-
     '<th>Target</th>'
-
     +
-
     '<th>OD</th>';
-
-
 
   showMonths.forEach(
     month => {
-
 
       const name =
         monthNames[month]
         ||
         month;
 
-
       head +=
-
-        `<th>
-          ${name} Sales
-        </th>`
-
+        `<th>${name} Sales</th>`
         +
-
-        `<th>
-          ${name} Budget
-        </th>`
-
+        `<th>${name} Budget</th>`
         +
-
-        `<th>
-          ${name} Diff
-        </th>`;
-
+        `<th>${name} Diff</th>`;
     }
   );
 
-
-
   if(
     multiSelected
-
     ||
-
     !selected.month.length
   ){
 
     head +=
-
       '<th>Total Sales</th>'
-
       +
-
       '<th>Total Budget</th>'
-
       +
-
       '<th>Total Diff</th>'
-
       +
-
       '<th>Achievement %</th>'
-
       +
-
       '<th>Status</th>';
-
   }
 
-
-
-  if(
-    el(
-      'budgetTableHead'
-    )
-  ){
+  if(el('budgetTableHead')){
 
     el(
       'budgetTableHead'
     ).innerHTML =
       head;
-
   }
 
-
-
-  if(
-    el(
-      'budgetCount'
-    )
-  ){
+  if(el('budgetCount')){
 
     el(
       'budgetCount'
@@ -4309,40 +2420,26 @@ function renderBudget(){
       fmt(
         budgetRows.length
       );
-
   }
 
-
-
   const totalBudgetPages =
-
     Math.max(
-
       1,
-
       Math.ceil(
         budgetRows.length
         /
         budgetPageSize
       )
-
     );
 
-
-
   budgetPage =
-
     Math.min(
       budgetPage,
       totalBudgetPages
     );
 
-
-
   const rows =
-
     budgetRows.slice(
-
       (
         budgetPage - 1
       )
@@ -4352,37 +2449,19 @@ function renderBudget(){
       budgetPage
       *
       budgetPageSize
-
     );
-
-
 
   const body =
-    el(
-      'budgetTableBody'
-    );
+    el('budgetTableBody');
 
-
-  if(
-    !body
-  ){
-
+  if(!body){
     return;
-
   }
 
-
-
-  if(
-    !rows.length
-  ){
+  if(!rows.length){
 
     body.innerHTML = `
-
-
       <tr>
-
-
         <td
           class="empty"
           colspan="${
@@ -4395,630 +2474,301 @@ function renderBudget(){
         >
           No matching budget customers found.
         </td>
-
-
       </tr>
-
-
     `;
 
-  }
-  else{
-
+  }else{
 
     body.innerHTML =
-
       rows
-
         .map(
           row => {
 
-
             let cells =
-
-
-              `<td>
-                ${esc(
-                  row.SalesMan
-                  ||
-                  ''
-                )}
-              </td>`
-
-
+              `<td>${esc(row.SalesMan || '')}</td>`
               +
-
-
-              `<td>
-                ${esc(
-                  row.Party
-                  ||
-                  ''
-                )}
-              </td>`
-
-
+              `<td>${esc(row.Party || '')}</td>`
               +
-
-
-              `<td>
-                ${esc(
-                  row.Target
-                  ||
-                  ''
-                )}
-              </td>`
-
-
+              `<td>${esc(row.Target || '')}</td>`
               +
-
-
-              `<td>
-                ${esc(
-                  row.Order
-                  ||
-                  ''
-                )}
-              </td>`;
-
-
+              `<td>${esc(row.Order || '')}</td>`;
 
             showMonths.forEach(
               month => {
-
 
                 const [
                   budgetKey,
                   salesKey,
                   diffKey
                 ] =
-                  budgetMonthMap[
-                    month
-                  ];
-
-
+                  budgetMonthMap[month];
 
                 cells +=
-
-
-                  `<td>
-                    ${money(
-                      row[salesKey]
-                    )}
-                  </td>`
-
-
+                  `<td>${money(row[salesKey])}</td>`
                   +
-
-
-                  `<td>
-                    ${money(
-                      row[budgetKey]
-                    )}
-                  </td>`
-
-
+                  `<td>${money(row[budgetKey])}</td>`
                   +
-
-
-                  `<td
-                    class="${
-                      diffClass(
-                        row[diffKey]
-                      )
-                    }"
-                  >
-                    ${money(
-                      row[diffKey]
-                    )}
+                  `<td class="${diffClass(row[diffKey])}">
+                    ${money(row[diffKey])}
                   </td>`;
-
               }
             );
 
-
-
             if(
               multiSelected
-
               ||
-
               !selected.month.length
             ){
 
               cells +=
-
-
-                `<td>
-                  ${money(
-                    row.SelectedSales
-                  )}
-                </td>`
-
-
+                `<td>${money(row.SelectedSales)}</td>`
                 +
-
-
-                `<td>
-                  ${money(
-                    row.SelectedBudget
-                  )}
-                </td>`
-
-
+                `<td>${money(row.SelectedBudget)}</td>`
                 +
-
-
-                `<td
-                  class="${
-                    diffClass(
-                      row.Difference
-                    )
-                  }"
-                >
-                  ${money(
-                    row.Difference
-                  )}
+                `<td class="${diffClass(row.Difference)}">
+                  ${money(row.Difference)}
                 </td>`
-
-
                 +
-
-
-                `<td>
-                  ${fmt(
-                    row.AchievementPct
-                  )}%
-                </td>`
-
-
+                `<td>${fmt(row.AchievementPct)}%</td>`
                 +
-
-
                 `<td>
-
-                  <span
-                    class="budget-status ${
-                      row.BudgetStatus === 'ACHIEVED'
-
-                        ? 'ok'
-
-                        : 'bad'
-                    }"
-                  >
-                    ${esc(
-                      row.BudgetStatus
-                      ||
-                      ''
-                    )}
+                  <span class="budget-status ${
+                    row.BudgetStatus === 'ACHIEVED'
+                      ? 'ok'
+                      : 'bad'
+                  }">
+                    ${esc(row.BudgetStatus || '')}
                   </span>
-
                 </td>`;
-
             }
 
-
-
             return `
-
               <tr>
                 ${cells}
               </tr>
-
             `;
-
           }
         )
-
         .join('');
-
   }
 
-
-
-  if(
-    el(
-      'budgetPageInfo'
-    )
-  ){
+  if(el('budgetPageInfo')){
 
     el(
       'budgetPageInfo'
     ).textContent =
-
-      `Page ${budgetPage} of ${totalBudgetPages} • ${fmt(
-        budgetRows.length
-      )} customers`;
-
+      `Page ${budgetPage} of ${totalBudgetPages} • ${fmt(budgetRows.length)} customers`;
   }
 
-
-
-  if(
-    el(
-      'budgetPrev'
-    )
-  ){
+  if(el('budgetPrev')){
 
     el(
       'budgetPrev'
     ).disabled =
       budgetPage <= 1;
-
   }
 
-
-
-  if(
-    el(
-      'budgetNext'
-    )
-  ){
+  if(el('budgetNext')){
 
     el(
       'budgetNext'
     ).disabled =
       budgetPage >= totalBudgetPages;
-
   }
 
-
-
-  if(
-    el(
-      'budgetNote'
-    )
-  ){
+  if(el('budgetNote')){
 
     el(
       'budgetNote'
     ).textContent =
-
       selected.month.length
-
         ? `Showing ${
             selected.month
-
               .map(
-                month =>
-                  monthNames[month]
+                m =>
+                  monthNames[m]
                   ||
-                  month
+                  m
               )
-
-              .join(
-                ', '
-              )
+              .join(', ')
           } budget vs actual sales.`
-
         : 'No month selected: showing all available months side-by-side.';
-
   }
-
 }
 
 
-
-/* =========================================
+/* ==============================
    LOAD BUDGET
-========================================= */
+============================== */
 
 async function loadBudget(){
 
   if(
     currentView === 'MainGrp'
-
     ||
-
     currentView === 'ItemName'
   ){
 
     renderBudget();
 
     return;
-
   }
 
-
-
   const loading =
-    el(
-      'budgetLoading'
-    );
+    el('budgetLoading');
 
-
-  if(
-    loading
-  ){
+  if(loading){
 
     loading.classList.add(
       'show'
     );
-
   }
-
-
 
   try{
 
-
     budgetRows =
-
       await rpc(
         'raj_customer_budget_report',
         budgetArgs()
       )
-
       ||
-
       [];
-
 
     renderBudget();
 
+  }catch(error){
 
-  }
-  catch(
-    error
-  ){
+    console.error(error);
 
-    console.error(
-      error
-    );
+    if(el('budgetTableBody')){
 
-
-    const body =
       el(
         'budgetTableBody'
-      );
-
-
-    if(
-      body
-    ){
-
-      body.innerHTML = `
-
-
+      ).innerHTML = `
         <tr>
-
           <td class="empty">
-
             Budget error:
-            ${esc(
-              error.message
-            )}
-
+            ${esc(error.message)}
           </td>
-
         </tr>
-
-
       `;
-
     }
 
-  }
-  finally{
+  }finally{
 
-
-    if(
-      loading
-    ){
+    if(loading){
 
       loading.classList.remove(
         'show'
       );
-
     }
-
   }
-
 }
 
 
-
-/* =========================================
-   LOAD MAIN DASHBOARD
-========================================= */
+/* ==============================
+   MAIN DASHBOARD
+============================== */
 
 async function loadDashboard(
   reloadFilters = false
 ){
 
   const loading =
-    el(
-      'loading'
-    );
+    el('loading');
 
-
-  if(
-    loading
-  ){
+  if(loading){
 
     loading.classList.add(
       'show'
     );
-
   }
-
-
 
   try{
 
-
     const dashboardArgs =
       args();
-
-
 
     const [
       summaryResult,
       rowsResult
     ] =
-
       await Promise.all(
         [
-
-
           rpc(
             'raj_dashboard_summary',
             dashboardArgs
           ),
 
-
-
           rpc(
             'raj_dashboard_rows',
             {
-
               ...dashboardArgs,
-
 
               p_page:
                 page,
 
-
               p_page_size:
-
                 Number(
-
-                  el(
-                    'pageSize'
-                  )
-
-                    ? el(
-                        'pageSize'
-                      ).value
-
+                  el('pageSize')
+                    ? el('pageSize').value
                     : 25
-
                 )
-
             }
           )
-
-
         ]
       );
 
-
-
     const summary =
-
       summaryResult?.summary
-
       ||
-
       {};
 
+    if(el('totalQty')){
 
-
-    /* TOP CARDS */
-
-    if(
-      el(
-        'totalQty'
-      )
-    ){
-
-      el(
-        'totalQty'
-      ).textContent =
-        fmt(
-          summary.TotalQty
-        );
-
+      el('totalQty').textContent =
+        fmt(summary.TotalQty);
     }
 
+    if(el('totalTaxable')){
 
-
-    if(
-      el(
-        'totalTaxable'
-      )
-    ){
-
-      el(
-        'totalTaxable'
-      ).textContent =
+      el('totalTaxable').textContent =
         money(
           summary.TotalTaxable
         );
-
     }
 
+    if(el('totalSale')){
 
-
-    if(
-      el(
-        'totalSale'
-      )
-    ){
-
-      el(
-        'totalSale'
-      ).textContent =
+      el('totalSale').textContent =
         money(
           summary.TotalSale
         );
-
     }
 
+    if(el('productsSold')){
 
-
-    if(
-      el(
-        'productsSold'
-      )
-    ){
-
-      el(
-        'productsSold'
-      ).textContent =
+      el('productsSold').textContent =
         fmt(
           summary.ProductsSold
         );
-
     }
 
+    if(el('customersBilled')){
 
-
-    if(
-      el(
-        'customersBilled'
-      )
-    ){
-
-      el(
-        'customersBilled'
-      ).textContent =
+      el('customersBilled').textContent =
         fmt(
           summary.CustomersBilled
         );
-
     }
 
+    if(el('recordCount')){
 
-
-    if(
-      el(
-        'recordCount'
-      )
-    ){
-
-      el(
-        'recordCount'
-      ).textContent =
+      el('recordCount').textContent =
         fmt(
           rowsResult?.totalRows
         );
-
     }
-
-
-
-    /* PAGINATION */
 
     page =
       Number(
@@ -5027,7 +2777,6 @@ async function loadDashboard(
         1
       );
 
-
     totalPages =
       Number(
         rowsResult?.totalPages
@@ -5035,66 +2784,35 @@ async function loadDashboard(
         1
       );
 
+    if(el('pageInfo')){
 
-
-    if(
-      el(
-        'pageInfo'
-      )
-    ){
-
-      el(
-        'pageInfo'
-      ).textContent =
-
-        `Page ${page} of ${totalPages} • ${fmt(
-          rowsResult?.totalRows
-        )} records`;
-
+      el('pageInfo').textContent =
+        `Page ${page} of ${totalPages} • ${fmt(rowsResult?.totalRows)} records`;
     }
 
+    if(el('prevPage')){
 
-
-    if(
-      el(
-        'prevPage'
-      )
-    ){
-
-      el(
-        'prevPage'
-      ).disabled =
+      el('prevPage').disabled =
         page <= 1;
-
     }
 
+    if(el('nextPage')){
 
-
-    if(
-      el(
-        'nextPage'
-      )
-    ){
-
-      el(
-        'nextPage'
-      ).disabled =
+      el('nextPage').disabled =
         page >= totalPages;
-
     }
-
 
 
     /*
-      Month budget customer counts
+      Budget customers / Sales customers /
+      Zero Sales customers.
     */
 
     await loadBudgetMonthSummary();
 
 
-
     /*
-      Month summary cards
+      Month summary.
     */
 
     renderMonths(
@@ -5104,9 +2822,8 @@ async function loadDashboard(
     );
 
 
-
     /*
-      Detailed rows
+      Detailed rows.
     */
 
     renderRows(
@@ -5116,53 +2833,31 @@ async function loadDashboard(
     );
 
 
-
     /*
-      Refresh dependent filters.
+      Refresh filter options.
     */
 
-    if(
-      reloadFilters
-    ){
+    if(reloadFilters){
 
       await refreshFilters();
 
-
       buildMonths();
 
-
       await loadODOptions();
-
     }
 
 
-
-    /*
-      Analysis + Budget + Comparison
-    */
-
     await Promise.all(
       [
-
         loadGroupSummary(),
-
         loadBudget(),
-
         loadComparison()
-
       ]
     );
 
+  }catch(error){
 
-  }
-  catch(
-    error
-  ){
-
-    console.error(
-      error
-    );
-
+    console.error(error);
 
     alert(
       'Dashboard error: '
@@ -5170,57 +2865,44 @@ async function loadDashboard(
       error.message
     );
 
-  }
-  finally{
+  }finally{
 
-
-    if(
-      loading
-    ){
+    if(loading){
 
       loading.classList.remove(
         'show'
       );
-
     }
-
   }
-
 }
 
 
-
-/* =========================================
+/* ==============================
    STARTUP
-========================================= */
+============================== */
 
 document.addEventListener(
   'DOMContentLoaded',
   async () => {
 
-
     try{
-
 
       buildFilterUI();
 
 
-
-      /* GET SCHEMA */
+      /*
+        Get schema.
+      */
 
       const schema =
-
         await rpc(
           'raj_dashboard_schema'
         );
-
-
 
       columns =
         schema?.columns
         ||
         [];
-
 
       months =
         schema?.months
@@ -5228,193 +2910,124 @@ document.addEventListener(
         [];
 
 
+      /*
+        Detailed table header.
+      */
 
-      /* DETAIL TABLE HEADER */
+      if(el('tableHead')){
 
-      const tableHead =
         el(
           'tableHead'
-        );
-
-
-      if(
-        tableHead
-      ){
-
-        tableHead.innerHTML =
+        ).innerHTML =
 
           columns
-
             .map(
               column =>
-                `<th>
-                  ${esc(
-                    column
-                  )}
-                </th>`
+                `<th>${esc(column)}</th>`
             )
-
             .join('')
-
 
           +
 
-
           '<th>Avg Sales</th>';
-
       }
 
 
+      /*
+        Build top Month dropdown.
+      */
 
       buildMonths();
 
 
-
-      /* ===================================
-         GLOBAL CLICK HANDLER
-      =================================== */
+      /*
+        Global multi dropdown click handler.
+      */
 
       document.addEventListener(
         'click',
         event => {
 
 
-          /* SELECT ALL */
-
-          const selectAllButton =
-
+          const selectAll =
             event.target.closest(
               '[data-select-all]'
             );
 
-
-          if(
-            selectAllButton
-          ){
+          if(selectAll){
 
             event.preventDefault();
-
             event.stopPropagation();
 
-
             applyBulkSelection(
-
-              selectAllButton
-                .dataset
-                .selectAll,
-
+              selectAll.dataset.selectAll,
               true
-
             );
 
-
             return;
-
           }
 
 
-
-          /* UNSELECT ALL */
-
-          const unselectAllButton =
-
+          const unselectAll =
             event.target.closest(
               '[data-unselect-all]'
             );
 
-
-          if(
-            unselectAllButton
-          ){
+          if(unselectAll){
 
             event.preventDefault();
-
             event.stopPropagation();
 
-
             applyBulkSelection(
-
-              unselectAllButton
-                .dataset
-                .unselectAll,
-
+              unselectAll.dataset.unselectAll,
               false
-
             );
 
-
             return;
-
           }
 
 
-
-          /* OPEN MULTI SELECT */
-
-          const openButton =
-
+          const button =
             event.target.closest(
               '[data-open]'
             );
 
-
-          if(
-            openButton
-          ){
+          if(button){
 
             const id =
-              openButton.dataset.open;
+              button.dataset.open;
 
-
-            const multi =
+            const box =
               el(
                 'multi_' + id
               );
 
-
-            if(
-              !multi
-            ){
-
+            if(!box){
               return;
-
             }
 
-
-
             document
-
               .querySelectorAll(
                 '.multi.open'
               )
-
               .forEach(
                 item => {
 
-
-                  if(
-                    item !== multi
-                  ){
+                  if(item !== box){
 
                     item.classList.remove(
                       'open'
                     );
-
                   }
-
                 }
               );
 
-
-
-            multi.classList.toggle(
+            box.classList.toggle(
               'open'
             );
 
-
-
             if(
-              multi.classList.contains(
+              box.classList.contains(
                 'open'
               )
             ){
@@ -5424,41 +3037,24 @@ document.addEventListener(
                   'search_' + id
                 );
 
-
-              if(
-                search
-              ){
+              if(search){
 
                 search.value =
                   searchState[id]
                   ||
                   '';
 
-
-                applySearchFilter(
-                  id
-                );
-
+                applySearchFilter(id);
 
                 requestAnimationFrame(
-                  () =>
-                    search.focus()
+                  () => search.focus()
                 );
-
               }
-
             }
 
-
             return;
-
           }
 
-
-
-          /*
-            Outside click closes dropdown.
-          */
 
           if(
             !event.target.closest(
@@ -5467,600 +3063,334 @@ document.addEventListener(
           ){
 
             document
-
               .querySelectorAll(
                 '.multi.open'
               )
-
               .forEach(
                 item =>
                   item.classList.remove(
                     'open'
                   )
               );
-
           }
-
 
         }
       );
 
 
+      /*
+        Search boxes.
+      */
 
-      /* ===================================
-         SEARCH BOX EVENTS
-      =================================== */
+      for(const [id] of filterDefs){
 
-      for(
-        const [
-          id
-        ] of filterDefs
-      ){
-
-        wireSearchBox(
-          id
-        );
-
+        wireSearchBox(id);
       }
 
+      wireSearchBox('month');
 
-      wireSearchBox(
-        'month'
-      );
-
-
-      wireSearchBox(
-        'budgetOD'
-      );
+      wireSearchBox('budgetOD');
 
 
-
-      /* ===================================
-         INITIAL DATA
-      =================================== */
+      /*
+        Initial data.
+      */
 
       await refreshFilters();
 
-
       await loadODOptions();
-
 
       await loadDashboard();
 
 
+      /*
+        Product Sale Status.
+      */
 
-      /* ===================================
-         PRODUCT SALE STATUS
-      =================================== */
+      if(el('productSaleStatus')){
 
-      const productSaleStatus =
         el(
           'productSaleStatus'
-        );
-
-
-      if(
-        productSaleStatus
-      ){
-
-        productSaleStatus.onchange =
+        ).onchange =
           async () => {
-
 
             page = 1;
 
-
-            await loadDashboard(
-              true
-            );
-
+            await loadDashboard(true);
           };
-
       }
 
 
+      /*
+        Budget status.
+      */
 
-      /* ===================================
-         BUDGET STATUS
-      =================================== */
+      if(el('budgetStatus')){
 
-      const budgetStatus =
         el(
           'budgetStatus'
-        );
-
-
-      if(
-        budgetStatus
-      ){
-
-        budgetStatus.onchange =
+        ).onchange =
           async () => {
 
-
             budgetPage = 1;
-
 
             await loadBudget();
-
           };
-
       }
 
 
+      /*
+        Budget Target.
+      */
 
-      /* ===================================
-         BUDGET TARGET
-      =================================== */
+      if(el('budgetTarget')){
 
-      const budgetTarget =
         el(
           'budgetTarget'
-        );
-
-
-      if(
-        budgetTarget
-      ){
-
-        budgetTarget.onchange =
+        ).onchange =
           async () => {
-
 
             budgetPage = 1;
 
-
-            /*
-              Month Summary budget customers
-              પણ target mode respect કરે.
-            */
-
-            await loadDashboard(
-              false
-            );
-
+            await loadDashboard(false);
           };
-
       }
 
 
+      /*
+        Global search.
+      */
 
-      /* ===================================
-         GLOBAL SEARCH
-      =================================== */
+      if(el('search')){
 
-      const globalSearch =
-        el(
-          'search'
-        );
-
-
-      if(
-        globalSearch
-      ){
-
-        globalSearch.oninput =
+        el('search').oninput =
           () => {
 
-
-            clearTimeout(
-              timer
-            );
-
+            clearTimeout(timer);
 
             timer =
-
               setTimeout(
-
                 async () => {
-
 
                   page = 1;
 
-
-                  await loadDashboard(
-                    true
-                  );
-
+                  await loadDashboard(true);
 
                 },
-
                 350
-
               );
-
           };
-
       }
 
 
+      /*
+        Detail page size.
+      */
 
-      /* ===================================
-         PAGE SIZE
-      =================================== */
+      if(el('pageSize')){
 
-      const pageSize =
         el(
           'pageSize'
-        );
-
-
-      if(
-        pageSize
-      ){
-
-        pageSize.onchange =
+        ).onchange =
           async () => {
-
 
             page = 1;
 
-
             await loadDashboard();
-
           };
-
       }
 
 
+      /*
+        Detail previous.
+      */
 
-      /* ===================================
-         DETAIL PREVIOUS
-      =================================== */
+      if(el('prevPage')){
 
-      const prevPage =
         el(
           'prevPage'
-        );
-
-
-      if(
-        prevPage
-      ){
-
-        prevPage.onclick =
+        ).onclick =
           async () => {
 
-
-            if(
-              page > 1
-            ){
+            if(page > 1){
 
               page--;
 
-
               await loadDashboard();
-
             }
-
           };
-
       }
 
 
+      /*
+        Detail next.
+      */
 
-      /* ===================================
-         DETAIL NEXT
-      =================================== */
+      if(el('nextPage')){
 
-      const nextPage =
         el(
           'nextPage'
-        );
-
-
-      if(
-        nextPage
-      ){
-
-        nextPage.onclick =
+        ).onclick =
           async () => {
 
-
-            if(
-              page < totalPages
-            ){
+            if(page < totalPages){
 
               page++;
 
-
               await loadDashboard();
-
             }
-
           };
-
       }
 
 
+      /*
+        Budget previous.
+      */
 
-      /* ===================================
-         BUDGET PREVIOUS
-      =================================== */
+      if(el('budgetPrev')){
 
-      const budgetPrev =
         el(
           'budgetPrev'
-        );
-
-
-      if(
-        budgetPrev
-      ){
-
-        budgetPrev.onclick =
+        ).onclick =
           () => {
 
-
-            if(
-              budgetPage > 1
-            ){
+            if(budgetPage > 1){
 
               budgetPage--;
 
-
               renderBudget();
-
             }
-
           };
-
       }
 
 
+      /*
+        Budget next.
+      */
 
-      /* ===================================
-         BUDGET NEXT
-      =================================== */
+      if(el('budgetNext')){
 
-      const budgetNext =
         el(
           'budgetNext'
-        );
-
-
-      if(
-        budgetNext
-      ){
-
-        budgetNext.onclick =
+        ).onclick =
           () => {
 
-
             const pages =
-
               Math.max(
-
                 1,
-
                 Math.ceil(
                   budgetRows.length
                   /
                   budgetPageSize
                 )
-
               );
 
-
-            if(
-              budgetPage < pages
-            ){
+            if(budgetPage < pages){
 
               budgetPage++;
 
-
               renderBudget();
-
             }
-
           };
-
       }
 
 
+      /*
+        Clear All.
+      */
 
-      /* ===================================
-         CLEAR ALL FILTERS
-      =================================== */
+      if(el('clearFilters')){
 
-      const clearFilters =
         el(
           'clearFilters'
-        );
-
-
-      if(
-        clearFilters
-      ){
-
-        clearFilters.onclick =
+        ).onclick =
           async () => {
 
+            if(el('search')){
 
-            /*
-              Global search
-            */
-
-            if(
-              el(
-                'search'
-              )
-            ){
-
-              el(
-                'search'
-              ).value =
+              el('search').value =
                 '';
-
             }
 
+            selected.month = [];
 
+            selected.budgetOD = [];
 
-            /*
-              Month
-            */
-
-            selected.month =
-              [];
-
-
-
-            /*
-              OD
-            */
-
-            selected.budgetOD =
-              [];
-
-
-            odParties =
-              [];
-
-
-
-            /*
-              Search states
-            */
+            odParties = [];
 
             Object
-
-              .keys(
-                searchState
-              )
-
+              .keys(searchState)
               .forEach(
                 key =>
-                  searchState[key] =
-                    ''
+                  searchState[key] = ''
               );
 
-
-
-            /*
-              Product status
-            */
-
-            if(
-              el(
-                'productSaleStatus'
-              )
-            ){
+            if(el('productSaleStatus')){
 
               el(
                 'productSaleStatus'
               ).value =
                 'All';
-
             }
 
-
-
-            /*
-              Budget status
-            */
-
-            if(
-              el(
-                'budgetStatus'
-              )
-            ){
+            if(el('budgetStatus')){
 
               el(
                 'budgetStatus'
               ).value =
                 'all';
-
             }
 
-
-
-            /*
-              Budget target
-            */
-
-            if(
-              el(
-                'budgetTarget'
-              )
-            ){
+            if(el('budgetTarget')){
 
               el(
                 'budgetTarget'
               ).value =
                 'all';
-
             }
-
-
-
-            /*
-              Normal filters
-            */
 
             filters.forEach(
               column => {
 
-
-                selected[column] =
-                  [];
-
+                selected[column] = [];
 
                 updateMultiLabel(
                   column
                 );
-
               }
             );
 
-
-
             updateMonthLabel();
 
-
             updateODLabel();
-
-
 
             page = 1;
 
             budgetPage = 1;
 
-
-
-            await loadDashboard(
-              true
-            );
-
+            await loadDashboard(true);
           };
-
       }
 
 
-
-      /* ===================================
-         ANALYSIS TABS
-      =================================== */
+      /*
+        Analysis Tabs.
+      */
 
       document
-
         .querySelectorAll(
           '#viewTabs button'
         )
-
         .forEach(
           button => {
-
 
             button.onclick =
               async () => {
 
-
                 document
-
                   .querySelectorAll(
                     '#viewTabs button'
                   )
-
                   .forEach(
                     item =>
                       item.classList.remove(
@@ -6068,44 +3398,27 @@ document.addEventListener(
                       )
                   );
 
-
-
                 button.classList.add(
                   'active'
                 );
 
-
-
                 currentView =
                   button.dataset.view;
 
-
-
                 await Promise.all(
                   [
-
                     loadGroupSummary(),
-
                     loadBudget()
-
                   ]
                 );
-
               };
-
           }
         );
 
 
-    }
-    catch(
-      error
-    ){
+    }catch(error){
 
-      console.error(
-        error
-      );
-
+      console.error(error);
 
       alert(
         'Startup error: '
@@ -6114,9 +3427,7 @@ document.addEventListener(
         +
         '\nRun required Supabase SQL functions first.'
       );
-
     }
-
 
   }
 );
