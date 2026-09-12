@@ -10,28 +10,42 @@
     content="width=device-width, initial-scale=1"
   >
 
-  <title>Sales Intelligence Dashboard</title>
+  <title>
+    Sales Intelligence Dashboard
+  </title>
+
 
   <link
     rel="stylesheet"
-    href="style.css?v=online15"
+    href="style.css?v=online16"
   >
+
 
   <style>
 
     .compare-controls{
       display:grid;
-      grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+      grid-template-columns:
+        repeat(
+          auto-fit,
+          minmax(230px,1fr)
+        );
       gap:16px;
       margin-bottom:16px;
     }
 
+
     .compare-grid{
       display:grid;
-      grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+      grid-template-columns:
+        repeat(
+          auto-fit,
+          minmax(180px,1fr)
+        );
       gap:14px;
       margin-top:14px;
     }
+
 
     .compare-card{
       border:1px solid #e5e7eb;
@@ -40,6 +54,7 @@
       background:#fff;
     }
 
+
     .compare-card span{
       display:block;
       color:#64748b;
@@ -47,31 +62,43 @@
       margin-bottom:6px;
     }
 
+
     .compare-card strong{
       font-size:20px;
       line-height:1.3;
     }
 
+
     .compare-positive{
       color:#15803d;
     }
+
 
     .compare-negative{
       color:#b91c1c;
     }
 
+
     .compare-neutral{
       color:#475569;
     }
+
 
     .avg-card{
       border:1px solid #dbeafe;
       background:#eff6ff;
     }
 
+
     .budget-overview-card{
       border:1px solid #d1fae5;
       background:#ecfdf5;
+    }
+
+
+    #tableHead th,
+    .summary-table thead th{
+      white-space:nowrap;
     }
 
   </style>
@@ -79,16 +106,20 @@
 </head>
 
 
+
 <body>
 
 
 <header class="topbar">
 
+
   <div class="brand">
+
 
     <div class="logo">
       R
     </div>
+
 
     <div>
 
@@ -96,43 +127,57 @@
         Sales Intelligence
       </h1>
 
+
       <p>
         Customer • Product • Group • SM • Division • Pincode
       </p>
 
     </div>
 
+
   </div>
+
 
   <div class="live">
     ● Supabase Online
   </div>
 
+
 </header>
+
 
 
 <main class="container">
 
 
-  <!-- HERO -->
+
+  <!-- ======================================================
+       HERO
+       ====================================================== -->
 
   <section class="hero">
 
+
     <div>
+
 
       <span class="eyebrow">
         Business Overview
       </span>
 
+
       <h2>
         Sales Performance Dashboard
       </h2>
+
 
       <p>
         Sales, Taxable comparison, Customer Budget and Target tracking.
       </p>
 
+
     </div>
+
 
     <button
       id="clearFilters"
@@ -141,16 +186,23 @@
       Clear All Filters
     </button>
 
+
   </section>
 
 
-  <!-- TOP SUMMARY -->
+
+  <!-- ======================================================
+       TOP SUMMARY
+       ====================================================== -->
 
   <section class="summary-grid five">
 
+
     <article class="summary-card">
 
-      <span>Total Qty</span>
+      <span>
+        Total Qty
+      </span>
 
       <strong id="totalQty">
         0
@@ -163,9 +215,12 @@
     </article>
 
 
+
     <article class="summary-card">
 
-      <span>Total Taxable</span>
+      <span>
+        Total Taxable
+      </span>
 
       <strong id="totalTaxable">
         ₹0
@@ -178,9 +233,12 @@
     </article>
 
 
+
     <article class="summary-card">
 
-      <span>Total Sale</span>
+      <span>
+        Total Sale
+      </span>
 
       <strong id="totalSale">
         ₹0
@@ -193,9 +251,12 @@
     </article>
 
 
+
     <article class="summary-card">
 
-      <span>Products Sold</span>
+      <span>
+        Products Sold
+      </span>
 
       <strong id="productsSold">
         0
@@ -208,9 +269,12 @@
     </article>
 
 
+
     <article class="summary-card">
 
-      <span>Customers Billed</span>
+      <span>
+        Customers Billed
+      </span>
 
       <strong id="customersBilled">
         0
@@ -223,9 +287,12 @@
     </article>
 
 
+
     <article class="summary-card">
 
-      <span>Matching Records</span>
+      <span>
+        Matching Records
+      </span>
 
       <strong id="recordCount">
         0
@@ -237,14 +304,20 @@
 
     </article>
 
+
   </section>
 
 
-  <!-- FILTERS -->
+
+  <!-- ======================================================
+       FILTERS
+       ====================================================== -->
 
   <section class="panel">
 
+
     <div class="panel-head">
+
 
       <div>
 
@@ -258,17 +331,22 @@
 
       </div>
 
+
     </div>
+
 
 
     <div class="search-grid">
 
 
+
       <div class="field wide">
+
 
         <label>
           Global Search
         </label>
+
 
         <input
           id="search"
@@ -276,19 +354,24 @@
           placeholder="Search party, product, code, group, SM, division, pincode..."
         >
 
+
       </div>
 
 
+
       <div class="field">
+
 
         <label>
           Month
         </label>
 
+
         <div
           class="multi"
           id="multi_month"
         >
+
 
           <button
             type="button"
@@ -300,12 +383,16 @@
               All Months / Total
             </span>
 
-            <span>▾</span>
+            <span>
+              ▾
+            </span>
 
           </button>
 
 
+
           <div class="multi-menu">
+
 
             <input
               class="multi-search"
@@ -313,14 +400,18 @@
               placeholder="Search month..."
             >
 
+
             <div
               class="multi-options"
               id="options_month"
             ></div>
 
+
           </div>
 
+
         </div>
+
 
 
         <div
@@ -328,34 +419,45 @@
           id="chips_month"
         ></div>
 
+
       </div>
 
 
+
       <div class="field">
+
 
         <label>
           Product Sale
         </label>
 
+
         <select id="productSaleStatus">
+
 
           <option value="All">
             All Products
           </option>
 
+
           <option value="Sold">
             Only Sold Products
           </option>
+
 
           <option value="NoSale">
             No Sale Products
           </option>
 
+
         </select>
+
 
       </div>
 
+
     </div>
+
 
 
     <div
@@ -364,78 +466,101 @@
     ></div>
 
 
+
     <div class="budget-filter-title">
       Customer Budget / OD Filters
     </div>
 
 
+
     <div class="budget-filters">
 
 
+
       <div class="field">
+
 
         <label>
           Sales / Budget Status
         </label>
 
+
         <select id="budgetStatus">
+
 
           <option value="all">
             All
           </option>
 
+
           <option value="zero_sales">
             Zero Sales
           </option>
+
 
           <option value="below_budget">
             Below Budget
           </option>
 
+
           <option value="achieved">
             Budget Achieved
           </option>
 
+
         </select>
+
 
       </div>
 
 
+
       <div class="field">
+
 
         <label>
           Budget Target
         </label>
 
+
         <select id="budgetTarget">
+
 
           <option value="all">
             All Customers
           </option>
 
+
           <option value="target">
             Target Customers
           </option>
+
 
           <option value="non_target">
             Non-Target Customers
           </option>
 
+
         </select>
+
 
       </div>
 
 
+
       <div class="field">
+
 
         <label>
           OD Team
         </label>
 
+
         <div
           class="multi"
           id="multi_budgetOD"
         >
+
 
           <button
             type="button"
@@ -447,12 +572,16 @@
               All OD
             </span>
 
-            <span>▾</span>
+            <span>
+              ▾
+            </span>
 
           </button>
 
 
+
           <div class="multi-menu">
+
 
             <input
               class="multi-search"
@@ -460,14 +589,18 @@
               placeholder="Search OD..."
             >
 
+
             <div
               class="multi-options"
               id="options_budgetOD"
             ></div>
 
+
           </div>
 
+
         </div>
+
 
 
         <div
@@ -475,18 +608,26 @@
           id="chips_budgetOD"
         ></div>
 
+
       </div>
 
+
     </div>
+
 
   </section>
 
 
-  <!-- SALES COMPARISON -->
+
+  <!-- ======================================================
+       SALES COMPARISON
+       ====================================================== -->
 
   <section class="panel">
 
+
     <div class="panel-head">
+
 
       <div>
 
@@ -500,22 +641,28 @@
 
       </div>
 
+
     </div>
+
 
 
     <div class="compare-controls">
 
 
+
       <div class="field">
+
 
         <label>
           Compare Months
         </label>
 
+
         <div
           class="multi"
           id="multi_compareMonths"
         >
+
 
           <button
             type="button"
@@ -527,12 +674,16 @@
               Select Compare Months
             </span>
 
-            <span>▾</span>
+            <span>
+              ▾
+            </span>
 
           </button>
 
 
+
           <div class="multi-menu">
+
 
             <input
               class="multi-search"
@@ -540,14 +691,18 @@
               placeholder="Search month..."
             >
 
+
             <div
               class="multi-options"
               id="options_compareMonths"
             ></div>
 
+
           </div>
 
+
         </div>
+
 
 
         <div
@@ -555,29 +710,39 @@
           id="chips_compareMonths"
         ></div>
 
+
       </div>
 
 
+
       <div class="field">
+
 
         <label>
           Actual Month
         </label>
 
+
         <select id="actualCompareMonth">
+
 
           <option value="">
             Select Actual Month
           </option>
 
+
         </select>
 
+
       </div>
+
 
     </div>
 
 
+
     <div class="compare-grid">
+
 
 
       <div class="compare-card">
@@ -593,6 +758,7 @@
       </div>
 
 
+
       <div class="compare-card">
 
         <span>
@@ -604,6 +770,7 @@
         </strong>
 
       </div>
+
 
 
       <div class="compare-card">
@@ -619,6 +786,7 @@
       </div>
 
 
+
       <div class="compare-card">
 
         <span>
@@ -630,6 +798,7 @@
         </strong>
 
       </div>
+
 
 
       <div class="compare-card">
@@ -645,6 +814,7 @@
       </div>
 
 
+
       <div class="compare-card">
 
         <span>
@@ -656,6 +826,7 @@
         </strong>
 
       </div>
+
 
 
       <div class="compare-card">
@@ -673,16 +844,23 @@
 
       </div>
 
+
     </div>
+
 
   </section>
 
 
-  <!-- MONTH SUMMARY -->
+
+  <!-- ======================================================
+       MONTH SUMMARY
+       ====================================================== -->
 
   <section class="panel">
 
+
     <div class="panel-head">
+
 
       <div>
 
@@ -696,7 +874,9 @@
 
       </div>
 
+
     </div>
+
 
 
     <div
@@ -704,14 +884,20 @@
       class="monthly-grid"
     ></div>
 
+
   </section>
 
 
-  <!-- ANALYSIS VIEW -->
+
+  <!-- ======================================================
+       ANALYSIS VIEW
+       ====================================================== -->
 
   <section class="panel">
 
+
     <div class="panel-head">
+
 
       <div>
 
@@ -720,18 +906,21 @@
         </h3>
 
         <p>
-          Month-wise values use Taxable Sales.
+          Month-wise values use Taxable Sales. Click any column heading to sort.
         </p>
 
       </div>
 
+
     </div>
+
 
 
     <div
       class="tabs"
       id="viewTabs"
     >
+
 
       <button
         data-view="Party"
@@ -740,32 +929,51 @@
         Customer Wise
       </button>
 
-      <button data-view="MainGrp">
+
+      <button
+        data-view="MainGrp"
+      >
         Company Wise
       </button>
 
-      <button data-view="ItemName">
+
+      <button
+        data-view="ItemName"
+      >
         Product Wise
       </button>
 
-      <button data-view="SM">
+
+      <button
+        data-view="SM"
+      >
         SM Wise
       </button>
 
-      <button data-view="Division">
+
+      <button
+        data-view="Division"
+      >
         Division Wise
       </button>
 
-      <button data-view="Pincode">
+
+      <button
+        data-view="Pincode"
+      >
         Pincode Wise
       </button>
+
 
     </div>
 
 
+
     <div class="summary-table-wrap">
 
+
       <table class="summary-table">
+
 
         <thead>
 
@@ -780,50 +988,68 @@
         </thead>
 
 
+
         <tbody
           id="groupSummaryBody"
         ></tbody>
 
+
       </table>
 
+
     </div>
+
 
   </section>
 
 
-  <!-- CUSTOMER BUDGET -->
+
+  <!-- ======================================================
+       CUSTOMER BUDGET
+       ====================================================== -->
 
   <section
     class="panel"
     id="budgetPanel"
   >
 
+
     <div class="panel-head budget-head">
 
+
       <div>
+
 
         <h3>
           Customer Budget vs Actual Sales
         </h3>
 
+
         <p id="budgetNote">
           Budget and actual sales customer comparison.
         </p>
 
+
       </div>
+
 
 
       <div class="budget-count">
 
+
         Matching Customers:
+
 
         <strong id="budgetCount">
           0
         </strong>
 
+
       </div>
 
+
     </div>
+
 
 
     <div
@@ -834,84 +1060,123 @@
     </div>
 
 
+
     <div class="budget-table-wrap">
+
 
       <table class="budget-table">
 
+
         <thead>
+
           <tr id="budgetTableHead"></tr>
+
         </thead>
+
 
         <tbody
           id="budgetTableBody"
         ></tbody>
 
+
       </table>
+
 
     </div>
 
 
+
     <div class="pager">
+
 
       <button id="budgetPrev">
         Previous
       </button>
 
+
       <span id="budgetPageInfo">
         Page 1 of 1
       </span>
+
 
       <button id="budgetNext">
         Next
       </button>
 
+
     </div>
+
 
   </section>
 
 
-  <!-- DETAIL DATA -->
+
+  <!-- ======================================================
+       DETAILED SALES DATA
+       ====================================================== -->
 
   <section class="panel table-panel">
 
+
     <div class="panel-head table-head">
 
+
       <div>
+
 
         <h3>
           Detailed Sales Data
         </h3>
 
+
         <p>
-          Original sales columns plus calculated Avg Sales.
+          Default Main Group A-Z. Click any column heading to change sorting.
         </p>
+
 
       </div>
 
 
+
       <div class="row-count">
+
 
         <label>
           Rows
         </label>
 
+
         <select id="pageSize">
 
-          <option>10</option>
+
+          <option>
+            10
+          </option>
+
 
           <option selected>
             25
           </option>
 
-          <option>50</option>
 
-          <option>100</option>
+          <option>
+            50
+          </option>
+
+
+          <option>
+            100
+          </option>
+
 
         </select>
 
+
       </div>
 
+
     </div>
+
 
 
     <div
@@ -922,36 +1187,52 @@
     </div>
 
 
+
     <div class="table-wrap">
+
 
       <table>
 
+
         <thead>
+
           <tr id="tableHead"></tr>
+
         </thead>
 
-        <tbody id="tableBody"></tbody>
+
+        <tbody
+          id="tableBody"
+        ></tbody>
+
 
       </table>
+
 
     </div>
 
 
+
     <div class="pager">
+
 
       <button id="prevPage">
         Previous
       </button>
 
+
       <span id="pageInfo">
         Page 1 of 1
       </span>
+
 
       <button id="nextPage">
         Next
       </button>
 
+
     </div>
+
 
   </section>
 
@@ -959,14 +1240,27 @@
 </main>
 
 
+
 <script
   src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
 ></script>
 
-<script src="config.js?v=online15"></script>
 
-<script src="script.js?v=online15"></script>
+<script
+  src="config.js?v=online16"
+></script>
+
+
+<script
+  src="script.js?v=online16"
+></script>
+
+
+<script
+  src="sort-addon.js?v=online16"
+></script>
 
 
 </body>
+
 </html>
