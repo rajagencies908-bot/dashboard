@@ -1,37 +1,51 @@
 /* ============================================================
-   RAJ DASHBOARD SORT ADD-ON
+   RAJ DASHBOARD - SAFE SORT ADD-ON
+   VERSION: online17-safe
 
-   Detailed Sales Data:
-   - Default MainGrp A -> Z
-   - Text columns: A -> Z / Z -> A
-   - Numeric columns: Largest -> Smallest / Smallest -> Largest
-   - Server-side sorting across all pages
-
-   Analysis View:
-   - Default first column A -> Z
-   - Click any heading to sort
+   FIX:
+   - NO MutationObserver
+   - NO infinite browser loop
+   - Detailed Sales default MainGrp A-Z
+   - Detailed table server-side sorting
+   - Analysis View client-side sorting
    ============================================================ */
 
 
+/* ============================================================
+   DETAILED TABLE SORT STATE
+============================================================ */
+
 let rajDetailSortColumn =
   'MainGrp';
-
 
 let rajDetailSortDirection =
   'asc';
 
 
+/* ============================================================
+   ANALYSIS VIEW SORT STATE
+============================================================ */
+
 const rajAnalysisSortByView = {};
 
 
-
 /* ============================================================
-   REDIRECT DETAILED ROW RPC TO SORTED RPC
-   ============================================================ */
+   SAVE ORIGINAL RPC
+============================================================ */
 
-const rajOriginalRpcFunction =
+const rajOriginalRpc =
   rpc;
 
+
+/* ============================================================
+   INTERCEPT ONLY DETAILED SALES ROW RPC
+
+   Existing dashboard asks:
+   raj_dashboard_rows
+
+   We redirect it to:
+   raj_dashboard_rows_sorted
+============================================================ */
 
 rpc =
   async function(
@@ -40,10 +54,13 @@ rpc =
   ){
 
 
-    if(name === 'raj_dashboard_rows'){
+    if(
+      name ===
+      'raj_dashboard_rows'
+    ){
 
 
-      return await rajOriginalRpcFunction(
+      return await rajOriginalRpc(
 
         'raj_dashboard_rows_sorted',
 
@@ -67,7 +84,7 @@ rpc =
     }
 
 
-    return await rajOriginalRpcFunction(
+    return await rajOriginalRpc(
       name,
       params
     );
@@ -76,50 +93,111 @@ rpc =
   };
 
 
-
 /* ============================================================
-   HELPERS
-   ============================================================ */
-
+   HELPER:
+   IS DETAILED COLUMN NUMERIC?
+============================================================ */
 
 function rajIsNumericDetailColumn(
   column
 ){
 
 
-  if(column === 'Avg Sales'){
+  const text =
+    String(
+      column || ''
+    );
+
+
+  if(
+    text ===
+    'Avg Sales'
+  ){
 
     return true;
 
   }
 
 
-  return /Qty|Taxable|Amt|Sale|Mobile/i.test(
-    String(
-      column || ''
-    )
-  );
+  return (
+    /Qty$/i.test(text)
 
+    ||
+
+    /Taxable$/i.test(text)
+
+    ||
+
+    /Amt$/i.test(text)
+
+    ||
+
+    /Sale$/i.test(text)
+
+    ||
+
+    /^Mobile$/i.test(text)
+
+    ||
+
+    /^Pincode$/i.test(text)
+  );
 
 }
 
 
+/* ============================================================
+   HELPER:
+   IS ANALYSIS COLUMN NUMERIC?
+============================================================ */
 
 function rajIsNumericAnalysisHeader(
   text
 ){
 
 
-  return /Sale|Qty|Products Sold|Customers Billed|Records|Average|Avg|Total/i.test(
+  const value =
     String(
       text || ''
-    )
-  );
+    );
 
+
+  return (
+
+    /Taxable Sale/i.test(value)
+
+    ||
+
+    /Avg/i.test(value)
+
+    ||
+
+    /^Qty$/i.test(value)
+
+    ||
+
+    /Products Sold/i.test(value)
+
+    ||
+
+    /Customers Billed/i.test(value)
+
+    ||
+
+    /^Records$/i.test(value)
+
+    ||
+
+    /^Total/i.test(value)
+
+  );
 
 }
 
 
+/* ============================================================
+   REMOVE OLD SORT SYMBOL
+============================================================ */
 
 function rajCleanHeaderText(
   text
@@ -130,15 +208,17 @@ function rajCleanHeaderText(
     text || ''
   )
     .replace(
-      /\s+[▲▼↕]\s*$/,
+      /\s*[▲▼↕]\s*$/g,
       ''
     )
     .trim();
 
-
 }
 
 
+/* ============================================================
+   SORT SYMBOL
+============================================================ */
 
 function rajSortArrow(
   active,
@@ -157,15 +237,12 @@ function rajSortArrow(
     ? ' ▲'
     : ' ▼';
 
-
 }
 
 
-
 /* ============================================================
-   DETAILED SALES DATA HEADER SORTING
-   ============================================================ */
-
+   DETAILED SALES HEADER UI
+============================================================ */
 
 function rajApplyDetailHeaderUI(){
 
@@ -183,8 +260,7 @@ function rajApplyDetailHeaderUI(){
   }
 
 
-
-  const ths =
+  const headers =
     [
       ...head.querySelectorAll(
         'th'
@@ -192,8 +268,16 @@ function rajApplyDetailHeaderUI(){
     ];
 
 
+  if(
+    !headers.length
+  ){
 
-  ths.forEach(
+    return;
+
+  }
+
+
+  headers.forEach(
 
     (
       th,
@@ -203,33 +287,18 @@ function rajApplyDetailHeaderUI(){
 
       const column =
 
-        index < columns.length
+        index <
+        columns.length
 
           ? columns[index]
 
           : 'Avg Sales';
 
 
-
-      th.style.cursor =
-        'pointer';
-
-
-      th.style.userSelect =
-        'none';
-
-
-
-      th.title =
-
+      const numeric =
         rajIsNumericDetailColumn(
           column
-        )
-
-          ? 'Click: Largest to Smallest / Smallest to Largest'
-
-          : 'Click: A to Z / Z to A';
-
+        );
 
 
       const active =
@@ -238,6 +307,29 @@ function rajApplyDetailHeaderUI(){
         rajDetailSortColumn;
 
 
+      /*
+        Styling
+      */
+
+      th.style.cursor =
+        'pointer';
+
+      th.style.userSelect =
+        'none';
+
+
+      th.title =
+
+        numeric
+
+          ? 'Sort: Largest to Smallest / Smallest to Largest'
+
+          : 'Sort: A to Z / Z to A';
+
+
+      /*
+        Header name
+      */
 
       th.textContent =
 
@@ -246,27 +338,23 @@ function rajApplyDetailHeaderUI(){
         +
 
         rajSortArrow(
-
           active,
-
           rajDetailSortDirection
-
         );
 
 
+      /*
+        Click sorting
+      */
 
       th.onclick =
-
-        async () => {
-
-
-          const numeric =
-
-            rajIsNumericDetailColumn(
-              column
-            );
+        async function(){
 
 
+          /*
+            Same column:
+            toggle direction
+          */
 
           if(
             rajDetailSortColumn
@@ -289,10 +377,21 @@ function rajApplyDetailHeaderUI(){
           }else{
 
 
+            /*
+              New column
+            */
+
             rajDetailSortColumn =
               column;
 
 
+            /*
+              Text:
+              first click = A-Z
+
+              Numeric:
+              first click = Largest-Smallest
+            */
 
             rajDetailSortDirection =
 
@@ -306,18 +405,36 @@ function rajApplyDetailHeaderUI(){
           }
 
 
+          /*
+            Always go to page 1
+            when sort changes
+          */
 
           page = 1;
 
 
+          /*
+            Update arrows immediately
+          */
 
           rajApplyDetailHeaderUI();
 
 
+          /*
+            Reload data with
+            server-side sorting
+          */
 
           await loadDashboard(
             false
           );
+
+
+          /*
+            Re-apply header after load
+          */
+
+          rajApplyDetailHeaderUI();
 
 
         };
@@ -331,20 +448,27 @@ function rajApplyDetailHeaderUI(){
 }
 
 
-
 /* ============================================================
-   ANALYSIS VIEW SORT STATE
-   ============================================================ */
+   ANALYSIS SORT STATE FOR CURRENT VIEW
 
+   Customer Wise
+   Company Wise
+   Product Wise
+   SM Wise
+   Division Wise
+   Pincode Wise
 
-function rajAnalysisState(){
+   Each view remembers own sorting.
+============================================================ */
+
+function rajGetAnalysisSortState(){
 
 
   const key =
     String(
-      currentView || 'Party'
+      currentView ||
+      'Party'
     );
-
 
 
   if(
@@ -354,7 +478,7 @@ function rajAnalysisState(){
 
     rajAnalysisSortByView[key] = {
 
-      index:0,
+      columnIndex:0,
 
       direction:'asc'
 
@@ -364,25 +488,21 @@ function rajAnalysisState(){
   }
 
 
-
   return rajAnalysisSortByView[key];
-
 
 }
 
 
-
 /* ============================================================
-   CONVERT MONEY / NUMBER CELL TO NUMBER
-   ============================================================ */
-
+   MONEY / NUMBER TEXT -> NUMBER
+============================================================ */
 
 function rajParseNumber(
   text
 ){
 
 
-  const clean =
+  const cleaned =
 
     String(
       text || ''
@@ -411,31 +531,26 @@ function rajParseNumber(
       .trim();
 
 
-
-  const value =
+  const number =
     Number(
-      clean
+      cleaned
     );
 
 
-
   return Number.isFinite(
-    value
+    number
   )
 
-    ? value
+    ? number
 
     : 0;
-
 
 }
 
 
-
 /* ============================================================
-   ANALYSIS VIEW SORTING
-   ============================================================ */
-
+   ANALYSIS VIEW SORT
+============================================================ */
 
 function rajApplyAnalysisSort(){
 
@@ -453,7 +568,6 @@ function rajApplyAnalysisSort(){
   }
 
 
-
   const table =
     body.closest(
       'table'
@@ -467,9 +581,7 @@ function rajApplyAnalysisSort(){
   }
 
 
-
   const headers =
-
     [
       ...table.querySelectorAll(
         'thead th'
@@ -477,15 +589,12 @@ function rajApplyAnalysisSort(){
     ];
 
 
-
   const rows =
-
     [
       ...body.querySelectorAll(
         'tr'
       )
     ];
-
 
 
   if(
@@ -499,77 +608,81 @@ function rajApplyAnalysisSort(){
   }
 
 
-
   const state =
-    rajAnalysisState();
+    rajGetAnalysisSortState();
 
 
+  /*
+    Safety if number of
+    columns changed
+  */
 
   if(
-    state.index
+    state.columnIndex
     >=
     headers.length
   ){
 
 
-    state.index =
+    state.columnIndex =
       0;
 
 
     state.direction =
       'asc';
 
-
   }
 
 
-
-  const headerText =
+  const activeHeaderText =
 
     rajCleanHeaderText(
 
       headers[
-        state.index
+        state.columnIndex
       ]
         ?.textContent
 
     );
 
 
-
-  const numeric =
+  const activeIsNumeric =
 
     rajIsNumericAnalysisHeader(
-      headerText
+      activeHeaderText
     );
 
 
+  /*
+    SORT ROWS
+  */
 
   rows.sort(
 
-    (
-      a,
-      b
-    ) => {
+    function(
+      rowA,
+      rowB
+    ){
 
 
-      const aCell =
-        a.children[
-          state.index
+      const cellA =
+
+        rowA.children[
+          state.columnIndex
         ];
 
 
-      const bCell =
-        b.children[
-          state.index
-        ];
+      const cellB =
 
+        rowB.children[
+          state.columnIndex
+        ];
 
 
       if(
-        !aCell
+        !cellA
         ||
-        !bCell
+        !cellB
       ){
 
         return 0;
@@ -577,48 +690,63 @@ function rajApplyAnalysisSort(){
       }
 
 
-
       let result = 0;
 
 
+      /*
+        Numeric
+      */
 
-      if(numeric){
+      if(
+        activeIsNumeric
+      ){
+
+
+        const valueA =
+          rajParseNumber(
+            cellA.textContent
+          );
+
+
+        const valueB =
+          rajParseNumber(
+            cellB.textContent
+          );
 
 
         result =
-
-          rajParseNumber(
-            aCell.textContent
-          )
-
+          valueA
           -
-
-          rajParseNumber(
-            bCell.textContent
-          );
+          valueB;
 
 
       }else{
 
 
-        result =
+        /*
+          Text A-Z
+        */
+
+        const valueA =
 
           String(
-            aCell.textContent
-            ||
+            cellA.textContent ||
             ''
-          )
+          ).trim();
 
-          .trim()
 
-          .localeCompare(
+        const valueB =
 
-            String(
-              bCell.textContent
-              ||
-              ''
-            )
-            .trim(),
+          String(
+            cellB.textContent ||
+            ''
+          ).trim();
+
+
+        result =
+          valueA.localeCompare(
+
+            valueB,
 
             'en',
 
@@ -636,16 +764,20 @@ function rajApplyAnalysisSort(){
       }
 
 
+      /*
+        Direction
+      */
 
-      return
+      return (
 
-        state.direction
-        ===
+        state.direction ===
         'asc'
 
           ? result
 
-          : -result;
+          : -result
+
+      );
 
 
     }
@@ -653,18 +785,33 @@ function rajApplyAnalysisSort(){
   );
 
 
+  /*
+    Put sorted rows back
+  */
+
+  const fragment =
+    document.createDocumentFragment();
+
 
   rows.forEach(
+    row => {
 
-    row =>
-
-      body.appendChild(
+      fragment.appendChild(
         row
-      )
+      );
 
+    }
   );
 
 
+  body.appendChild(
+    fragment
+  );
+
+
+  /*
+    Setup clickable headers
+  */
 
   headers.forEach(
 
@@ -674,20 +821,24 @@ function rajApplyAnalysisSort(){
     ) => {
 
 
-      const base =
+      const baseText =
 
         rajCleanHeaderText(
           th.textContent
         );
 
 
-
-      const isNumeric =
+      const numeric =
 
         rajIsNumericAnalysisHeader(
-          base
+          baseText
         );
 
+
+      const active =
+
+        index ===
+        state.columnIndex;
 
 
       th.style.cursor =
@@ -698,40 +849,37 @@ function rajApplyAnalysisSort(){
         'none';
 
 
-
       th.title =
 
-        isNumeric
+        numeric
 
-          ? 'Click: Largest to Smallest / Smallest to Largest'
+          ? 'Sort: Largest to Smallest / Smallest to Largest'
 
-          : 'Click: A to Z / Z to A';
-
+          : 'Sort: A to Z / Z to A';
 
 
       th.textContent =
 
-        base
+        baseText
 
         +
 
         rajSortArrow(
-
-          index === state.index,
-
+          active,
           state.direction
-
         );
 
 
-
       th.onclick =
+        function(){
 
-        () => {
 
+          /*
+            Same column
+          */
 
           if(
-            state.index
+            state.columnIndex
             ===
             index
           ){
@@ -751,14 +899,25 @@ function rajApplyAnalysisSort(){
           }else{
 
 
-            state.index =
+            /*
+              New column
+            */
+
+            state.columnIndex =
               index;
 
 
+            /*
+              Numeric first click:
+              Largest -> Smallest
+
+              Text first click:
+              A -> Z
+            */
 
             state.direction =
 
-              isNumeric
+              numeric
 
                 ? 'desc'
 
@@ -766,7 +925,6 @@ function rajApplyAnalysisSort(){
 
 
           }
-
 
 
           rajApplyAnalysisSort();
@@ -783,24 +941,27 @@ function rajApplyAnalysisSort(){
 }
 
 
-
 /* ============================================================
    WRAP EXISTING ANALYSIS FUNCTION
-   ============================================================ */
 
+   Existing business logic remains unchanged.
+============================================================ */
 
 const rajOriginalLoadGroupSummary =
   loadGroupSummary;
 
 
-
 loadGroupSummary =
-
   async function(){
 
 
     await rajOriginalLoadGroupSummary();
 
+
+    /*
+      Sort only AFTER original
+      Analysis table is rendered
+    */
 
     rajApplyAnalysisSort();
 
@@ -808,181 +969,129 @@ loadGroupSummary =
   };
 
 
-
 /* ============================================================
-   STARTUP OBSERVERS
-   ============================================================ */
-
+   INITIAL SETUP
+============================================================ */
 
 document.addEventListener(
 
   'DOMContentLoaded',
 
-  () => {
+  function(){
 
 
+    /*
+      Main script loads schema asynchronously,
+      therefore Detailed headers may not exist yet.
 
-    /* --------------------------------------------------------
-       Detailed Data Header Observer
-       -------------------------------------------------------- */
+      Safe polling only.
+      NO MutationObserver.
+    */
 
-    const detailHead =
 
-      document.getElementById(
-        'tableHead'
-      );
+    let detailTries =
+      0;
 
 
-
-    if(detailHead){
-
-
-      const detailObserver =
-
-        new MutationObserver(
-
-          () => {
-
-
-            if(
-
-              detailHead.querySelectorAll(
-                'th'
-              ).length
-
-            ){
-
-
-              rajApplyDetailHeaderUI();
-
-
-            }
-
-
-          }
-
-        );
-
-
-
-      detailObserver.observe(
-
-        detailHead,
-
-        {
-
-          childList:true,
-
-          subtree:true
-
-        }
-
-      );
-
-
-    }
-
-
-
-    /* --------------------------------------------------------
-       Analysis View Observer
-       -------------------------------------------------------- */
-
-    const analysisBody =
-
-      document.getElementById(
-        'groupSummaryBody'
-      );
-
-
-
-    if(analysisBody){
-
-
-      const analysisObserver =
-
-        new MutationObserver(
-
-          () => {
-
-
-            queueMicrotask(
-              rajApplyAnalysisSort
-            );
-
-
-          }
-
-        );
-
-
-
-      analysisObserver.observe(
-
-        analysisBody,
-
-        {
-
-          childList:true,
-
-          subtree:true
-
-        }
-
-      );
-
-
-    }
-
-
-
-    /* --------------------------------------------------------
-       Wait until main script creates Detailed headers
-       -------------------------------------------------------- */
-
-    let tries = 0;
-
-
-
-    const headerTimer =
+    const detailTimer =
 
       setInterval(
 
-        () => {
+        function(){
 
 
-          tries++;
+          detailTries++;
 
 
-
-          const ready =
-
+          const headers =
             document.querySelectorAll(
               '#tableHead th'
-            ).length
-            >
-            0;
+            );
 
 
-
-          if(ready){
+          if(
+            headers.length > 0
+          ){
 
 
             rajApplyDetailHeaderUI();
 
 
             clearInterval(
-              headerTimer
+              detailTimer
             );
 
 
-          }else if(
-            tries > 80
+          }
+
+
+          if(
+            detailTries >= 100
           ){
 
 
             clearInterval(
-              headerTimer
+              detailTimer
+            );
+
+
+          }
+
+
+        },
+
+        100
+
+      );
+
+
+    /*
+      Analysis initial table
+    */
+
+    let analysisTries =
+      0;
+
+
+    const analysisTimer =
+
+      setInterval(
+
+        function(){
+
+
+          analysisTries++;
+
+
+          const rows =
+            document.querySelectorAll(
+              '#groupSummaryBody tr'
+            );
+
+
+          if(
+            rows.length > 0
+          ){
+
+
+            rajApplyAnalysisSort();
+
+
+            clearInterval(
+              analysisTimer
+            );
+
+
+          }
+
+
+          if(
+            analysisTries >= 100
+          ){
+
+
+            clearInterval(
+              analysisTimer
             );
 
 
