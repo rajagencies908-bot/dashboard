@@ -1,13 +1,16 @@
 /* ============================================================
-   RAJ DASHBOARD - SAFE SORT ADD-ON
-   VERSION: online17-safe
+   RAJ DASHBOARD - SAFE SORT + PRODUCT ANALYSIS ADDON
+   VERSION: online22
 
-   FIX:
+   FEATURES:
    - NO MutationObserver
    - NO infinite browser loop
    - Detailed Sales default MainGrp A-Z
-   - Detailed table server-side sorting
+   - Detailed Sales server-side sorting
    - Analysis View client-side sorting
+   - Product Wise:
+       1st Column  = ItemCode
+       2nd Column  = Product / Item Name
    ============================================================ */
 
 
@@ -23,7 +26,7 @@ let rajDetailSortDirection =
 
 
 /* ============================================================
-   ANALYSIS VIEW SORT STATE
+   ANALYSIS SORT STATE
 ============================================================ */
 
 const rajAnalysisSortByView = {};
@@ -38,13 +41,7 @@ const rajOriginalRpc =
 
 
 /* ============================================================
-   INTERCEPT ONLY DETAILED SALES ROW RPC
-
-   Existing dashboard asks:
-   raj_dashboard_rows
-
-   We redirect it to:
-   raj_dashboard_rows_sorted
+   INTERCEPT DETAILED SALES ROW RPC
 ============================================================ */
 
 rpc =
@@ -53,33 +50,23 @@ rpc =
     params = {}
   ){
 
-
     if(
       name ===
       'raj_dashboard_rows'
     ){
 
-
       return await rajOriginalRpc(
-
         'raj_dashboard_rows_sorted',
-
         {
-
           ...params,
-
 
           p_sort_column:
             rajDetailSortColumn,
 
-
           p_sort_direction:
             rajDetailSortDirection
-
         }
-
       );
-
 
     }
 
@@ -89,19 +76,77 @@ rpc =
       params
     );
 
-
   };
 
 
 /* ============================================================
-   HELPER:
-   IS DETAILED COLUMN NUMERIC?
+   MONEY
+============================================================ */
+
+function rajMoney(value){
+
+  return '₹' +
+    new Intl.NumberFormat(
+      'en-IN',
+      {
+        minimumFractionDigits:2,
+        maximumFractionDigits:2
+      }
+    ).format(
+      Number(value || 0)
+    );
+
+}
+
+
+/* ============================================================
+   NUMBER
+============================================================ */
+
+function rajNumber(value){
+
+  return new Intl.NumberFormat(
+    'en-IN',
+    {
+      maximumFractionDigits:2
+    }
+  ).format(
+    Number(value || 0)
+  );
+
+}
+
+
+/* ============================================================
+   ESCAPE
+============================================================ */
+
+function rajEsc(value){
+
+  const div =
+    document.createElement(
+      'div'
+    );
+
+
+  div.textContent =
+    String(
+      value ?? ''
+    );
+
+
+  return div.innerHTML;
+
+}
+
+
+/* ============================================================
+   DETAIL NUMERIC COLUMN
 ============================================================ */
 
 function rajIsNumericDetailColumn(
   column
 ){
-
 
   const text =
     String(
@@ -120,6 +165,7 @@ function rajIsNumericDetailColumn(
 
 
   return (
+
     /Qty$/i.test(text)
 
     ||
@@ -141,20 +187,19 @@ function rajIsNumericDetailColumn(
     ||
 
     /^Pincode$/i.test(text)
+
   );
 
 }
 
 
 /* ============================================================
-   HELPER:
-   IS ANALYSIS COLUMN NUMERIC?
+   ANALYSIS NUMERIC HEADER
 ============================================================ */
 
 function rajIsNumericAnalysisHeader(
   text
 ){
-
 
   const value =
     String(
@@ -196,13 +241,12 @@ function rajIsNumericAnalysisHeader(
 
 
 /* ============================================================
-   REMOVE OLD SORT SYMBOL
+   CLEAN SORT SYMBOL
 ============================================================ */
 
 function rajCleanHeaderText(
   text
 ){
-
 
   return String(
     text || ''
@@ -217,14 +261,13 @@ function rajCleanHeaderText(
 
 
 /* ============================================================
-   SORT SYMBOL
+   SORT ARROW
 ============================================================ */
 
 function rajSortArrow(
   active,
   direction
 ){
-
 
   if(!active){
 
@@ -241,11 +284,10 @@ function rajSortArrow(
 
 
 /* ============================================================
-   DETAILED SALES HEADER UI
+   DETAILED SALES HEADER SORT
 ============================================================ */
 
 function rajApplyDetailHeaderUI(){
-
 
   const head =
     document.getElementById(
@@ -278,12 +320,10 @@ function rajApplyDetailHeaderUI(){
 
 
   headers.forEach(
-
     (
       th,
       index
     ) => {
-
 
       const column =
 
@@ -302,17 +342,13 @@ function rajApplyDetailHeaderUI(){
 
 
       const active =
-
         column ===
         rajDetailSortColumn;
 
 
-      /*
-        Styling
-      */
-
       th.style.cursor =
         'pointer';
+
 
       th.style.userSelect =
         'none';
@@ -327,10 +363,6 @@ function rajApplyDetailHeaderUI(){
           : 'Sort: A to Z / Z to A';
 
 
-      /*
-        Header name
-      */
-
       th.textContent =
 
         column
@@ -343,30 +375,17 @@ function rajApplyDetailHeaderUI(){
         );
 
 
-      /*
-        Click sorting
-      */
-
       th.onclick =
         async function(){
 
-
-          /*
-            Same column:
-            toggle direction
-          */
-
           if(
-            rajDetailSortColumn
-            ===
+            rajDetailSortColumn ===
             column
           ){
 
-
             rajDetailSortDirection =
 
-              rajDetailSortDirection
-              ===
+              rajDetailSortDirection ===
               'asc'
 
                 ? 'desc'
@@ -376,22 +395,9 @@ function rajApplyDetailHeaderUI(){
 
           }else{
 
-
-            /*
-              New column
-            */
-
             rajDetailSortColumn =
               column;
 
-
-            /*
-              Text:
-              first click = A-Z
-
-              Numeric:
-              first click = Largest-Smallest
-            */
 
             rajDetailSortDirection =
 
@@ -401,68 +407,35 @@ function rajApplyDetailHeaderUI(){
 
                 : 'asc';
 
-
           }
 
-
-          /*
-            Always go to page 1
-            when sort changes
-          */
 
           page = 1;
 
 
-          /*
-            Update arrows immediately
-          */
-
           rajApplyDetailHeaderUI();
 
-
-          /*
-            Reload data with
-            server-side sorting
-          */
 
           await loadDashboard(
             false
           );
 
 
-          /*
-            Re-apply header after load
-          */
-
           rajApplyDetailHeaderUI();
-
 
         };
 
-
     }
-
   );
-
 
 }
 
 
 /* ============================================================
-   ANALYSIS SORT STATE FOR CURRENT VIEW
-
-   Customer Wise
-   Company Wise
-   Product Wise
-   SM Wise
-   Division Wise
-   Pincode Wise
-
-   Each view remembers own sorting.
+   ANALYSIS SORT STATE
 ============================================================ */
 
 function rajGetAnalysisSortState(){
-
 
   const key =
     String(
@@ -475,7 +448,6 @@ function rajGetAnalysisSortState(){
     !rajAnalysisSortByView[key]
   ){
 
-
     rajAnalysisSortByView[key] = {
 
       columnIndex:0,
@@ -483,7 +455,6 @@ function rajGetAnalysisSortState(){
       direction:'asc'
 
     };
-
 
   }
 
@@ -494,13 +465,12 @@ function rajGetAnalysisSortState(){
 
 
 /* ============================================================
-   MONEY / NUMBER TEXT -> NUMBER
+   TEXT -> NUMBER
 ============================================================ */
 
 function rajParseNumber(
   text
 ){
-
 
   const cleaned =
 
@@ -540,20 +510,17 @@ function rajParseNumber(
   return Number.isFinite(
     number
   )
-
     ? number
-
     : 0;
 
 }
 
 
 /* ============================================================
-   ANALYSIS VIEW SORT
+   ANALYSIS SORT
 ============================================================ */
 
 function rajApplyAnalysisSort(){
-
 
   const body =
     document.getElementById(
@@ -608,25 +575,36 @@ function rajApplyAnalysisSort(){
   }
 
 
+  /*
+    Do not sort the
+    "No summary data found"
+    placeholder row.
+  */
+
+  if(
+    rows.length === 1
+    &&
+    rows[0].querySelector(
+      '.empty'
+    )
+  ){
+
+    return;
+
+  }
+
+
   const state =
     rajGetAnalysisSortState();
 
 
-  /*
-    Safety if number of
-    columns changed
-  */
-
   if(
-    state.columnIndex
-    >=
+    state.columnIndex >=
     headers.length
   ){
 
-
     state.columnIndex =
       0;
-
 
     state.direction =
       'asc';
@@ -637,12 +615,10 @@ function rajApplyAnalysisSort(){
   const activeHeaderText =
 
     rajCleanHeaderText(
-
       headers[
         state.columnIndex
       ]
         ?.textContent
-
     );
 
 
@@ -653,27 +629,19 @@ function rajApplyAnalysisSort(){
     );
 
 
-  /*
-    SORT ROWS
-  */
-
   rows.sort(
-
     function(
       rowA,
       rowB
     ){
 
-
       const cellA =
-
         rowA.children[
           state.columnIndex
         ];
 
 
       const cellB =
-
         rowB.children[
           state.columnIndex
         ];
@@ -690,17 +658,13 @@ function rajApplyAnalysisSort(){
       }
 
 
-      let result = 0;
+      let result =
+        0;
 
-
-      /*
-        Numeric
-      */
 
       if(
         activeIsNumeric
       ){
-
 
         const valueA =
           rajParseNumber(
@@ -715,20 +679,13 @@ function rajApplyAnalysisSort(){
 
 
         result =
-          valueA
-          -
+          valueA -
           valueB;
 
 
       }else{
 
-
-        /*
-          Text A-Z
-        */
-
         const valueA =
-
           String(
             cellA.textContent ||
             ''
@@ -736,7 +693,6 @@ function rajApplyAnalysisSort(){
 
 
         const valueB =
-
           String(
             cellB.textContent ||
             ''
@@ -745,28 +701,16 @@ function rajApplyAnalysisSort(){
 
         result =
           valueA.localeCompare(
-
             valueB,
-
             'en',
-
             {
-
               numeric:true,
-
               sensitivity:'base'
-
             }
-
           );
-
 
       }
 
-
-      /*
-        Direction
-      */
 
       return (
 
@@ -779,15 +723,9 @@ function rajApplyAnalysisSort(){
 
       );
 
-
     }
-
   );
 
-
-  /*
-    Put sorted rows back
-  */
 
   const fragment =
     document.createDocumentFragment();
@@ -809,17 +747,11 @@ function rajApplyAnalysisSort(){
   );
 
 
-  /*
-    Setup clickable headers
-  */
-
   headers.forEach(
-
     (
       th,
       index
     ) => {
-
 
       const baseText =
 
@@ -873,22 +805,14 @@ function rajApplyAnalysisSort(){
       th.onclick =
         function(){
 
-
-          /*
-            Same column
-          */
-
           if(
-            state.columnIndex
-            ===
+            state.columnIndex ===
             index
           ){
 
-
             state.direction =
 
-              state.direction
-              ===
+              state.direction ===
               'asc'
 
                 ? 'desc'
@@ -898,22 +822,9 @@ function rajApplyAnalysisSort(){
 
           }else{
 
-
-            /*
-              New column
-            */
-
             state.columnIndex =
               index;
 
-
-            /*
-              Numeric first click:
-              Largest -> Smallest
-
-              Text first click:
-              A -> Z
-            */
 
             state.direction =
 
@@ -923,28 +834,569 @@ function rajApplyAnalysisSort(){
 
                 : 'asc';
 
-
           }
 
 
           rajApplyAnalysisSort();
 
-
         };
 
+    }
+  );
+
+}
+
+
+/* ============================================================
+   PRODUCT ROW KEY
+
+   ItemCode + ItemName
+============================================================ */
+
+function rajProductKey(
+  row
+){
+
+  const itemCode =
+    String(
+      row?.itemcode
+      ??
+      row?.ItemCode
+      ??
+      ''
+    );
+
+
+  const itemName =
+    String(
+      row?.itemname
+      ??
+      row?.ItemName
+      ??
+      ''
+    );
+
+
+  return (
+    itemCode
+    +
+    '\u0001'
+    +
+    itemName
+  );
+
+}
+
+
+/* ============================================================
+   PRODUCT ANALYSIS ROW VALUES
+============================================================ */
+
+function rajProductQty(
+  row
+){
+
+  return Number(
+    row?.qty
+    ??
+    row?.Qty
+    ??
+    0
+  );
+
+}
+
+
+function rajProductTaxable(
+  row
+){
+
+  return Number(
+    row?.taxable
+    ??
+    row?.Taxable
+    ??
+    0
+  );
+
+}
+
+
+function rajProductProductsSold(
+  row
+){
+
+  return Number(
+    row?.productssold
+    ??
+    row?.productsSold
+    ??
+    row?.ProductsSold
+    ??
+    0
+  );
+
+}
+
+
+function rajProductCustomersBilled(
+  row
+){
+
+  return Number(
+    row?.customersbilled
+    ??
+    row?.customersBilled
+    ??
+    row?.CustomersBilled
+    ??
+    0
+  );
+
+}
+
+
+function rajProductRecords(
+  row
+){
+
+  return Number(
+    row?.records
+    ??
+    row?.Records
+    ??
+    0
+  );
+
+}
+
+
+/* ============================================================
+   PRODUCT WISE ANALYSIS
+
+   FIRST COLUMN:
+   ItemCode
+
+   SECOND COLUMN:
+   Product / Item Name
+============================================================ */
+
+async function rajLoadProductAnalysis(){
+
+  const body =
+    document.getElementById(
+      'groupSummaryBody'
+    );
+
+
+  if(!body){
+
+    return;
+
+  }
+
+
+  const table =
+    body.closest(
+      'table'
+    );
+
+
+  const headRow =
+    table
+      ?.querySelector(
+        'thead tr'
+      );
+
+
+  if(!headRow){
+
+    return;
+
+  }
+
+
+  const analysisMonths =
+
+    selected.month.length
+
+      ? [...selected.month]
+
+      : [...months];
+
+
+  /*
+    Header
+  */
+
+  let header = `
+
+    <th>
+      ItemCode
+    </th>
+
+    <th>
+      Product / Item Name
+    </th>
+
+  `;
+
+
+  analysisMonths.forEach(
+    month => {
+
+      header += `
+
+        <th>
+          ${
+            rajEsc(
+              monthNames[month]
+              ||
+              month
+            )
+          }
+          Taxable Sale
+        </th>
+
+      `;
+
+    }
+  );
+
+
+  header += `
+
+    <th>
+      Avg Taxable Sale
+    </th>
+
+    <th>
+      Qty
+    </th>
+
+    <th>
+      Total Taxable Sale
+    </th>
+
+    <th>
+      Products Sold
+    </th>
+
+    <th>
+      Customers Billed
+    </th>
+
+    <th>
+      Records
+    </th>
+
+  `;
+
+
+  headRow.innerHTML =
+    header;
+
+
+  try{
+
+    const baseArgs =
+      args();
+
+
+    const results =
+
+      await Promise.all(
+        [
+
+          rajOriginalRpc(
+            'raj_product_analysis',
+            {
+              p_filters:
+                baseArgs.p_filters,
+
+              p_months:
+                baseArgs.p_months,
+
+              p_sale_status:
+                baseArgs.p_sale_status,
+
+              p_search:
+                baseArgs.p_search
+            }
+          ),
+
+
+          ...analysisMonths.map(
+            month =>
+
+              rajOriginalRpc(
+                'raj_product_analysis',
+                {
+                  p_filters:
+                    baseArgs.p_filters,
+
+                  p_months:[
+                    month
+                  ],
+
+                  p_sale_status:
+                    baseArgs.p_sale_status,
+
+                  p_search:
+                    baseArgs.p_search
+                }
+              )
+
+          )
+
+        ]
+      );
+
+
+    const totalRows =
+      Array.isArray(
+        results[0]
+      )
+        ? results[0]
+        : [];
+
+
+    const monthlyRows =
+      results.slice(1);
+
+
+    if(
+      !totalRows.length
+    ){
+
+      body.innerHTML = `
+
+        <tr>
+
+          <td
+            class="empty"
+            colspan="${
+              analysisMonths.length
+              +
+              8
+            }"
+          >
+            No summary data found.
+          </td>
+
+        </tr>
+
+      `;
+
+
+      return;
 
     }
 
-  );
 
+    const monthMaps =
+
+      monthlyRows.map(
+        rows => {
+
+          const map =
+            new Map();
+
+
+          (
+            Array.isArray(rows)
+              ? rows
+              : []
+          )
+            .forEach(
+              row => {
+
+                map.set(
+                  rajProductKey(row),
+                  rajProductTaxable(row)
+                );
+
+              }
+            );
+
+
+          return map;
+
+        }
+      );
+
+
+    body.innerHTML =
+
+      totalRows
+        .map(
+          row => {
+
+            const itemCode =
+              row?.itemcode
+              ??
+              row?.ItemCode
+              ??
+              '';
+
+
+            const itemName =
+              row?.itemname
+              ??
+              row?.ItemName
+              ??
+              '';
+
+
+            const key =
+              rajProductKey(
+                row
+              );
+
+
+            const monthSales =
+
+              analysisMonths.map(
+                (
+                  month,
+                  index
+                ) =>
+
+                  Number(
+                    monthMaps[index]
+                      ?.get(key)
+                    ??
+                    0
+                  )
+              );
+
+
+            const avg =
+
+              monthSales.length
+
+                ? monthSales.reduce(
+                    (
+                      total,
+                      value
+                    ) =>
+                      total + value,
+                    0
+                  )
+                  /
+                  monthSales.length
+
+                : 0;
+
+
+            const monthCells =
+
+              monthSales
+                .map(
+                  value =>
+                    `<td>${rajMoney(value)}</td>`
+                )
+                .join('');
+
+
+            return `
+
+              <tr>
+
+                <td>
+                  ${rajEsc(itemCode)}
+                </td>
+
+                <td>
+                  ${rajEsc(itemName)}
+                </td>
+
+                ${monthCells}
+
+                <td>
+                  ${rajMoney(avg)}
+                </td>
+
+                <td>
+                  ${rajNumber(
+                    rajProductQty(row)
+                  )}
+                </td>
+
+                <td>
+                  ${rajMoney(
+                    rajProductTaxable(row)
+                  )}
+                </td>
+
+                <td>
+                  ${rajNumber(
+                    rajProductProductsSold(row)
+                  )}
+                </td>
+
+                <td>
+                  ${rajNumber(
+                    rajProductCustomersBilled(row)
+                  )}
+                </td>
+
+                <td>
+                  ${rajNumber(
+                    rajProductRecords(row)
+                  )}
+                </td>
+
+              </tr>
+
+            `;
+
+          }
+        )
+        .join('');
+
+
+  }catch(error){
+
+    console.error(
+      'Product Analysis Error:',
+      error
+    );
+
+
+    body.innerHTML = `
+
+      <tr>
+
+        <td
+          class="empty"
+          colspan="${
+            analysisMonths.length
+            +
+            8
+          }"
+        >
+
+          Product Analysis error:
+          ${rajEsc(
+            error?.message
+            ||
+            error
+          )}
+
+        </td>
+
+      </tr>
+
+    `;
+
+  }
 
 }
 
 
 /* ============================================================
    WRAP EXISTING ANALYSIS FUNCTION
-
-   Existing business logic remains unchanged.
 ============================================================ */
 
 const rajOriginalLoadGroupSummary =
@@ -954,17 +1406,36 @@ const rajOriginalLoadGroupSummary =
 loadGroupSummary =
   async function(){
 
+    /*
+      Product Wise gets its own
+      ItemCode + ItemName report.
+    */
+
+    if(
+      currentView ===
+      'ItemName'
+    ){
+
+      await rajLoadProductAnalysis();
+
+
+      rajApplyAnalysisSort();
+
+
+      return;
+
+    }
+
+
+    /*
+      All other Analysis tabs
+      remain exactly as before.
+    */
 
     await rajOriginalLoadGroupSummary();
 
 
-    /*
-      Sort only AFTER original
-      Analysis table is rendered
-    */
-
     rajApplyAnalysisSort();
-
 
   };
 
@@ -974,20 +1445,12 @@ loadGroupSummary =
 ============================================================ */
 
 document.addEventListener(
-
   'DOMContentLoaded',
-
   function(){
 
-
     /*
-      Main script loads schema asynchronously,
-      therefore Detailed headers may not exist yet.
-
-      Safe polling only.
-      NO MutationObserver.
+      Detailed Sales headers
     */
-
 
     let detailTries =
       0;
@@ -996,9 +1459,7 @@ document.addEventListener(
     const detailTimer =
 
       setInterval(
-
         function(){
-
 
           detailTries++;
 
@@ -1013,14 +1474,12 @@ document.addEventListener(
             headers.length > 0
           ){
 
-
             rajApplyDetailHeaderUI();
 
 
             clearInterval(
               detailTimer
             );
-
 
           }
 
@@ -1029,24 +1488,19 @@ document.addEventListener(
             detailTries >= 100
           ){
 
-
             clearInterval(
               detailTimer
             );
 
-
           }
 
-
         },
-
         100
-
       );
 
 
     /*
-      Analysis initial table
+      Analysis table initial sort
     */
 
     let analysisTries =
@@ -1056,9 +1510,7 @@ document.addEventListener(
     const analysisTimer =
 
       setInterval(
-
         function(){
-
 
           analysisTries++;
 
@@ -1073,14 +1525,12 @@ document.addEventListener(
             rows.length > 0
           ){
 
-
             rajApplyAnalysisSort();
 
 
             clearInterval(
               analysisTimer
             );
-
 
           }
 
@@ -1089,22 +1539,15 @@ document.addEventListener(
             analysisTries >= 100
           ){
 
-
             clearInterval(
               analysisTimer
             );
 
-
           }
 
-
         },
-
         100
-
       );
 
-
   }
-
 );
