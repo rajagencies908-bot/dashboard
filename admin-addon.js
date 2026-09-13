@@ -1,10 +1,12 @@
 /* ============================================================
    RAJ AGENCIES
    ADMIN USER MANAGEMENT ADDON
-   Version: online20
+   Version: online20-fixed
 
    Features:
-   - Admin-only User Management Panel
+   - Reliable Admin detection
+   - Admin Panel button
+   - User list
    - Add New User
    - Edit User
    - Mobile Number
@@ -12,6 +14,7 @@
    - SM Access
    - OD Access
    - Active / Inactive
+   - Full View
    - Device Lock ON / OFF
    - Change Password
    - Reset Device
@@ -49,14 +52,16 @@
 
   let editingUser = null;
 
+  let passwordUser = null;
+
   let initialized = false;
 
 
   /* =========================================================
-     HELPERS
+     BASIC HELPERS
      ========================================================= */
 
-  const $ = id =>
+  const el = id =>
     document.getElementById(id);
 
 
@@ -73,28 +78,12 @@
   }
 
 
-  function getStoredUser(){
-
-    try{
-
-      return JSON.parse(
-        localStorage.getItem(USER_KEY)
-        || 'null'
-      );
-
-    }catch{
-
-      return null;
-
-    }
-
-  }
-
-
   function getSessionToken(){
 
     return (
-      localStorage.getItem(SESSION_KEY)
+      localStorage.getItem(
+        SESSION_KEY
+      )
       || ''
     );
 
@@ -104,33 +93,218 @@
   function getDeviceId(){
 
     return (
-      localStorage.getItem(DEVICE_KEY)
+      localStorage.getItem(
+        DEVICE_KEY
+      )
       || ''
     );
 
   }
 
 
-  function isAdminUser(user){
+  function getStoredUser(){
 
-    if(!user){
-      return false;
+    try{
+
+      const raw =
+        localStorage.getItem(
+          USER_KEY
+        );
+
+
+      if(!raw){
+        return null;
+      }
+
+
+      const parsed =
+        JSON.parse(raw);
+
+
+      /*
+        Support both:
+        {
+          role:"Admin"
+        }
+
+        and possible:
+        {
+          user:{
+            role:"Admin"
+          }
+        }
+      */
+
+      if(
+        parsed
+        &&
+        parsed.user
+        &&
+        typeof parsed.user === 'object'
+      ){
+        return parsed.user;
+      }
+
+
+      return parsed;
+
+
+    }catch(error){
+
+      console.warn(
+        'Unable to read stored user:',
+        error
+      );
+
+      return null;
+
     }
-
-    return (
-      String(user.role || '') === 'Admin'
-      ||
-      user.full_view === true
-    );
 
   }
 
+
+  function normalizeText(value){
+
+    return String(
+      value ?? ''
+    )
+      .trim()
+      .toLowerCase();
+
+  }
+
+
+  /* =========================================================
+     RELIABLE ADMIN DETECTION
+     ========================================================= */
+
+  function isAdminUser(){
+
+    /*
+      1. First check saved authenticated user.
+    */
+
+    const user =
+      getStoredUser();
+
+
+    if(user){
+
+      const role =
+        normalizeText(
+          user.role
+        );
+
+
+      if(
+        role === 'admin'
+        ||
+        user.full_view === true
+        ||
+        user.fullView === true
+      ){
+        return true;
+      }
+
+    }
+
+
+    /*
+      2. Check visible user role created by auth-addon.js.
+         Screenshot currently shows:
+         Asif
+         Admin
+    */
+
+    const roleNode =
+      document.querySelector(
+        '.raj-user-role'
+      );
+
+
+    if(
+      roleNode
+      &&
+      normalizeText(
+        roleNode.textContent
+      ).includes('admin')
+    ){
+      return true;
+    }
+
+
+    /*
+      3. Check access badge.
+         Example:
+         Logged in as Asif • Admin • Full Company Access
+    */
+
+    const accessBadge =
+      el('rajAccessBadge');
+
+
+    if(accessBadge){
+
+      const badgeText =
+        normalizeText(
+          accessBadge.textContent
+        );
+
+
+      if(
+        badgeText.includes('admin')
+        ||
+        badgeText.includes(
+          'full company access'
+        )
+      ){
+        return true;
+      }
+
+    }
+
+
+    /*
+      4. Extra fallback:
+         inspect visible user area text.
+    */
+
+    const userArea =
+      el('rajUserArea');
+
+
+    if(userArea){
+
+      const areaText =
+        normalizeText(
+          userArea.textContent
+        );
+
+
+      if(
+        areaText.includes('admin')
+      ){
+        return true;
+      }
+
+    }
+
+
+    return false;
+
+  }
+
+
+  /* =========================================================
+     DATE
+     ========================================================= */
 
   function formatDate(value){
 
     if(!value){
       return '-';
     }
+
 
     try{
 
@@ -143,6 +317,7 @@
           }
         );
 
+
     }catch{
 
       return String(value);
@@ -152,20 +327,27 @@
   }
 
 
+  /* =========================================================
+     MESSAGE
+     ========================================================= */
+
   function showMessage(
     message,
     type = 'success'
   ){
 
     const box =
-      $('rajAdminMessage');
+      el('rajAdminMessage');
+
 
     if(!box){
       return;
     }
 
+
     box.textContent =
       message || '';
+
 
     box.className =
       'raj-admin-message ' +
@@ -184,13 +366,17 @@
           if(
             box.textContent === message
           ){
-            box.textContent = '';
+
+            box.textContent =
+              '';
+
             box.className =
               'raj-admin-message';
+
           }
 
         },
-        5000
+        6000
       );
 
     }
@@ -198,7 +384,11 @@
   }
 
 
-  async function rpc(
+  /* =========================================================
+     SUPABASE RPC
+     ========================================================= */
+
+  async function adminRpc(
     functionName,
     params
   ){
@@ -227,7 +417,13 @@
 
 
     if(error){
-      throw error;
+
+      throw new Error(
+        error.message
+        ||
+        'Supabase error.'
+      );
+
     }
 
 
@@ -239,7 +435,8 @@
 
       throw new Error(
         data.message
-        || 'Operation failed.'
+        ||
+        'Operation failed.'
       );
 
     }
@@ -253,31 +450,35 @@
   function adminAuthParams(){
 
     return {
+
       p_admin_session_token:
         getSessionToken(),
 
       p_admin_device_id:
         getDeviceId()
+
     };
 
   }
 
 
   /* =========================================================
-     CSS
+     STYLES
      ========================================================= */
 
   function addStyles(){
 
     if(
-      $('rajAdminStyles')
+      el('rajAdminStyles')
     ){
       return;
     }
 
 
     const style =
-      document.createElement('style');
+      document.createElement(
+        'style'
+      );
 
 
     style.id =
@@ -286,242 +487,22 @@
 
     style.textContent = `
 
+      /* ===============================================
+         ADMIN PANEL BUTTON
+         =============================================== */
+
       #rajAdminButton{
+
         border:0;
+
         cursor:pointer;
 
         padding:
-          9px 14px;
-
-        border-radius:999px;
-
-        color:#fff;
-
-        font-size:10px;
-        font-weight:900;
-
-        background:
-          linear-gradient(
-            135deg,
-            #4338ca,
-            #7c3aed
-          );
-
-        box-shadow:
-          0 8px 20px
-          rgba(79,70,229,.22);
-      }
-
-
-      #rajAdminOverlay{
-        position:fixed;
-        inset:0;
-
-        z-index:999998;
-
-        display:none;
-
-        overflow:auto;
-
-        padding:24px;
-
-        background:
-          rgba(15,23,42,.60);
-
-        backdrop-filter:
-          blur(8px);
-
-        -webkit-backdrop-filter:
-          blur(8px);
-      }
-
-
-      #rajAdminOverlay.open{
-        display:block;
-      }
-
-
-      .raj-admin-shell{
-        width:min(1400px,100%);
-
-        margin:0 auto;
-
-        min-height:
-          calc(100vh - 48px);
-
-        border-radius:25px;
-
-        background:#f8fafc;
-
-        box-shadow:
-          0 30px 90px
-          rgba(0,0,0,.25);
-
-        overflow:hidden;
-      }
-
-
-      .raj-admin-head{
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        gap:18px;
-
-        padding:21px 24px;
-
-        background:
-          linear-gradient(
-            135deg,
-            #312e81,
-            #5b21b6,
-            #7e22ce
-          );
-
-        color:#fff;
-      }
-
-
-      .raj-admin-head h2{
-        margin:0 0 4px;
-
-        font-size:22px;
-        font-weight:900;
-      }
-
-
-      .raj-admin-head p{
-        margin:0;
-
-        opacity:.82;
-
-        font-size:11px;
-      }
-
-
-      #rajAdminClose{
-        width:40px;
-        height:40px;
-
-        border:0;
-        border-radius:50%;
-
-        cursor:pointer;
-
-        color:#fff;
-
-        background:
-          rgba(255,255,255,.16);
-
-        font-size:21px;
-      }
-
-
-      .raj-admin-toolbar{
-        display:flex;
-        flex-wrap:wrap;
-        gap:10px;
-
-        padding:17px 20px;
-
-        border-bottom:
-          1px solid #e2e8f0;
-
-        background:#fff;
-      }
-
-
-      .raj-admin-toolbar button{
-        border:1px solid #ddd6fe;
-
-        cursor:pointer;
-
-        padding:10px 15px;
-
-        border-radius:11px;
-
-        background:#f5f3ff;
-
-        color:#5b21b6;
-
-        font-size:11px;
-        font-weight:850;
-      }
-
-
-      .raj-admin-toolbar button.active{
-        border-color:#6d28d9;
-
-        background:#6d28d9;
-
-        color:#fff;
-      }
-
-
-      .raj-admin-message{
-        min-height:20px;
-
-        margin:
-          12px
-          20px
-          0;
-
-        font-size:12px;
-        font-weight:800;
-      }
-
-
-      .raj-admin-message.success{
-        color:#15803d;
-      }
-
-
-      .raj-admin-message.error{
-        color:#b91c1c;
-      }
-
-
-      .raj-admin-content{
-        padding:20px;
-      }
-
-
-      .raj-admin-section{
-        display:none;
-      }
-
-
-      .raj-admin-section.active{
-        display:block;
-      }
-
-
-      .raj-admin-section-head{
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        gap:12px;
-
-        margin-bottom:15px;
-      }
-
-
-      .raj-admin-section-head h3{
-        margin:0;
-
-        color:#17213c;
-
-        font-size:18px;
-      }
-
-
-      .raj-admin-primary{
-        border:0;
-
-        cursor:pointer;
-
-        padding:10px 15px;
-
-        border-radius:11px;
+          9px
+          15px;
+
+        border-radius:
+          999px;
 
         color:#fff;
 
@@ -532,141 +513,918 @@
             #7c3aed
           );
 
-        font-size:11px;
+        box-shadow:
+          0 8px 20px
+          rgba(79,70,229,.25);
+
+        font-size:10px;
         font-weight:900;
+
+        white-space:nowrap;
+
+      }
+
+
+      #rajAdminButton:hover{
+
+        transform:
+          translateY(-1px);
+
+      }
+
+
+      /* ===============================================
+         MAIN OVERLAY
+         =============================================== */
+
+      #rajAdminOverlay{
+
+        position:fixed;
+
+        inset:0;
+
+        z-index:999998;
+
+        display:none;
+
+        overflow:auto;
+
+        padding:20px;
+
+        background:
+          rgba(15,23,42,.68);
+
+        backdrop-filter:
+          blur(8px);
+
+        -webkit-backdrop-filter:
+          blur(8px);
+
+      }
+
+
+      #rajAdminOverlay.open{
+
+        display:block;
+
+      }
+
+
+      .raj-admin-shell{
+
+        width:
+          min(
+            1450px,
+            100%
+          );
+
+        min-height:
+          calc(
+            100vh - 40px
+          );
+
+        margin:
+          0 auto;
+
+        overflow:hidden;
+
+        border-radius:
+          24px;
+
+        background:
+          #f8fafc;
+
+        box-shadow:
+          0 30px 90px
+          rgba(0,0,0,.30);
+
+      }
+
+
+      /* ===============================================
+         HEADER
+         =============================================== */
+
+      .raj-admin-header{
+
+        display:flex;
+
+        align-items:center;
+
+        justify-content:
+          space-between;
+
+        gap:15px;
+
+        padding:
+          20px
+          23px;
+
+        color:#fff;
+
+        background:
+          linear-gradient(
+            135deg,
+            #312e81,
+            #5b21b6,
+            #7e22ce
+          );
+
+      }
+
+
+      .raj-admin-header h2{
+
+        margin:
+          0
+          0
+          4px;
+
+        font-size:
+          22px;
+
+        font-weight:
+          900;
+
+      }
+
+
+      .raj-admin-header p{
+
+        margin:0;
+
+        opacity:.85;
+
+        font-size:
+          11px;
+
+      }
+
+
+      #rajAdminClose{
+
+        width:40px;
+
+        height:40px;
+
+        border:0;
+
+        border-radius:
+          50%;
+
+        cursor:pointer;
+
+        color:#fff;
+
+        background:
+          rgba(
+            255,
+            255,
+            255,
+            .16
+          );
+
+        font-size:
+          22px;
+
+      }
+
+
+      /* ===============================================
+         TOOLBAR
+         =============================================== */
+
+      .raj-admin-toolbar{
+
+        display:flex;
+
+        flex-wrap:wrap;
+
+        gap:9px;
+
+        padding:
+          15px
+          20px;
+
+        border-bottom:
+          1px solid
+          #e2e8f0;
+
+        background:#fff;
+
+      }
+
+
+      .raj-admin-toolbar button{
+
+        border:
+          1px solid
+          #ddd6fe;
+
+        border-radius:
+          10px;
+
+        cursor:pointer;
+
+        padding:
+          9px
+          14px;
+
+        color:
+          #5b21b6;
+
+        background:
+          #f5f3ff;
+
+        font-size:
+          11px;
+
+        font-weight:
+          850;
+
+      }
+
+
+      .raj-admin-toolbar button.active{
+
+        border-color:
+          #6d28d9;
+
+        color:#fff;
+
+        background:
+          #6d28d9;
+
+      }
+
+
+      /* ===============================================
+         CONTENT
+         =============================================== */
+
+      .raj-admin-content{
+
+        padding:
+          20px;
+
+      }
+
+
+      .raj-admin-section{
+
+        display:none;
+
+      }
+
+
+      .raj-admin-section.active{
+
+        display:block;
+
+      }
+
+
+      .raj-admin-section-head{
+
+        display:flex;
+
+        align-items:center;
+
+        justify-content:
+          space-between;
+
+        flex-wrap:wrap;
+
+        gap:12px;
+
+        margin-bottom:
+          15px;
+
+      }
+
+
+      .raj-admin-section-head h3{
+
+        margin:0;
+
+        color:
+          #17213c;
+
+        font-size:
+          18px;
+
+        font-weight:
+          900;
+
+      }
+
+
+      /* ===============================================
+         MESSAGE
+         =============================================== */
+
+      .raj-admin-message{
+
+        min-height:
+          20px;
+
+        margin:
+          12px
+          20px
+          0;
+
+        font-size:
+          12px;
+
+        font-weight:
+          850;
+
+      }
+
+
+      .raj-admin-message.success{
+
+        color:
+          #15803d;
+
+      }
+
+
+      .raj-admin-message.error{
+
+        color:
+          #b91c1c;
+
+      }
+
+
+      /* ===============================================
+         BUTTONS
+         =============================================== */
+
+      .raj-admin-primary{
+
+        border:0;
+
+        border-radius:
+          10px;
+
+        cursor:pointer;
+
+        padding:
+          10px
+          14px;
+
+        color:#fff;
+
+        background:
+          linear-gradient(
+            135deg,
+            #4f46e5,
+            #7c3aed
+          );
+
+        font-size:
+          11px;
+
+        font-weight:
+          900;
+
       }
 
 
       .raj-admin-secondary{
+
         border:
-          1px solid #cbd5e1;
+          1px solid
+          #cbd5e1;
+
+        border-radius:
+          9px;
 
         cursor:pointer;
 
-        padding:9px 12px;
+        padding:
+          8px
+          11px;
 
-        border-radius:10px;
+        color:
+          #334155;
 
-        color:#334155;
+        background:
+          #fff;
 
-        background:#fff;
+        font-size:
+          10px;
 
-        font-size:10px;
-        font-weight:800;
-      }
+        font-weight:
+          850;
 
-
-      .raj-admin-danger{
-        border:
-          1px solid #fecdd3;
-
-        cursor:pointer;
-
-        padding:9px 12px;
-
-        border-radius:10px;
-
-        color:#be123c;
-
-        background:#fff1f2;
-
-        font-size:10px;
-        font-weight:850;
       }
 
 
       .raj-admin-warning{
+
         border:
-          1px solid #fde68a;
+          1px solid
+          #fde68a;
+
+        border-radius:
+          9px;
 
         cursor:pointer;
 
-        padding:9px 12px;
+        padding:
+          8px
+          11px;
 
-        border-radius:10px;
+        color:
+          #92400e;
 
-        color:#92400e;
+        background:
+          #fffbeb;
 
-        background:#fffbeb;
+        font-size:
+          10px;
 
-        font-size:10px;
-        font-weight:850;
+        font-weight:
+          850;
+
       }
 
 
-      .raj-admin-table-wrap{
+      .raj-admin-danger{
+
+        border:
+          1px solid
+          #fecdd3;
+
+        border-radius:
+          9px;
+
+        cursor:pointer;
+
+        padding:
+          8px
+          11px;
+
+        color:
+          #be123c;
+
+        background:
+          #fff1f2;
+
+        font-size:
+          10px;
+
+        font-weight:
+          850;
+
+      }
+
+
+      button:disabled{
+
+        opacity:.55;
+
+        cursor:not-allowed;
+
+      }
+
+
+      /* ===============================================
+         USER FORM
+         =============================================== */
+
+      .raj-admin-form{
+
+        display:none;
+
+        margin-bottom:
+          20px;
+
+        padding:
+          18px;
+
+        border:
+          1px solid
+          #ddd6fe;
+
+        border-radius:
+          16px;
+
+        background:#fff;
+
+      }
+
+
+      .raj-admin-form.open{
+
+        display:block;
+
+      }
+
+
+      .raj-admin-form-title{
+
+        margin:
+          0
+          0
+          15px;
+
+        color:
+          #312e81;
+
+        font-size:
+          16px;
+
+        font-weight:
+          900;
+
+      }
+
+
+      .raj-admin-grid{
+
+        display:grid;
+
+        grid-template-columns:
+          repeat(
+            auto-fit,
+            minmax(
+              210px,
+              1fr
+            )
+          );
+
+        gap:
+          14px;
+
+      }
+
+
+      .raj-admin-field label{
+
+        display:block;
+
+        margin-bottom:
+          6px;
+
+        color:
+          #475569;
+
+        font-size:
+          10px;
+
+        font-weight:
+          900;
+
+      }
+
+
+      .raj-admin-field input,
+      .raj-admin-field select{
+
         width:100%;
+
+        min-height:
+          42px;
+
+        padding:
+          0
+          11px;
+
+        box-sizing:
+          border-box;
+
+        border:
+          1px solid
+          #cbd5e1;
+
+        border-radius:
+          10px;
+
+        outline:none;
+
+        background:#fff;
+
+        color:
+          #17213c;
+
+        font-size:
+          12px;
+
+      }
+
+
+      .raj-admin-field input:focus,
+      .raj-admin-field select:focus{
+
+        border-color:
+          #7c3aed;
+
+        box-shadow:
+          0 0 0 3px
+          rgba(
+            124,
+            58,
+            237,
+            .10
+          );
+
+      }
+
+
+      .raj-admin-checks{
+
+        display:flex;
+
+        flex-wrap:wrap;
+
+        gap:
+          16px;
+
+        margin-top:
+          16px;
+
+      }
+
+
+      .raj-admin-check{
+
+        display:flex;
+
+        align-items:center;
+
+        gap:
+          7px;
+
+        color:
+          #334155;
+
+        font-size:
+          11px;
+
+        font-weight:
+          800;
+
+      }
+
+
+      .raj-admin-check input{
+
+        width:
+          17px;
+
+        height:
+          17px;
+
+      }
+
+
+      /* ===============================================
+         ACCESS BOXES
+         =============================================== */
+
+      .raj-access-box{
+
+        margin-top:
+          15px;
+
+        padding:
+          14px;
+
+        border:
+          1px solid
+          #e2e8f0;
+
+        border-radius:
+          13px;
+
+        background:
+          #f8fafc;
+
+      }
+
+
+      .raj-access-box h4{
+
+        margin:
+          0
+          0
+          10px;
+
+        color:
+          #334155;
+
+        font-size:
+          11px;
+
+        font-weight:
+          900;
+
+      }
+
+
+      .raj-access-list{
+
+        display:grid;
+
+        grid-template-columns:
+          repeat(
+            auto-fill,
+            minmax(
+              80px,
+              1fr
+            )
+          );
+
+        gap:
+          7px;
+
+        max-height:
+          190px;
+
+        overflow:auto;
+
+      }
+
+
+      .raj-access-option{
+
+        display:flex;
+
+        align-items:center;
+
+        gap:
+          6px;
+
+        padding:
+          7px
+          8px;
+
+        border:
+          1px solid
+          #e2e8f0;
+
+        border-radius:
+          9px;
+
+        background:#fff;
+
+        color:
+          #334155;
+
+        font-size:
+          10px;
+
+        font-weight:
+          800;
+
+      }
+
+
+      /* ===============================================
+         FORM ACTIONS
+         =============================================== */
+
+      .raj-admin-form-actions{
+
+        display:flex;
+
+        flex-wrap:wrap;
+
+        gap:9px;
+
+        margin-top:
+          17px;
+
+      }
+
+
+      /* ===============================================
+         TABLE
+         =============================================== */
+
+      .raj-admin-table-wrap{
+
+        width:100%;
+
         overflow:auto;
 
         border:
-          1px solid #e2e8f0;
+          1px solid
+          #e2e8f0;
 
-        border-radius:15px;
+        border-radius:
+          14px;
 
         background:#fff;
+
       }
 
 
       .raj-admin-table{
+
         width:100%;
 
-        border-collapse:collapse;
+        min-width:
+          1100px;
 
-        min-width:1100px;
+        border-collapse:
+          collapse;
+
       }
 
 
       .raj-admin-table th{
-        position:sticky;
+
+        padding:
+          12px
+          10px;
+
+        position:
+          sticky;
+
         top:0;
 
         z-index:1;
 
-        padding:12px 10px;
-
         border-bottom:
-          1px solid #e2e8f0;
+          1px solid
+          #e2e8f0;
 
-        background:#f8fafc;
+        background:
+          #f8fafc;
 
-        color:#475569;
+        color:
+          #475569;
 
         text-align:left;
 
-        white-space:nowrap;
+        white-space:
+          nowrap;
 
-        font-size:10px;
-        font-weight:900;
+        font-size:
+          10px;
+
+        font-weight:
+          900;
+
       }
 
 
       .raj-admin-table td{
-        padding:11px 10px;
+
+        padding:
+          11px
+          10px;
 
         border-bottom:
-          1px solid #f1f5f9;
+          1px solid
+          #f1f5f9;
 
-        color:#334155;
+        vertical-align:
+          top;
 
-        vertical-align:top;
+        color:
+          #334155;
 
-        font-size:11px;
-      }
+        font-size:
+          11px;
 
-
-      .raj-admin-table tr:last-child td{
-        border-bottom:0;
       }
 
 
       .raj-admin-user-name{
-        color:#17213c;
 
-        font-weight:900;
+        color:
+          #17213c;
+
+        font-weight:
+          900;
+
       }
 
 
+      .raj-admin-actions{
+
+        display:flex;
+
+        flex-wrap:wrap;
+
+        gap:
+          5px;
+
+      }
+
+
+      /* ===============================================
+         CODE BADGES
+         =============================================== */
+
       .raj-admin-code{
+
         display:inline-block;
 
         margin:
@@ -679,385 +1437,304 @@
           3px
           7px;
 
-        border-radius:999px;
+        border-radius:
+          999px;
 
-        background:#ede9fe;
+        color:
+          #6d28d9;
 
-        color:#6d28d9;
+        background:
+          #ede9fe;
 
-        font-size:9px;
-        font-weight:850;
+        font-size:
+          9px;
+
+        font-weight:
+          850;
+
       }
 
 
+      /* ===============================================
+         STATUS BADGES
+         =============================================== */
+
       .raj-status{
+
         display:inline-block;
 
         padding:
           4px
           8px;
 
-        border-radius:999px;
+        border-radius:
+          999px;
 
-        font-size:9px;
-        font-weight:900;
+        font-size:
+          9px;
+
+        font-weight:
+          900;
+
       }
 
 
       .raj-status.active{
-        color:#166534;
-        background:#dcfce7;
+
+        color:
+          #166534;
+
+        background:
+          #dcfce7;
+
       }
 
 
       .raj-status.inactive{
-        color:#991b1b;
-        background:#fee2e2;
+
+        color:
+          #991b1b;
+
+        background:
+          #fee2e2;
+
       }
 
 
       .raj-status.locked{
-        color:#92400e;
-        background:#fef3c7;
+
+        color:
+          #92400e;
+
+        background:
+          #fef3c7;
+
       }
 
 
-      .raj-status.free{
-        color:#166534;
-        background:#dcfce7;
+      .raj-status.available{
+
+        color:
+          #166534;
+
+        background:
+          #dcfce7;
+
       }
 
 
-      .raj-admin-actions{
-        display:flex;
-        flex-wrap:wrap;
-        gap:6px;
-      }
-
-
-      .raj-admin-form-wrap{
-        display:none;
-
-        margin-bottom:20px;
-
-        padding:18px;
-
-        border:
-          1px solid #ddd6fe;
-
-        border-radius:17px;
-
-        background:#fff;
-      }
-
-
-      .raj-admin-form-wrap.open{
-        display:block;
-      }
-
-
-      .raj-admin-form-title{
-        margin:
-          0
-          0
-          16px;
-
-        color:#312e81;
-
-        font-size:16px;
-        font-weight:900;
-      }
-
-
-      .raj-admin-form-grid{
-        display:grid;
-
-        grid-template-columns:
-          repeat(
-            auto-fit,
-            minmax(210px,1fr)
-          );
-
-        gap:14px;
-      }
-
-
-      .raj-admin-field label{
-        display:block;
-
-        margin-bottom:6px;
-
-        color:#475569;
-
-        font-size:10px;
-        font-weight:900;
-      }
-
-
-      .raj-admin-field input,
-      .raj-admin-field select{
-        width:100%;
-
-        min-height:42px;
-
-        padding:
-          0
-          11px;
-
-        border:
-          1px solid #cbd5e1;
-
-        border-radius:10px;
-
-        outline:none;
-
-        background:#fff;
-
-        color:#17213c;
-
-        font-size:12px;
-      }
-
-
-      .raj-admin-field input:focus,
-      .raj-admin-field select:focus{
-        border-color:#7c3aed;
-
-        box-shadow:
-          0 0 0 3px
-          rgba(124,58,237,.10);
-      }
-
-
-      .raj-admin-check-row{
-        display:flex;
-        flex-wrap:wrap;
-        gap:15px;
-
-        margin-top:16px;
-      }
-
-
-      .raj-admin-check{
-        display:flex;
-        align-items:center;
-        gap:7px;
-
-        color:#334155;
-
-        font-size:11px;
-        font-weight:800;
-      }
-
-
-      .raj-admin-check input{
-        width:17px;
-        height:17px;
-      }
-
-
-      .raj-access-box{
-        margin-top:16px;
-
-        padding:14px;
-
-        border:
-          1px solid #e2e8f0;
-
-        border-radius:13px;
-
-        background:#f8fafc;
-      }
-
-
-      .raj-access-box h4{
-        margin:
-          0
-          0
-          10px;
-
-        color:#334155;
-
-        font-size:11px;
-        font-weight:900;
-      }
-
-
-      .raj-access-list{
-        display:grid;
-
-        grid-template-columns:
-          repeat(
-            auto-fill,
-            minmax(80px,1fr)
-          );
-
-        gap:7px;
-
-        max-height:180px;
-
-        overflow:auto;
-      }
-
-
-      .raj-access-option{
-        display:flex;
-        align-items:center;
-        gap:6px;
-
-        padding:
-          7px
-          8px;
-
-        border:
-          1px solid #e2e8f0;
-
-        border-radius:9px;
-
-        background:#fff;
-
-        color:#334155;
-
-        font-size:10px;
-        font-weight:800;
-      }
-
-
-      .raj-access-option input{
-        width:15px;
-        height:15px;
-      }
-
-
-      .raj-admin-form-actions{
-        display:flex;
-        flex-wrap:wrap;
-        gap:9px;
-
-        margin-top:17px;
-      }
-
-
+      /* ===============================================
+         LOADING
+         =============================================== */
+
+      .raj-admin-loading,
       .raj-admin-empty{
-        padding:30px;
 
-        text-align:center;
+        padding:
+          25px;
 
-        color:#94a3b8;
+        text-align:
+          center;
 
-        font-size:12px;
+        color:
+          #64748b;
+
+        font-size:
+          12px;
+
+        font-weight:
+          800;
+
       }
 
+
+      /* ===============================================
+         LOGIN LOG COLORS
+         =============================================== */
 
       .raj-log-success{
-        color:#15803d;
-        font-weight:900;
+
+        color:
+          #15803d;
+
+        font-weight:
+          900;
+
       }
 
 
       .raj-log-blocked{
-        color:#b45309;
-        font-weight:900;
+
+        color:
+          #b45309;
+
+        font-weight:
+          900;
+
       }
 
 
       .raj-log-failed{
-        color:#b91c1c;
-        font-weight:900;
+
+        color:
+          #b91c1c;
+
+        font-weight:
+          900;
+
       }
 
 
-      .raj-admin-loading{
-        padding:25px;
-
-        text-align:center;
-
-        color:#64748b;
-
-        font-size:12px;
-        font-weight:800;
-      }
-
+      /* ===============================================
+         PASSWORD POPUP
+         =============================================== */
 
       #rajPasswordOverlay{
+
         position:fixed;
+
         inset:0;
 
-        z-index:1000000;
+        z-index:
+          1000000;
 
         display:none;
 
         align-items:center;
+
         justify-content:center;
 
-        padding:20px;
+        padding:
+          20px;
 
         background:
-          rgba(15,23,42,.70);
+          rgba(
+            15,
+            23,
+            42,
+            .75
+          );
+
       }
 
 
       #rajPasswordOverlay.open{
+
         display:flex;
+
       }
 
 
       .raj-password-box{
-        width:min(420px,100%);
 
-        padding:22px;
+        width:
+          min(
+            420px,
+            100%
+          );
 
-        border-radius:18px;
+        padding:
+          22px;
+
+        box-sizing:
+          border-box;
+
+        border-radius:
+          18px;
 
         background:#fff;
 
         box-shadow:
           0 25px 70px
-          rgba(0,0,0,.25);
+          rgba(
+            0,
+            0,
+            0,
+            .28
+          );
+
       }
 
 
       .raj-password-box h3{
+
         margin:
           0
           0
-          6px;
+          5px;
 
-        color:#17213c;
+        color:
+          #17213c;
+
       }
 
 
       .raj-password-box p{
+
         margin:
           0
           0
           16px;
 
-        color:#64748b;
+        color:
+          #64748b;
 
-        font-size:11px;
+        font-size:
+          11px;
+
       }
 
 
-      @media(max-width:700px){
+      /* ===============================================
+         MOBILE
+         =============================================== */
+
+      @media(
+        max-width:700px
+      ){
 
         #rajAdminOverlay{
-          padding:8px;
+
+          padding:7px;
+
         }
+
 
         .raj-admin-shell{
+
           min-height:
-            calc(100vh - 16px);
+            calc(
+              100vh - 14px
+            );
 
-          border-radius:16px;
+          border-radius:
+            15px;
+
         }
 
-        .raj-admin-head{
-          padding:17px;
+
+        .raj-admin-header{
+
+          padding:
+            16px;
+
         }
+
 
         .raj-admin-content{
-          padding:12px;
+
+          padding:
+            12px;
+
+        }
+
+
+        #rajAdminButton{
+
+          padding:
+            7px
+            10px;
+
         }
 
       }
@@ -1073,84 +1750,140 @@
 
 
   /* =========================================================
-     CREATE ADMIN BUTTON
+     CREATE ADMIN PANEL BUTTON
      ========================================================= */
 
   function createAdminButton(){
 
-    const user =
-      getStoredUser();
-
-
     if(
-      !isAdminUser(user)
+      !isAdminUser()
     ){
       return false;
     }
 
 
-    const userArea =
-      $('rajUserArea');
-
-
-    if(!userArea){
-      return false;
-    }
-
-
     if(
-      $('rajAdminButton')
+      el('rajAdminButton')
     ){
       return true;
     }
 
 
-    const button =
-      document.createElement('button');
+    const userArea =
+      el('rajUserArea');
 
 
-    button.id =
-      'rajAdminButton';
+    if(userArea){
 
-    button.type =
-      'button';
-
-    button.textContent =
-      'Admin Panel';
+      const button =
+        document.createElement(
+          'button'
+        );
 
 
-    button.addEventListener(
-      'click',
-      openAdminPanel
-    );
+      button.id =
+        'rajAdminButton';
 
 
-    userArea.insertBefore(
-      button,
-      userArea.firstChild
-    );
+      button.type =
+        'button';
 
 
-    return true;
+      button.textContent =
+        'Admin Panel';
+
+
+      button.addEventListener(
+        'click',
+        openAdminPanel
+      );
+
+
+      /*
+        Put Admin Panel before user card.
+      */
+
+      userArea.insertBefore(
+        button,
+        userArea.firstChild
+      );
+
+
+      return true;
+
+    }
+
+
+    /*
+      Fallback:
+      if #rajUserArea is temporarily unavailable,
+      put button near Supabase Online badge.
+    */
+
+    const topbar =
+      document.querySelector(
+        '.topbar'
+      );
+
+
+    if(topbar){
+
+      const button =
+        document.createElement(
+          'button'
+        );
+
+
+      button.id =
+        'rajAdminButton';
+
+
+      button.type =
+        'button';
+
+
+      button.textContent =
+        'Admin Panel';
+
+
+      button.addEventListener(
+        'click',
+        openAdminPanel
+      );
+
+
+      topbar.appendChild(
+        button
+      );
+
+
+      return true;
+
+    }
+
+
+    return false;
 
   }
 
 
   /* =========================================================
-     ADMIN PANEL HTML
+     CREATE ADMIN PANEL HTML
      ========================================================= */
 
   function createAdminPanel(){
 
     if(
-      $('rajAdminOverlay')
+      el('rajAdminOverlay')
     ){
       return;
     }
 
 
     const overlay =
-      document.createElement('div');
+      document.createElement(
+        'div'
+      );
 
 
     overlay.id =
@@ -1161,7 +1894,12 @@
 
       <div class="raj-admin-shell">
 
-        <div class="raj-admin-head">
+
+        <!-- ============================================
+             HEADER
+             ============================================ -->
+
+        <div class="raj-admin-header">
 
           <div>
 
@@ -1170,15 +1908,16 @@
             </h2>
 
             <p>
-              Users, roles, access, passwords, devices and login logs
+              Manage users, mobile numbers, roles, access, passwords and devices
             </p>
 
           </div>
 
+
           <button
             type="button"
             id="rajAdminClose"
-            title="Close"
+            title="Close Admin Panel"
           >
             ×
           </button>
@@ -1186,23 +1925,29 @@
         </div>
 
 
+        <!-- ============================================
+             TOOLBAR
+             ============================================ -->
+
         <div class="raj-admin-toolbar">
 
           <button
             type="button"
             class="raj-admin-tab active"
-            data-admin-tab="users"
+            data-tab="users"
           >
             Users
           </button>
 
+
           <button
             type="button"
             class="raj-admin-tab"
-            data-admin-tab="logs"
+            data-tab="logs"
           >
             Login Logs
           </button>
+
 
           <button
             type="button"
@@ -1223,24 +1968,26 @@
         <div class="raj-admin-content">
 
 
-          <!-- =============================================
-               USERS SECTION
-               ============================================= -->
+          <!-- ============================================
+               USER SECTION
+               ============================================ -->
 
           <section
-            id="rajAdminUsersSection"
+            id="rajUsersSection"
             class="raj-admin-section active"
           >
+
 
             <div class="raj-admin-section-head">
 
               <h3>
-                User Management
+                Users
               </h3>
+
 
               <button
                 type="button"
-                id="rajAddUserBtn"
+                id="rajAddUser"
                 class="raj-admin-primary"
               >
                 + Add New User
@@ -1249,10 +1996,15 @@
             </div>
 
 
+            <!-- ==========================================
+                 USER FORM
+                 ========================================== -->
+
             <div
-              id="rajUserFormWrap"
-              class="raj-admin-form-wrap"
+              id="rajUserForm"
+              class="raj-admin-form"
             >
+
 
               <h4
                 id="rajUserFormTitle"
@@ -1262,7 +2014,7 @@
               </h4>
 
 
-              <div class="raj-admin-form-grid">
+              <div class="raj-admin-grid">
 
 
                 <div class="raj-admin-field">
@@ -1274,7 +2026,7 @@
                   <input
                     type="text"
                     id="rajAdminName"
-                    placeholder="User name"
+                    placeholder="Enter user name"
                   >
 
                 </div>
@@ -1288,10 +2040,10 @@
 
                   <input
                     type="tel"
-                    id="rajAdminMobile"
-                    maxlength="10"
                     inputmode="numeric"
-                    placeholder="10 digit mobile"
+                    maxlength="10"
+                    id="rajAdminMobile"
+                    placeholder="10 digit mobile number"
                   >
 
                 </div>
@@ -1303,7 +2055,9 @@
                     Role
                   </label>
 
-                  <select id="rajAdminRole">
+                  <select
+                    id="rajAdminRole"
+                  >
 
                     <option value="SM">
                       SM
@@ -1335,7 +2089,7 @@
                   <input
                     type="password"
                     id="rajAdminPassword"
-                    placeholder="New user: minimum 6 characters"
+                    placeholder="Minimum 6 characters"
                   >
 
                 </div>
@@ -1343,7 +2097,8 @@
               </div>
 
 
-              <div class="raj-admin-check-row">
+              <div class="raj-admin-checks">
+
 
                 <label class="raj-admin-check">
 
@@ -1382,11 +2137,16 @@
 
                 </label>
 
+
               </div>
 
 
+              <!-- ========================================
+                   SM ACCESS
+                   ======================================== -->
+
               <div
-                id="rajSmAccessBox"
+                id="rajSmBox"
                 class="raj-access-box"
               >
 
@@ -1395,15 +2155,19 @@
                 </h4>
 
                 <div
-                  id="rajSmAccessList"
+                  id="rajSmList"
                   class="raj-access-list"
                 ></div>
 
               </div>
 
 
+              <!-- ========================================
+                   OD ACCESS
+                   ======================================== -->
+
               <div
-                id="rajOdAccessBox"
+                id="rajOdBox"
                 class="raj-access-box"
               >
 
@@ -1412,7 +2176,7 @@
                 </h4>
 
                 <div
-                  id="rajOdAccessList"
+                  id="rajOdList"
                   class="raj-access-list"
                 ></div>
 
@@ -1423,21 +2187,23 @@
 
                 <button
                   type="button"
-                  id="rajSaveUserBtn"
+                  id="rajSaveUser"
                   class="raj-admin-primary"
                 >
                   Save User
                 </button>
 
+
                 <button
                   type="button"
-                  id="rajCancelUserBtn"
+                  id="rajCancelUser"
                   class="raj-admin-secondary"
                 >
                   Cancel
                 </button>
 
               </div>
+
 
             </div>
 
@@ -1487,6 +2253,10 @@
                     </th>
 
                     <th>
+                      Device Lock
+                    </th>
+
+                    <th>
                       Device
                     </th>
 
@@ -1502,23 +2272,28 @@
 
                 </thead>
 
-                <tbody id="rajUsersBody"></tbody>
+
+                <tbody
+                  id="rajUsersBody"
+                ></tbody>
 
               </table>
 
             </div>
 
+
           </section>
 
 
-          <!-- =============================================
-               LOGS SECTION
-               ============================================= -->
+          <!-- ============================================
+               LOGIN LOGS
+               ============================================ -->
 
           <section
-            id="rajAdminLogsSection"
+            id="rajLogsSection"
             class="raj-admin-section"
           >
+
 
             <div class="raj-admin-section-head">
 
@@ -1526,9 +2301,10 @@
                 Login Logs
               </h3>
 
+
               <button
                 type="button"
-                id="rajRefreshLogsBtn"
+                id="rajRefreshLogs"
                 class="raj-admin-secondary"
               >
                 Refresh Logs
@@ -1585,11 +2361,15 @@
 
                 </thead>
 
-                <tbody id="rajLogsBody"></tbody>
+
+                <tbody
+                  id="rajLogsBody"
+                ></tbody>
 
               </table>
 
             </div>
+
 
           </section>
 
@@ -1606,12 +2386,14 @@
     );
 
 
-    /* -------------------------------------------------------
-       Password Popup
-       ------------------------------------------------------- */
+    /* ======================================================
+       PASSWORD POPUP
+       ====================================================== */
 
     const passwordOverlay =
-      document.createElement('div');
+      document.createElement(
+        'div'
+      );
 
 
     passwordOverlay.id =
@@ -1626,7 +2408,8 @@
           Change Password
         </h3>
 
-        <p id="rajPasswordUserText">
+
+        <p id="rajPasswordUser">
           User
         </p>
 
@@ -1656,6 +2439,7 @@
             Change Password
           </button>
 
+
           <button
             type="button"
             id="rajPasswordCancel"
@@ -1676,25 +2460,25 @@
     );
 
 
-    bindAdminEvents();
+    bindEvents();
 
   }
 
 
   /* =========================================================
-     EVENTS
+     BIND EVENTS
      ========================================================= */
 
-  function bindAdminEvents(){
+  function bindEvents(){
 
-    $('rajAdminClose')
+    el('rajAdminClose')
       ?.addEventListener(
         'click',
         closeAdminPanel
       );
 
 
-    $('rajAdminOverlay')
+    el('rajAdminOverlay')
       ?.addEventListener(
         'click',
         event => {
@@ -1703,7 +2487,9 @@
             event.target.id ===
             'rajAdminOverlay'
           ){
+
             closeAdminPanel();
+
           }
 
         }
@@ -1721,8 +2507,8 @@
             'click',
             () => {
 
-              switchAdminTab(
-                button.dataset.adminTab
+              switchTab(
+                button.dataset.tab
               );
 
             }
@@ -1732,7 +2518,7 @@
       );
 
 
-    $('rajAdminRefresh')
+    el('rajAdminRefresh')
       ?.addEventListener(
         'click',
         async () => {
@@ -1747,87 +2533,96 @@
       );
 
 
-    $('rajAddUserBtn')
+    el('rajAddUser')
       ?.addEventListener(
         'click',
-        startAddUser
+        openAddUser
       );
 
 
-    $('rajCancelUserBtn')
+    el('rajCancelUser')
       ?.addEventListener(
         'click',
         closeUserForm
       );
 
 
-    $('rajSaveUserBtn')
+    el('rajSaveUser')
       ?.addEventListener(
         'click',
         saveUser
       );
 
 
-    $('rajAdminRole')
+    el('rajAdminRole')
       ?.addEventListener(
         'change',
-        updateRoleAccessVisibility
+        updateRoleUI
       );
 
 
-    $('rajAdminMobile')
+    el('rajAdminMobile')
       ?.addEventListener(
         'input',
         event => {
 
           event.target.value =
             event.target.value
-              .replace(/\D/g,'')
-              .slice(0,10);
+              .replace(
+                /\D/g,
+                ''
+              )
+              .slice(
+                0,
+                10
+              );
 
         }
       );
 
 
-    $('rajRefreshLogsBtn')
+    el('rajRefreshLogs')
       ?.addEventListener(
         'click',
         loadLoginLogs
       );
 
 
-    $('rajPasswordCancel')
+    el('rajPasswordCancel')
       ?.addEventListener(
         'click',
         closePasswordPopup
       );
 
 
-    $('rajPasswordSave')
+    el('rajPasswordSave')
       ?.addEventListener(
         'click',
-        submitPasswordChange
+        changePassword
       );
 
   }
 
 
   /* =========================================================
-     OPEN / CLOSE
+     OPEN ADMIN PANEL
      ========================================================= */
 
   async function openAdminPanel(){
 
-    const user =
-      getStoredUser();
-
+    /*
+      Backend will also verify Admin session.
+      This check is only UI convenience.
+    */
 
     if(
-      !isAdminUser(user)
+      !getSessionToken()
+      ||
+      !getDeviceId()
     ){
 
       alert(
-        'Admin access required.'
+        'Login session not found. Please login again.'
       );
 
       return;
@@ -1838,7 +2633,7 @@
     createAdminPanel();
 
 
-    $('rajAdminOverlay')
+    el('rajAdminOverlay')
       ?.classList
       .add('open');
 
@@ -1847,7 +2642,7 @@
       'hidden';
 
 
-    switchAdminTab(
+    switchTab(
       'users'
     );
 
@@ -1859,7 +2654,7 @@
 
   function closeAdminPanel(){
 
-    $('rajAdminOverlay')
+    el('rajAdminOverlay')
       ?.classList
       .remove('open');
 
@@ -1873,7 +2668,11 @@
   }
 
 
-  function switchAdminTab(tab){
+  /* =========================================================
+     TABS
+     ========================================================= */
+
+  function switchTab(tab){
 
     document
       .querySelectorAll(
@@ -1884,14 +2683,14 @@
 
           button.classList.toggle(
             'active',
-            button.dataset.adminTab === tab
+            button.dataset.tab === tab
           );
 
         }
       );
 
 
-    $('rajAdminUsersSection')
+    el('rajUsersSection')
       ?.classList
       .toggle(
         'active',
@@ -1899,7 +2698,7 @@
       );
 
 
-    $('rajAdminLogsSection')
+    el('rajLogsSection')
       ?.classList
       .toggle(
         'active',
@@ -1907,7 +2706,9 @@
       );
 
 
-    if(tab === 'logs'){
+    if(
+      tab === 'logs'
+    ){
 
       loadLoginLogs();
 
@@ -1917,31 +2718,43 @@
 
 
   /* =========================================================
-     LOAD ADMIN DATA
+     LOAD ALL ADMIN DATA
      ========================================================= */
 
   async function loadAdminData(){
 
-    await Promise.all([
-      loadAccessOptions(),
-      loadUsers()
-    ]);
+    try{
+
+      await Promise.all([
+        loadAccessOptions(),
+        loadUsers()
+      ]);
+
+
+    }catch(error){
+
+      console.error(
+        'Admin load error:',
+        error
+      );
+
+    }
 
   }
 
+
+  /* =========================================================
+     ACCESS OPTIONS
+     ========================================================= */
 
   async function loadAccessOptions(){
 
     try{
 
-      const params =
-        adminAuthParams();
-
-
       const data =
-        await rpc(
+        await adminRpc(
           'raj_admin_access_options',
-          params
+          adminAuthParams()
         );
 
 
@@ -1967,53 +2780,156 @@
     }catch(error){
 
       console.error(
-        'Access options error:',
+        'Access option error:',
         error
       );
 
 
       showMessage(
         error.message
-        || 'Unable to load SM/OD options.',
+        ||
+        'Unable to load SM / OD access options.',
         'error'
       );
+
+
+      throw error;
 
     }
 
   }
 
 
-  async function loadUsers(){
+  function renderAccessOptions(){
 
-    const loading =
-      $('rajUsersLoading');
-
-    const tableWrap =
-      $('rajUsersTableWrap');
+    const smList =
+      el('rajSmList');
 
 
-    if(loading){
-      loading.style.display =
-        'block';
+    const odList =
+      el('rajOdList');
+
+
+    if(smList){
+
+      if(
+        smOptions.length === 0
+      ){
+
+        smList.innerHTML =
+          '<div>No SM codes found.</div>';
+
+      }else{
+
+        smList.innerHTML =
+          smOptions
+            .map(
+              code => `
+
+                <label class="raj-access-option">
+
+                  <input
+                    type="checkbox"
+                    class="raj-sm-check"
+                    value="${escapeHtml(code)}"
+                  >
+
+                  <span>
+                    ${escapeHtml(code)}
+                  </span>
+
+                </label>
+
+              `
+            )
+            .join('');
+
+      }
+
     }
 
 
-    if(tableWrap){
-      tableWrap.style.display =
+    if(odList){
+
+      if(
+        odOptions.length === 0
+      ){
+
+        odList.innerHTML =
+          '<div>No OD codes found.</div>';
+
+      }else{
+
+        odList.innerHTML =
+          odOptions
+            .map(
+              code => `
+
+                <label class="raj-access-option">
+
+                  <input
+                    type="checkbox"
+                    class="raj-od-check"
+                    value="${escapeHtml(code)}"
+                  >
+
+                  <span>
+                    ${escapeHtml(code)}
+                  </span>
+
+                </label>
+
+              `
+            )
+            .join('');
+
+      }
+
+    }
+
+  }
+
+
+  /* =========================================================
+     LOAD USERS
+     ========================================================= */
+
+  async function loadUsers(){
+
+    const loading =
+      el('rajUsersLoading');
+
+
+    const table =
+      el('rajUsersTableWrap');
+
+
+    if(loading){
+
+      loading.style.display =
+        'block';
+
+
+      loading.textContent =
+        'Loading users...';
+
+    }
+
+
+    if(table){
+
+      table.style.display =
         'none';
+
     }
 
 
     try{
 
-      const params =
-        adminAuthParams();
-
-
       const data =
-        await rpc(
+        await adminRpc(
           'raj_admin_list_users',
-          params
+          adminAuthParams()
         );
 
 
@@ -2028,50 +2944,57 @@
       renderUsers();
 
 
+      if(loading){
+
+        loading.style.display =
+          'none';
+
+      }
+
+
+      if(table){
+
+        table.style.display =
+          'block';
+
+      }
+
+
     }catch(error){
 
       console.error(
-        'User list error:',
+        'Load users error:',
         error
-      );
-
-
-      showMessage(
-        error.message
-        || 'Unable to load users.',
-        'error'
       );
 
 
       if(loading){
 
         loading.textContent =
+          error.message
+          ||
           'Unable to load users.';
 
       }
 
 
-      return;
-
-    }
-
-
-    if(loading){
-      loading.style.display =
-        'none';
-    }
+      showMessage(
+        error.message
+        ||
+        'Unable to load users.',
+        'error'
+      );
 
 
-    if(tableWrap){
-      tableWrap.style.display =
-        'block';
+      throw error;
+
     }
 
   }
 
 
   /* =========================================================
-     RENDER USERS
+     CODE BADGES
      ========================================================= */
 
   function renderCodes(values){
@@ -2081,7 +3004,9 @@
       ||
       values.length === 0
     ){
+
       return '-';
+
     }
 
 
@@ -2097,10 +3022,14 @@
   }
 
 
+  /* =========================================================
+     USER TABLE
+     ========================================================= */
+
   function renderUsers(){
 
     const body =
-      $('rajUsersBody');
+      el('rajUsersBody');
 
 
     if(!body){
@@ -2117,7 +3046,7 @@
         <tr>
 
           <td
-            colspan="9"
+            colspan="10"
             class="raj-admin-empty"
           >
             No users found.
@@ -2126,6 +3055,7 @@
         </tr>
 
       `;
+
 
       return;
 
@@ -2145,36 +3075,52 @@
               user.device_locked === true;
 
 
+            const deviceEnabled =
+              user.device_lock_enabled
+              !== false;
+
+
             return `
 
               <tr>
 
+
                 <td>
 
                   <div class="raj-admin-user-name">
-                    ${escapeHtml(user.name)}
+                    ${escapeHtml(
+                      user.name || '-'
+                    )}
                   </div>
 
                 </td>
 
 
                 <td>
-                  ${escapeHtml(user.mobile)}
+                  ${escapeHtml(
+                    user.mobile || '-'
+                  )}
                 </td>
 
 
                 <td>
-                  ${escapeHtml(user.role)}
+                  ${escapeHtml(
+                    user.role || '-'
+                  )}
                 </td>
 
 
                 <td>
-                  ${renderCodes(user.sm_access)}
+                  ${renderCodes(
+                    user.sm_access
+                  )}
                 </td>
 
 
                 <td>
-                  ${renderCodes(user.od_access)}
+                  ${renderCodes(
+                    user.od_access
+                  )}
                 </td>
 
 
@@ -2199,11 +3145,22 @@
 
                 <td>
 
+                  ${
+                    deviceEnabled
+                      ? 'Enabled'
+                      : 'Disabled'
+                  }
+
+                </td>
+
+
+                <td>
+
                   <span
                     class="raj-status ${
                       locked
                         ? 'locked'
-                        : 'free'
+                        : 'available'
                     }"
                   >
                     ${
@@ -2229,11 +3186,14 @@
 
                   <div class="raj-admin-actions">
 
+
                     <button
                       type="button"
                       class="raj-admin-secondary"
                       data-action="edit"
-                      data-id="${escapeHtml(user.id)}"
+                      data-user-id="${escapeHtml(
+                        user.id
+                      )}"
                     >
                       Edit
                     </button>
@@ -2243,7 +3203,9 @@
                       type="button"
                       class="raj-admin-warning"
                       data-action="password"
-                      data-id="${escapeHtml(user.id)}"
+                      data-user-id="${escapeHtml(
+                        user.id
+                      )}"
                     >
                       Password
                     </button>
@@ -2252,15 +3214,19 @@
                     <button
                       type="button"
                       class="raj-admin-danger"
-                      data-action="reset-device"
-                      data-id="${escapeHtml(user.id)}"
+                      data-action="reset"
+                      data-user-id="${escapeHtml(
+                        user.id
+                      )}"
                     >
                       Reset Device
                     </button>
 
+
                   </div>
 
                 </td>
+
 
               </tr>
 
@@ -2287,7 +3253,9 @@
                   item =>
                     String(item.id)
                     ===
-                    String(button.dataset.id)
+                    String(
+                      button.dataset.userId
+                    )
                 );
 
 
@@ -2300,18 +3268,36 @@
                 button.dataset.action;
 
 
-              if(action === 'edit'){
-                editUser(user);
+              if(
+                action === 'edit'
+              ){
+
+                openEditUser(
+                  user
+                );
+
               }
 
 
-              if(action === 'password'){
-                openPasswordPopup(user);
+              if(
+                action === 'password'
+              ){
+
+                openPasswordPopup(
+                  user
+                );
+
               }
 
 
-              if(action === 'reset-device'){
-                resetDevice(user);
+              if(
+                action === 'reset'
+              ){
+
+                resetDevice(
+                  user
+                );
+
               }
 
             }
@@ -2324,77 +3310,12 @@
 
 
   /* =========================================================
-     ACCESS CHECKBOXES
+     CHECKBOX HELPERS
      ========================================================= */
 
-  function renderAccessOptions(){
-
-    const smList =
-      $('rajSmAccessList');
-
-    const odList =
-      $('rajOdAccessList');
-
-
-    if(smList){
-
-      smList.innerHTML =
-        smOptions.length
-          ? smOptions
-              .map(
-                code => `
-
-                  <label class="raj-access-option">
-
-                    <input
-                      type="checkbox"
-                      class="raj-sm-check"
-                      value="${escapeHtml(code)}"
-                    >
-
-                    ${escapeHtml(code)}
-
-                  </label>
-
-                `
-              )
-              .join('')
-          : '<div>No SM codes found.</div>';
-
-    }
-
-
-    if(odList){
-
-      odList.innerHTML =
-        odOptions.length
-          ? odOptions
-              .map(
-                code => `
-
-                  <label class="raj-access-option">
-
-                    <input
-                      type="checkbox"
-                      class="raj-od-check"
-                      value="${escapeHtml(code)}"
-                    >
-
-                    ${escapeHtml(code)}
-
-                  </label>
-
-                `
-              )
-              .join('')
-          : '<div>No OD codes found.</div>';
-
-    }
-
-  }
-
-
-  function getCheckedValues(selector){
+  function getCheckedValues(
+    selector
+  ){
 
     return Array
       .from(
@@ -2403,8 +3324,8 @@
         )
       )
       .map(
-        input =>
-          input.value
+        item =>
+          item.value
       );
 
   }
@@ -2415,22 +3336,29 @@
     values
   ){
 
-    const selected =
+    const set =
       new Set(
         Array.isArray(values)
-          ? values.map(String)
+          ? values.map(
+              value =>
+                String(value)
+            )
           : []
       );
 
 
     document
-      .querySelectorAll(selector)
+      .querySelectorAll(
+        selector
+      )
       .forEach(
-        input => {
+        checkbox => {
 
-          input.checked =
-            selected.has(
-              String(input.value)
+          checkbox.checked =
+            set.has(
+              String(
+                checkbox.value
+              )
             );
 
         }
@@ -2440,47 +3368,53 @@
 
 
   /* =========================================================
-     ADD / EDIT USER
+     ADD USER
      ========================================================= */
 
-  function startAddUser(){
+  function openAddUser(){
 
-    editingUser = null;
+    editingUser =
+      null;
 
 
-    $('rajUserFormTitle').textContent =
+    el('rajUserFormTitle')
+      .textContent =
       'Add New User';
 
 
-    $('rajAdminName').value =
+    el('rajAdminName').value =
       '';
 
 
-    $('rajAdminMobile').value =
+    el('rajAdminMobile').value =
       '';
 
 
-    $('rajAdminRole').value =
+    el('rajAdminRole').value =
       'SM';
 
 
-    $('rajAdminPassword').value =
+    /*
+      Default password as previously decided.
+    */
+
+    el('rajAdminPassword').value =
       '123456';
 
 
-    $('rajAdminPassword').placeholder =
+    el('rajAdminPassword').placeholder =
       'Minimum 6 characters';
 
 
-    $('rajAdminActive').checked =
+    el('rajAdminActive').checked =
       true;
 
 
-    $('rajAdminDeviceLock').checked =
+    el('rajAdminDeviceLock').checked =
       true;
 
 
-    $('rajAdminFullView').checked =
+    el('rajAdminFullView').checked =
       false;
 
 
@@ -2496,60 +3430,68 @@
     );
 
 
-    updateRoleAccessVisibility();
+    updateRoleUI();
 
 
-    $('rajUserFormWrap')
+    el('rajUserForm')
       ?.classList
       .add('open');
 
 
-    $('rajAdminName')
+    el('rajAdminName')
       ?.focus();
 
   }
 
 
-  function editUser(user){
+  /* =========================================================
+     EDIT USER
+     ========================================================= */
+
+  function openEditUser(user){
 
     editingUser =
       user;
 
 
-    $('rajUserFormTitle').textContent =
+    el('rajUserFormTitle')
+      .textContent =
       'Edit User - ' +
-      String(user.name || '');
+      String(
+        user.name || ''
+      );
 
 
-    $('rajAdminName').value =
+    el('rajAdminName').value =
       user.name || '';
 
 
-    $('rajAdminMobile').value =
+    el('rajAdminMobile').value =
       user.mobile || '';
 
 
-    $('rajAdminRole').value =
+    el('rajAdminRole').value =
       user.role || 'SM';
 
 
-    $('rajAdminPassword').value =
+    el('rajAdminPassword').value =
       '';
 
 
-    $('rajAdminPassword').placeholder =
+    el('rajAdminPassword').placeholder =
       'Leave blank to keep current password';
 
 
-    $('rajAdminActive').checked =
+    el('rajAdminActive').checked =
       user.active === true;
 
 
-    $('rajAdminDeviceLock').checked =
-      user.device_lock_enabled !== false;
+    el('rajAdminDeviceLock').checked =
+      user.device_lock_enabled
+      !== false;
 
 
-    $('rajAdminFullView').checked =
+    el('rajAdminFullView').checked =
       user.full_view === true;
 
 
@@ -2565,15 +3507,15 @@
     );
 
 
-    updateRoleAccessVisibility();
+    updateRoleUI();
 
 
-    $('rajUserFormWrap')
+    el('rajUserForm')
       ?.classList
       .add('open');
 
 
-    $('rajUserFormWrap')
+    el('rajUserForm')
       ?.scrollIntoView(
         {
           behavior:'smooth',
@@ -2586,30 +3528,35 @@
 
   function closeUserForm(){
 
-    editingUser = null;
+    editingUser =
+      null;
 
 
-    $('rajUserFormWrap')
+    el('rajUserForm')
       ?.classList
       .remove('open');
 
   }
 
 
-  function updateRoleAccessVisibility(){
+  /* =========================================================
+     ROLE UI
+     ========================================================= */
+
+  function updateRoleUI(){
 
     const role =
-      $('rajAdminRole')
+      el('rajAdminRole')
         ?.value
       || 'SM';
 
 
     const smBox =
-      $('rajSmAccessBox');
+      el('rajSmBox');
 
 
     const odBox =
-      $('rajOdAccessBox');
+      el('rajOdBox');
 
 
     if(smBox){
@@ -2644,7 +3591,8 @@
       role === 'Admin'
     ){
 
-      $('rajAdminFullView').checked =
+      el('rajAdminFullView')
+        .checked =
         true;
 
     }
@@ -2652,33 +3600,42 @@
   }
 
 
+  /* =========================================================
+     SAVE USER
+     ========================================================= */
+
   async function saveUser(){
 
     const name =
       (
-        $('rajAdminName')
+        el('rajAdminName')
           ?.value
-        || ''
+        ||
+        ''
       ).trim();
 
 
     const mobile =
       (
-        $('rajAdminMobile')
+        el('rajAdminMobile')
           ?.value
-        || ''
+        ||
+        ''
       )
-        .replace(/\D/g,'');
+        .replace(
+          /\D/g,
+          ''
+        );
 
 
     const role =
-      $('rajAdminRole')
+      el('rajAdminRole')
         ?.value
       || 'SM';
 
 
     const password =
-      $('rajAdminPassword')
+      el('rajAdminPassword')
         ?.value
       || '';
 
@@ -2686,7 +3643,7 @@
     if(!name){
 
       showMessage(
-        'Please enter user name.',
+        'User name required.',
         'error'
       );
 
@@ -2695,10 +3652,12 @@
     }
 
 
-    if(mobile.length !== 10){
+    if(
+      mobile.length !== 10
+    ){
 
       showMessage(
-        'Please enter valid 10 digit mobile number.',
+        'Mobile number must be 10 digits.',
         'error'
       );
 
@@ -2714,7 +3673,7 @@
     ){
 
       showMessage(
-        'New user password must be at least 6 characters.',
+        'Password must be at least 6 characters.',
         'error'
       );
 
@@ -2724,13 +3683,14 @@
 
 
     const button =
-      $('rajSaveUserBtn');
+      el('rajSaveUser');
 
 
     if(button){
 
       button.disabled =
         true;
+
 
       button.textContent =
         'Saving...';
@@ -2739,6 +3699,30 @@
 
 
     try{
+
+      const smAccess =
+        (
+          role === 'SM'
+          ||
+          role === 'SalesHead'
+        )
+          ? getCheckedValues(
+              '.raj-sm-check'
+            )
+          : [];
+
+
+      const odAccess =
+        (
+          role === 'OD'
+          ||
+          role === 'SalesHead'
+        )
+          ? getCheckedValues(
+              '.raj-od-check'
+            )
+          : [];
+
 
       const params = {
 
@@ -2759,38 +3743,22 @@
           role,
 
         p_active:
-          $('rajAdminActive')
+          el('rajAdminActive')
             ?.checked === true,
 
         p_full_view:
-          $('rajAdminFullView')
+          el('rajAdminFullView')
             ?.checked === true,
 
         p_device_lock_enabled:
-          $('rajAdminDeviceLock')
+          el('rajAdminDeviceLock')
             ?.checked === true,
 
         p_sm_access:
-          (
-            role === 'SM'
-            ||
-            role === 'SalesHead'
-          )
-            ? getCheckedValues(
-                '.raj-sm-check'
-              )
-            : [],
+          smAccess,
 
         p_od_access:
-          (
-            role === 'OD'
-            ||
-            role === 'SalesHead'
-          )
-            ? getCheckedValues(
-                '.raj-od-check'
-              )
-            : [],
+          odAccess,
 
         p_new_password:
           password.trim()
@@ -2801,15 +3769,16 @@
 
 
       const data =
-        await rpc(
+        await adminRpc(
           'raj_admin_save_user',
           params
         );
 
 
       showMessage(
-        data.message
-        || 'User saved successfully.'
+        data?.message
+        ||
+        'User saved successfully.'
       );
 
 
@@ -2829,9 +3798,11 @@
 
       showMessage(
         error.message
-        || 'Unable to save user.',
+        ||
+        'Unable to save user.',
         'error'
       );
+
 
     }finally{
 
@@ -2839,6 +3810,7 @@
 
         button.disabled =
           false;
+
 
         button.textContent =
           'Save User';
@@ -2857,13 +3829,13 @@
   async function resetDevice(user){
 
     const confirmed =
-      confirm(
+      window.confirm(
         'Reset device for ' +
         user.name +
         ' (' +
         user.mobile +
         ')?\n\n' +
-        'Their current login session will also be closed.'
+        'Current active session will also be closed.'
       );
 
 
@@ -2875,20 +3847,23 @@
     try{
 
       const data =
-        await rpc(
+        await adminRpc(
           'raj_admin_reset_user_device',
           {
+
             ...adminAuthParams(),
 
             p_target_mobile:
               user.mobile
+
           }
         );
 
 
       showMessage(
-        data.message
-        || 'Device reset successfully.'
+        data?.message
+        ||
+        'Device reset successfully.'
       );
 
 
@@ -2905,7 +3880,8 @@
 
       showMessage(
         error.message
-        || 'Unable to reset device.',
+        ||
+        'Unable to reset device.',
         'error'
       );
 
@@ -2915,36 +3891,46 @@
 
 
   /* =========================================================
-     CHANGE PASSWORD
+     PASSWORD POPUP
      ========================================================= */
 
-  function openPasswordPopup(user){
+  function openPasswordPopup(
+    user
+  ){
 
-    editingUser =
+    passwordUser =
       user;
 
 
-    $('rajPasswordUserText').textContent =
-      (
-        user.name
-        + ' • '
-        + user.mobile
+    el('rajPasswordUser')
+      .textContent =
+      String(
+        user.name || ''
+      )
+      +
+      ' • '
+      +
+      String(
+        user.mobile || ''
       );
 
 
-    $('rajNewPassword').value =
+    el('rajNewPassword').value =
       '';
 
 
-    $('rajPasswordOverlay')
+    el('rajPasswordOverlay')
       ?.classList
       .add('open');
 
 
     setTimeout(
-      () =>
-        $('rajNewPassword')
-          ?.focus(),
+      () => {
+
+        el('rajNewPassword')
+          ?.focus();
+
+      },
       50
     );
 
@@ -2953,32 +3939,42 @@
 
   function closePasswordPopup(){
 
-    $('rajPasswordOverlay')
+    passwordUser =
+      null;
+
+
+    el('rajNewPassword').value =
+      '';
+
+
+    el('rajPasswordOverlay')
       ?.classList
       .remove('open');
-
-
-    $('rajNewPassword').value =
-      '';
 
   }
 
 
-  async function submitPasswordChange(){
+  /* =========================================================
+     CHANGE PASSWORD
+     ========================================================= */
 
-    if(!editingUser){
+  async function changePassword(){
+
+    if(
+      !passwordUser
+    ){
       return;
     }
 
 
-    const password =
-      $('rajNewPassword')
+    const newPassword =
+      el('rajNewPassword')
         ?.value
       || '';
 
 
     if(
-      password.length < 6
+      newPassword.length < 6
     ){
 
       alert(
@@ -2991,13 +3987,14 @@
 
 
     const button =
-      $('rajPasswordSave');
+      el('rajPasswordSave');
 
 
     if(button){
 
       button.disabled =
         true;
+
 
       button.textContent =
         'Changing...';
@@ -3008,27 +4005,37 @@
     try{
 
       const data =
-        await rpc(
+        await adminRpc(
           'raj_admin_change_user_password',
           {
+
             ...adminAuthParams(),
 
             p_target_mobile:
-              editingUser.mobile,
+              passwordUser.mobile,
 
             p_new_password:
-              password
+              newPassword
+
           }
         );
+
+
+      const message =
+        data?.message
+        ||
+        'Password changed successfully.';
 
 
       closePasswordPopup();
 
 
       showMessage(
-        data.message
-        || 'Password changed successfully.'
+        message
       );
+
+
+      await loadUsers();
 
 
     }catch(error){
@@ -3041,8 +4048,10 @@
 
       alert(
         error.message
-        || 'Unable to change password.'
+        ||
+        'Unable to change password.'
       );
+
 
     }finally{
 
@@ -3050,6 +4059,7 @@
 
         button.disabled =
           false;
+
 
         button.textContent =
           'Change Password';
@@ -3068,10 +4078,11 @@
   async function loadLoginLogs(){
 
     const loading =
-      $('rajLogsLoading');
+      el('rajLogsLoading');
 
-    const wrap =
-      $('rajLogsTableWrap');
+
+    const table =
+      el('rajLogsTableWrap');
 
 
     if(loading){
@@ -3079,53 +4090,70 @@
       loading.style.display =
         'block';
 
+
       loading.textContent =
         'Loading login logs...';
 
     }
 
 
-    if(wrap){
-      wrap.style.display =
+    if(table){
+
+      table.style.display =
         'none';
+
     }
 
 
     try{
 
       const data =
-        await rpc(
+        await adminRpc(
           'raj_admin_login_logs',
           {
+
             ...adminAuthParams(),
-            p_limit:100
+
+            p_limit:
+              100
+
           }
         );
 
 
-      renderLoginLogs(
-        Array.isArray(data?.logs)
+      const logs =
+        Array.isArray(
+          data?.logs
+        )
           ? data.logs
-          : []
+          : [];
+
+
+      renderLogs(
+        logs
       );
 
 
       if(loading){
+
         loading.style.display =
           'none';
+
       }
 
 
-      if(wrap){
-        wrap.style.display =
+      if(table){
+
+        table.style.display =
           'block';
+
       }
 
 
     }catch(error){
 
       console.error(
-        'Login logs error:',
+        'Login log error:',
         error
       );
 
@@ -3134,7 +4162,8 @@
 
         loading.textContent =
           error.message
-          || 'Unable to load login logs.';
+          ||
+          'Unable to load login logs.';
 
       }
 
@@ -3143,10 +4172,12 @@
   }
 
 
-  function logStatusClass(status){
+  function getLogClass(status){
 
     const value =
-      String(status || '')
+      String(
+        status || ''
+      )
         .toUpperCase();
 
 
@@ -3155,14 +4186,18 @@
       ||
       value === 'LOGOUT'
     ){
+
       return 'raj-log-success';
+
     }
 
 
     if(
       value === 'BLOCKED_DEVICE'
     ){
+
       return 'raj-log-blocked';
+
     }
 
 
@@ -3171,10 +4206,10 @@
   }
 
 
-  function renderLoginLogs(logs){
+  function renderLogs(logs){
 
     const body =
-      $('rajLogsBody');
+      el('rajLogsBody');
 
 
     if(!body){
@@ -3203,6 +4238,7 @@
 
       `;
 
+
       return;
 
     }
@@ -3214,6 +4250,7 @@
           log => `
 
             <tr>
+
 
               <td>
                 ${escapeHtml(
@@ -3245,13 +4282,15 @@
               <td>
 
                 <span class="${
-                  logStatusClass(
+                  getLogClass(
                     log.login_status
                   )
                 }">
 
                   ${escapeHtml(
-                    log.login_status || '-'
+                    log.login_status
+                    ||
+                    '-'
                   )}
 
                 </span>
@@ -3261,16 +4300,21 @@
 
               <td>
                 ${escapeHtml(
-                  log.device_id || '-'
+                  log.device_id
+                  ||
+                  '-'
                 )}
               </td>
 
 
               <td>
                 ${escapeHtml(
-                  log.details || '-'
+                  log.details
+                  ||
+                  '-'
                 )}
               </td>
+
 
             </tr>
 
@@ -3279,6 +4323,86 @@
         .join('');
 
   }
+
+
+  /* =========================================================
+     KEEP ADMIN BUTTON AVAILABLE
+     ========================================================= */
+
+  function maintainAdminButton(){
+
+    /*
+      This continuously checks after auth-addon.js
+      finishes rendering logged-in user.
+    */
+
+    if(
+      isAdminUser()
+    ){
+
+      createAdminButton();
+
+    }else{
+
+      /*
+        Do not show Admin Panel to normal users.
+      */
+
+      const existing =
+        el('rajAdminButton');
+
+
+      if(existing){
+
+        existing.remove();
+
+      }
+
+    }
+
+  }
+
+
+  /* =========================================================
+     STORAGE CHANGE SUPPORT
+     ========================================================= */
+
+  window.addEventListener(
+    'storage',
+    event => {
+
+      if(
+        event.key === USER_KEY
+        ||
+        event.key === SESSION_KEY
+      ){
+
+        setTimeout(
+          maintainAdminButton,
+          50
+        );
+
+      }
+
+    }
+  );
+
+
+  /* =========================================================
+     PAGE SHOW SUPPORT
+     ========================================================= */
+
+  window.addEventListener(
+    'pageshow',
+    () => {
+
+      setTimeout(
+        maintainAdminButton,
+        300
+      );
+
+    }
+  );
 
 
   /* =========================================================
@@ -3298,62 +4422,53 @@
 
     addStyles();
 
+
     createAdminPanel();
 
 
     /*
-      Auth addon creates #rajUserArea after login,
-      so wait until it appears.
+      Auth addon loads before Admin addon.
+      But login/session validation is asynchronous.
+
+      Therefore check repeatedly.
     */
 
-    let attempts = 0;
+    maintainAdminButton();
 
 
-    const timer =
-      setInterval(
-        () => {
-
-          attempts++;
-
-
-          const user =
-            getStoredUser();
+    setTimeout(
+      maintainAdminButton,
+      250
+    );
 
 
-          if(
-            isAdminUser(user)
-          ){
-
-            const created =
-              createAdminButton();
+    setTimeout(
+      maintainAdminButton,
+      750
+    );
 
 
-            if(created){
-
-              clearInterval(
-                timer
-              );
-
-              return;
-
-            }
-
-          }
+    setTimeout(
+      maintainAdminButton,
+      1500
+    );
 
 
-          if(
-            attempts >= 240
-          ){
+    setTimeout(
+      maintainAdminButton,
+      3000
+    );
 
-            clearInterval(
-              timer
-            );
 
-          }
+    /*
+      Keep checking because login can happen
+      without complete page reload.
+    */
 
-        },
-        250
-      );
+    setInterval(
+      maintainAdminButton,
+      1000
+    );
 
   }
 
