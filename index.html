@@ -12,9 +12,9 @@
 
   <title>Sales Intelligence Dashboard</title>
 
+
   <!-- =====================================================
        AUTH FAIL-CLOSED
-       Dashboard will stay hidden until auth check completes.
        ===================================================== -->
 
   <meta
@@ -32,6 +32,7 @@
     content="0"
   >
 
+
   <style>
 
     html.raj-auth-pending .topbar,
@@ -39,19 +40,30 @@
       visibility:hidden !important;
     }
 
+
     .compare-controls{
       display:grid;
-      grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+      grid-template-columns:
+        repeat(
+          auto-fit,
+          minmax(230px,1fr)
+        );
       gap:16px;
       margin-bottom:16px;
     }
 
+
     .compare-grid{
       display:grid;
-      grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+      grid-template-columns:
+        repeat(
+          auto-fit,
+          minmax(180px,1fr)
+        );
       gap:14px;
       margin-top:14px;
     }
+
 
     .compare-card{
       border:1px solid #e5e7eb;
@@ -60,6 +72,7 @@
       background:#fff;
     }
 
+
     .compare-card span{
       display:block;
       color:#64748b;
@@ -67,24 +80,39 @@
       margin-bottom:6px;
     }
 
+
     .compare-card strong{
       font-size:20px;
       line-height:1.3;
     }
 
-    .compare-positive{ color:#15803d; }
-    .compare-negative{ color:#b91c1c; }
-    .compare-neutral{ color:#475569; }
+
+    .compare-positive{
+      color:#15803d;
+    }
+
+
+    .compare-negative{
+      color:#b91c1c;
+    }
+
+
+    .compare-neutral{
+      color:#475569;
+    }
+
 
     .avg-card{
       border:1px solid #dbeafe;
       background:#eff6ff;
     }
 
+
     .budget-overview-card{
       border:1px solid #d1fae5;
       background:#ecfdf5;
     }
+
 
     #tableHead th,
     .summary-table thead th{
@@ -92,6 +120,7 @@
     }
 
   </style>
+
 
   <link
     rel="stylesheet"
@@ -108,14 +137,24 @@
 
   <div class="brand">
 
-    <div class="logo">R</div>
+    <div class="logo">
+      R
+    </div>
 
     <div>
-      <h1>Sales Intelligence</h1>
-      <p>Customer • Product • Group • SM • Division • Pincode</p>
+
+      <h1>
+        Sales Intelligence
+      </h1>
+
+      <p>
+        Customer • Product • Group • SM • Division • Pincode
+      </p>
+
     </div>
 
   </div>
+
 
   <div class="live">
     ● Supabase Online
@@ -150,6 +189,7 @@
 
     </div>
 
+
     <button
       id="clearFilters"
       class="clear-btn"
@@ -168,39 +208,104 @@
   <section class="summary-grid five">
 
     <article class="summary-card">
-      <span>Total Qty</span>
-      <strong id="totalQty">0</strong>
-      <small>Filtered quantity</small>
+
+      <span>
+        Total Qty
+      </span>
+
+      <strong id="totalQty">
+        0
+      </strong>
+
+      <small>
+        Filtered quantity
+      </small>
+
     </article>
 
-    <article class="summary-card">
-      <span>Total Taxable</span>
-      <strong id="totalTaxable">₹0</strong>
-      <small>Filtered taxable value</small>
-    </article>
 
     <article class="summary-card">
-      <span>Total Sale</span>
-      <strong id="totalSale">₹0</strong>
-      <small>Filtered invoice amount</small>
+
+      <span>
+        Total Taxable
+      </span>
+
+      <strong id="totalTaxable">
+        ₹0
+      </strong>
+
+      <small>
+        Filtered taxable value
+      </small>
+
     </article>
 
-    <article class="summary-card">
-      <span>Products Sold</span>
-      <strong id="productsSold">0</strong>
-      <small>Distinct item codes</small>
-    </article>
 
     <article class="summary-card">
-      <span>Customers Billed</span>
-      <strong id="customersBilled">0</strong>
-      <small>Actual sales customers</small>
+
+      <span>
+        Total Sale
+      </span>
+
+      <strong id="totalSale">
+        ₹0
+      </strong>
+
+      <small>
+        Filtered invoice amount
+      </small>
+
     </article>
 
+
     <article class="summary-card">
-      <span>Matching Records</span>
-      <strong id="recordCount">0</strong>
-      <small>Rows after filters</small>
+
+      <span>
+        Products Sold
+      </span>
+
+      <strong id="productsSold">
+        0
+      </strong>
+
+      <small>
+        Distinct item codes
+      </small>
+
+    </article>
+
+
+    <article class="summary-card">
+
+      <span>
+        Customers Billed
+      </span>
+
+      <strong id="customersBilled">
+        0
+      </strong>
+
+      <small>
+        Actual sales customers
+      </small>
+
+    </article>
+
+
+    <article class="summary-card">
+
+      <span>
+        Matching Records
+      </span>
+
+      <strong id="recordCount">
+        0
+      </strong>
+
+      <small>
+        Rows after filters
+      </small>
+
     </article>
 
   </section>
@@ -216,8 +321,15 @@
     <div class="panel-head">
 
       <div>
-        <h3>Filters</h3>
-        <p>All selected filters work together.</p>
+
+        <h3>
+          Filters
+        </h3>
+
+        <p>
+          All selected filters work together.
+        </p>
+
       </div>
 
     </div>
@@ -247,6 +359,7 @@
           Month
         </label>
 
+
         <div
           class="multi"
           id="multi_month"
@@ -257,11 +370,17 @@
             class="multi-btn"
             data-open="month"
           >
+
             <span id="label_month">
               All Months / Total
             </span>
-            <span>▾</span>
+
+            <span>
+              ▾
+            </span>
+
           </button>
+
 
           <div class="multi-menu">
 
@@ -279,6 +398,7 @@
           </div>
 
         </div>
+
 
         <div
           class="selected-chips"
@@ -389,6 +509,7 @@
           OD Team
         </label>
 
+
         <div
           class="multi"
           id="multi_budgetOD"
@@ -399,11 +520,17 @@
             class="multi-btn"
             data-open="budgetOD"
           >
+
             <span id="label_budgetOD">
               All OD
             </span>
-            <span>▾</span>
+
+            <span>
+              ▾
+            </span>
+
           </button>
+
 
           <div class="multi-menu">
 
@@ -421,6 +548,7 @@
           </div>
 
         </div>
+
 
         <div
           class="selected-chips"
@@ -444,8 +572,15 @@
     <div class="panel-head">
 
       <div>
-        <h3>Sales Comparison</h3>
-        <p>Comparison uses Taxable Sales.</p>
+
+        <h3>
+          Sales Comparison
+        </h3>
+
+        <p>
+          Comparison uses Taxable Sales.
+        </p>
+
       </div>
 
     </div>
@@ -460,6 +595,7 @@
           Compare Months
         </label>
 
+
         <div
           class="multi"
           id="multi_compareMonths"
@@ -470,11 +606,17 @@
             class="multi-btn"
             data-open="compareMonths"
           >
+
             <span id="label_compareMonths">
               Select Compare Months
             </span>
-            <span>▾</span>
+
+            <span>
+              ▾
+            </span>
+
           </button>
+
 
           <div class="multi-menu">
 
@@ -492,6 +634,7 @@
           </div>
 
         </div>
+
 
         <div
           class="selected-chips"
@@ -522,56 +665,98 @@
 
     <div class="compare-grid">
 
+
       <div class="compare-card">
-        <span>Compare Months</span>
+
+        <span>
+          Compare Months
+        </span>
+
         <strong id="compareMonthsText">
           Select months
         </strong>
+
       </div>
 
+
       <div class="compare-card">
-        <span>Compare Avg Taxable Sale</span>
+
+        <span>
+          Compare Avg Taxable Sale
+        </span>
+
         <strong id="compareAvgSale">
           ₹0
         </strong>
+
       </div>
 
+
       <div class="compare-card">
-        <span>Actual Month</span>
+
+        <span>
+          Actual Month
+        </span>
+
         <strong id="compareActualMonth">
           -
         </strong>
+
       </div>
 
+
       <div class="compare-card">
-        <span>Actual Month Taxable Sale</span>
+
+        <span>
+          Actual Month Taxable Sale
+        </span>
+
         <strong id="compareActualSale">
           ₹0
         </strong>
+
       </div>
 
+
       <div class="compare-card">
-        <span>Taxable Difference</span>
+
+        <span>
+          Taxable Difference
+        </span>
+
         <strong id="compareDifference">
           ₹0
         </strong>
+
       </div>
 
+
       <div class="compare-card">
-        <span>Change %</span>
+
+        <span>
+          Change %
+        </span>
+
         <strong id="comparePercent">
           0%
         </strong>
+
       </div>
 
+
       <div class="compare-card">
-        <span>Status</span>
+
+        <span>
+          Status
+        </span>
+
         <strong
           id="compareStatus"
           class="compare-neutral"
         >
           Select months
         </strong>
+
       </div>
 
     </div>
@@ -589,13 +774,19 @@
     <div class="panel-head">
 
       <div>
-        <h3>Month-wise Summary</h3>
+
+        <h3>
+          Month-wise Summary
+        </h3>
+
         <p>
           Sales, Budget Customers, Total Budget and Zero Sales Budget.
         </p>
+
       </div>
 
     </div>
+
 
     <div
       id="monthlyCards"
@@ -615,10 +806,15 @@
     <div class="panel-head">
 
       <div>
-        <h3>Analysis View</h3>
+
+        <h3>
+          Analysis View
+        </h3>
+
         <p>
           Month-wise values use Taxable Sales. Click any column heading to sort.
         </p>
+
       </div>
 
     </div>
@@ -664,12 +860,17 @@
       <table class="summary-table">
 
         <thead>
+
           <tr>
+
             <th id="viewLabel">
               Customer / Party
             </th>
+
           </tr>
+
         </thead>
+
 
         <tbody
           id="groupSummaryBody"
@@ -733,8 +934,11 @@
       <table class="budget-table">
 
         <thead>
+
           <tr id="budgetTableHead"></tr>
+
         </thead>
+
 
         <tbody
           id="budgetTableBody"
@@ -830,8 +1034,11 @@
       <table>
 
         <thead>
+
           <tr id="tableHead"></tr>
+
         </thead>
+
 
         <tbody
           id="tableBody"
@@ -864,26 +1071,43 @@
 </main>
 
 
-<!-- Supabase Library -->
+
+<!-- ========================================================
+     SUPABASE
+     ======================================================== -->
+
 <script
   src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
 ></script>
+
 
 <script
   src="config.js?v=online16"
 ></script>
 
+
 <script
   src="script.js?v=online16"
 ></script>
+
 
 <script
   src="sort-addon.js?v=online17"
 ></script>
 
+
+<!-- Login / Session / Role Access -->
 <script
   src="auth-addon.js?v=online19"
 ></script>
 
+
+<!-- Admin User Management -->
+<script
+  src="admin-addon.js?v=online20"
+></script>
+
+
 </body>
+
 </html>
