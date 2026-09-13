@@ -1,24 +1,24 @@
 /* ============================================================
    RAJ DASHBOARD
-   SAFE SORT + FAST PRODUCT ANALYSIS
-   VERSION: online23
+   SAFE SORT + FAST PRODUCT ANALYSIS + SPEED CONTROL
+   VERSION: online24
 
-   FIXED:
-   - Product Analysis timeout removed
-   - Product Analysis now uses ONE RPC call
-   - ItemCode is FIRST column
-   - ItemName is SECOND column
-   - Month-wise Taxable Sales
-   - Detailed Sales sorting preserved
+   SPEED FIX:
+   - Only one dashboard load at a time
+   - Multiple rapid filter changes are combined
+   - No overlapping heavy Supabase queries
+   - Filter option lists load fully only on initial load
+   - Subsequent filter selections reload DATA only
+   - Product Wise ItemCode remains first column
+   - Detailed sorting preserved
    - Analysis sorting preserved
    - No MutationObserver
-   - No infinite loop
    ============================================================ */
 
 
 /* ============================================================
    DETAILED SORT STATE
-   ============================================================ */
+============================================================ */
 
 let rajDetailSortColumn =
   'MainGrp';
@@ -29,14 +29,14 @@ let rajDetailSortDirection =
 
 /* ============================================================
    ANALYSIS SORT STATE
-   ============================================================ */
+============================================================ */
 
 const rajAnalysisSortByView = {};
 
 
 /* ============================================================
    SAVE ORIGINAL RPC
-   ============================================================ */
+============================================================ */
 
 const rajOriginalRpc =
   rpc;
@@ -45,7 +45,7 @@ const rajOriginalRpc =
 /* ============================================================
    DETAILED SALES:
    REDIRECT NORMAL ROW RPC TO SORTED RPC
-   ============================================================ */
+============================================================ */
 
 rpc =
   async function(
@@ -61,7 +61,6 @@ rpc =
       return await rajOriginalRpc(
         'raj_dashboard_rows_sorted',
         {
-
           ...params,
 
           p_sort_column:
@@ -69,7 +68,6 @@ rpc =
 
           p_sort_direction:
             rajDetailSortDirection
-
         }
       );
 
@@ -86,7 +84,7 @@ rpc =
 
 /* ============================================================
    HELPERS
-   ============================================================ */
+============================================================ */
 
 function rajEsc(value){
 
@@ -143,7 +141,7 @@ function rajNumber(value){
 
 /* ============================================================
    SORT HELPERS
-   ============================================================ */
+============================================================ */
 
 function rajCleanHeaderText(text){
 
@@ -272,7 +270,7 @@ function rajIsNumericAnalysisHeader(
 
 /* ============================================================
    DETAILED SALES SORT UI
-   ============================================================ */
+============================================================ */
 
 function rajApplyDetailHeaderUI(){
 
@@ -420,7 +418,7 @@ function rajApplyDetailHeaderUI(){
 
 /* ============================================================
    ANALYSIS SORT STATE
-   ============================================================ */
+============================================================ */
 
 function rajGetAnalysisSortState(){
 
@@ -453,7 +451,7 @@ function rajGetAnalysisSortState(){
 
 /* ============================================================
    DISPLAY TEXT -> NUMBER
-   ============================================================ */
+============================================================ */
 
 function rajParseNumber(text){
 
@@ -502,7 +500,7 @@ function rajParseNumber(text){
 
 /* ============================================================
    ANALYSIS SORT
-   ============================================================ */
+============================================================ */
 
 function rajApplyAnalysisSort(){
 
@@ -558,10 +556,6 @@ function rajApplyAnalysisSort(){
 
   }
 
-
-  /*
-    Don't sort placeholder/error row.
-  */
 
   if(
     rows.length === 1
@@ -819,7 +813,7 @@ function rajApplyAnalysisSort(){
 
 /* ============================================================
    MONTH TAXABLE VALUE FROM FAST PRODUCT RPC
-   ============================================================ */
+============================================================ */
 
 function rajProductMonthTaxable(
   row,
@@ -942,7 +936,7 @@ function rajProductMonthTaxable(
 
 /* ============================================================
    FAST PRODUCT WISE ANALYSIS
-   ============================================================ */
+============================================================ */
 
 async function rajLoadProductAnalysis(){
 
@@ -987,10 +981,6 @@ async function rajLoadProductAnalysis(){
 
       : [...months];
 
-
-  /* ========================================================
-     BUILD HEADER
-     ======================================================== */
 
   let header = `
 
@@ -1080,35 +1070,14 @@ async function rajLoadProductAnalysis(){
 
   try{
 
-    /*
-      args() already contains:
-      - effective dashboard filters
-      - role restricted SM
-      - month selection
-      - product sale status
-      - search
-    */
-
     const baseArgs =
       args();
 
-
-    /*
-      IMPORTANT:
-      ONE RPC ONLY.
-
-      Previous version made:
-      Total + every month = many scans.
-
-      This version performs
-      one database scan.
-    */
 
     const data =
       await rajOriginalRpc(
         'raj_product_analysis_fast',
         {
-
           p_filters:
             baseArgs.p_filters,
 
@@ -1120,7 +1089,6 @@ async function rajLoadProductAnalysis(){
 
           p_search:
             baseArgs.p_search
-
         }
       );
 
@@ -1159,10 +1127,6 @@ async function rajLoadProductAnalysis(){
 
     }
 
-
-    /* ======================================================
-       BUILD PRODUCT ROWS
-       ====================================================== */
 
     body.innerHTML =
       rows
@@ -1374,7 +1338,7 @@ async function rajLoadProductAnalysis(){
 
 /* ============================================================
    WRAP NORMAL ANALYSIS
-   ============================================================ */
+============================================================ */
 
 const rajOriginalLoadGroupSummary =
   loadGroupSummary;
@@ -1382,11 +1346,6 @@ const rajOriginalLoadGroupSummary =
 
 loadGroupSummary =
   async function(){
-
-    /*
-      PRODUCT WISE:
-      Use optimized ItemCode + ItemName report.
-    */
 
     if(
       currentView ===
@@ -1404,12 +1363,6 @@ loadGroupSummary =
     }
 
 
-    /*
-      CUSTOMER / COMPANY / SM /
-      DIVISION / PINCODE:
-      keep original dashboard logic.
-    */
-
     await rajOriginalLoadGroupSummary();
 
 
@@ -1419,15 +1372,336 @@ loadGroupSummary =
 
 
 /* ============================================================
+   PERFORMANCE / SPEED CONTROL
+
+   IMPORTANT:
+   Main script normally calls:
+   loadDashboard(true)
+
+   on many filter changes.
+
+   reloadFilters=true means it reloads ALL filter option
+   lists from Supabase every time.
+
+   That is unnecessary after first page load and causes
+   many database calls.
+
+   This wrapper:
+   1. Allows full option refresh on first load only.
+   2. Later loads data with reloadFilters=false.
+   3. Combines rapid filter changes.
+   4. Never allows overlapping dashboard loads.
+============================================================ */
+
+const rajSpeedOriginalLoadDashboard =
+  loadDashboard;
+
+
+let rajSpeedRunning =
+  false;
+
+
+let rajSpeedRequested =
+  false;
+
+
+let rajSpeedRequestedReload =
+  false;
+
+
+let rajSpeedInitialFullLoadDone =
+  false;
+
+
+let rajSpeedPromise =
+  null;
+
+
+let rajSpeedResolveList =
+  [];
+
+
+/* ============================================================
+   SMALL DELAY
+
+   Allows several fast clicks/checks to combine
+   into one server request.
+============================================================ */
+
+function rajSpeedDelay(ms){
+
+  return new Promise(
+    resolve =>
+      setTimeout(
+        resolve,
+        ms
+      )
+  );
+
+}
+
+
+/* ============================================================
+   PROCESS QUEUED DASHBOARD LOAD
+============================================================ */
+
+async function rajProcessDashboardQueue(){
+
+  if(
+    rajSpeedRunning
+  ){
+
+    return rajSpeedPromise;
+
+  }
+
+
+  rajSpeedRunning =
+    true;
+
+
+  rajSpeedPromise =
+    (async () => {
+
+      try{
+
+        /*
+          First small wait combines rapid filter clicks.
+        */
+
+        await rajSpeedDelay(
+          220
+        );
+
+
+        while(
+          rajSpeedRequested
+        ){
+
+          /*
+            Consume current request.
+          */
+
+          rajSpeedRequested =
+            false;
+
+
+          const requestedReload =
+            rajSpeedRequestedReload;
+
+
+          rajSpeedRequestedReload =
+            false;
+
+
+          /*
+            Full dropdown refresh only once.
+
+            First startup/login load:
+            true
+
+            Every later filter change:
+            false
+          */
+
+          let useFullReload =
+            false;
+
+
+          if(
+            !rajSpeedInitialFullLoadDone
+            &&
+            requestedReload
+          ){
+
+            useFullReload =
+              true;
+
+
+            rajSpeedInitialFullLoadDone =
+              true;
+
+          }
+
+
+          /*
+            Execute actual dashboard.
+            Only ONE at a time.
+          */
+
+          await rajSpeedOriginalLoadDashboard(
+            useFullReload
+          );
+
+
+          /*
+            Detailed sort arrows may be rebuilt.
+          */
+
+          try{
+
+            rajApplyDetailHeaderUI();
+
+          }catch(_){}
+
+
+          /*
+            If more filters changed while request was running,
+            wait briefly and run ONCE with latest state.
+          */
+
+          if(
+            rajSpeedRequested
+          ){
+
+            await rajSpeedDelay(
+              180
+            );
+
+          }
+
+        }
+
+
+      }finally{
+
+        rajSpeedRunning =
+          false;
+
+
+        const resolvers =
+          [
+            ...rajSpeedResolveList
+          ];
+
+
+        rajSpeedResolveList =
+          [];
+
+
+        resolvers.forEach(
+          resolve => {
+
+            try{
+
+              resolve();
+
+            }catch(_){}
+
+          }
+        );
+
+
+        rajSpeedPromise =
+          null;
+
+      }
+
+    })();
+
+
+  return rajSpeedPromise;
+
+}
+
+
+/* ============================================================
+   REPLACE DASHBOARD LOADER WITH QUEUED VERSION
+============================================================ */
+
+loadDashboard =
+  function(
+    reloadFilters = false
+  ){
+
+    rajSpeedRequested =
+      true;
+
+
+    if(
+      reloadFilters
+    ){
+
+      rajSpeedRequestedReload =
+        true;
+
+    }
+
+
+    const waitPromise =
+      new Promise(
+        resolve => {
+
+          rajSpeedResolveList.push(
+            resolve
+          );
+
+        }
+      );
+
+
+    rajProcessDashboardQueue();
+
+
+    return waitPromise;
+
+  };
+
+
+/* ============================================================
+   MANUAL FILTER OPTION REFRESH HELPER
+
+   Normal usage does not need it.
+
+   If ever required from console:
+   rajRefreshAllFilterOptions()
+============================================================ */
+
+window.rajRefreshAllFilterOptions =
+  async function(){
+
+    if(
+      typeof refreshFilters ===
+      'function'
+    ){
+
+      await refreshFilters();
+
+    }
+
+
+    if(
+      typeof buildMonths ===
+      'function'
+    ){
+
+      buildMonths();
+
+    }
+
+
+    if(
+      typeof loadODOptions ===
+      'function'
+    ){
+
+      await loadODOptions();
+
+    }
+
+  };
+
+
+/* ============================================================
    INITIAL SETUP
-   ============================================================ */
+============================================================ */
 
 document.addEventListener(
   'DOMContentLoaded',
   function(){
 
     /* --------------------------------------------------------
-       Detailed Sales headers
+       Detailed headers
        -------------------------------------------------------- */
 
     let detailTries =
