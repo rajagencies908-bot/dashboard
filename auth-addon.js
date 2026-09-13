@@ -1,7 +1,18 @@
 /* ============================================================
    RAJ AGENCIES
    AUTH + ROLE ACCESS ADDON
-   Mobile Login + Device Lock + SM/OD Permission
+   Version: online19
+
+   Features:
+   - Mobile + password login
+   - Saved login session validation
+   - Device lock
+   - SM access restriction
+   - OD access restriction
+   - Admin full access
+   - Logout
+   - Fail-closed dashboard visibility
+   - Back/forward cache protection
    ============================================================ */
 
 
@@ -11,7 +22,7 @@
 
 
   /* =========================================================
-     BASIC STATE
+     STORAGE KEYS
      ========================================================= */
 
   const AUTH_DEVICE_KEY =
@@ -24,36 +35,82 @@
     'raj_dashboard_user';
 
 
-  let rajAuthUser = null;
+  /* =========================================================
+     STATE
+     ========================================================= */
 
-  let rajAuthReady = false;
+  let rajAuthUser = null;
 
   let rajAuthRefreshing = false;
 
+  let rajAuthStarted = false;
 
 
   /* =========================================================
-     HELPERS
+     BASIC HELPERS
      ========================================================= */
 
   const authEl = id =>
     document.getElementById(id);
 
 
-  function safeJsonParse(value){
+  function escapeHtml(value){
 
-    try{
+    const div =
+      document.createElement('div');
 
-      return JSON.parse(value);
+    div.textContent =
+      String(value ?? '');
 
-    }catch{
-
-      return null;
-
-    }
+    return div.innerHTML;
 
   }
 
+
+  function normalizeCodes(value){
+
+    if(!Array.isArray(value)){
+      return [];
+    }
+
+    return value
+      .map(
+        item =>
+          String(item ?? '').trim()
+      )
+      .filter(Boolean);
+
+  }
+
+
+  /* =========================================================
+     FAIL-CLOSED VISIBILITY
+     ========================================================= */
+
+  function lockDashboard(){
+
+    document.documentElement
+      .classList
+      .add('raj-auth-pending');
+
+    document.body
+      ?.classList
+      .add('raj-auth-locked');
+
+  }
+
+
+  function unlockDashboard(){
+
+    document.documentElement
+      .classList
+      .remove('raj-auth-pending');
+
+    document.body
+      ?.classList
+      .remove('raj-auth-locked');
+
+  }
 
 
   /* =========================================================
@@ -69,19 +126,17 @@
 
 
     if(deviceId){
-
       return deviceId;
-
     }
 
 
     if(
       window.crypto &&
-      typeof crypto.randomUUID === 'function'
+      typeof window.crypto.randomUUID === 'function'
     ){
 
       deviceId =
-        crypto.randomUUID();
+        window.crypto.randomUUID();
 
     }else{
 
@@ -111,9 +166,8 @@
   }
 
 
-
   /* =========================================================
-     SAVED SESSION
+     SESSION STORAGE
      ========================================================= */
 
   function getSessionToken(){
@@ -160,9 +214,8 @@
   }
 
 
-
   /* =========================================================
-     LOGIN PAGE CSS
+     AUTH CSS
      ========================================================= */
 
   function addAuthStyles(){
@@ -172,9 +225,7 @@
         'rajAuthStyles'
       )
     ){
-
       return;
-
     }
 
 
@@ -192,12 +243,10 @@
         overflow:hidden !important;
       }
 
-
       body.raj-auth-locked > .topbar,
       body.raj-auth-locked > .container{
         visibility:hidden !important;
       }
-
 
       #rajAuthScreen{
         position:fixed;
@@ -223,19 +272,16 @@
             rgba(95,75,245,.35),
             transparent 30%
           ),
-
           radial-gradient(
             circle at 88% 15%,
             rgba(236,72,153,.22),
             transparent 27%
           ),
-
           radial-gradient(
             circle at 80% 90%,
             rgba(6,182,212,.22),
             transparent 30%
           ),
-
           linear-gradient(
             135deg,
             #edf3ff 0%,
@@ -244,18 +290,13 @@
           );
       }
 
-
       .raj-auth-box{
         width:min(440px,100%);
 
-        background:
-          rgba(255,255,255,.80);
+        position:relative;
+        overflow:hidden;
 
-        backdrop-filter:
-          blur(28px);
-
-        -webkit-backdrop-filter:
-          blur(28px);
+        padding:38px 34px 34px;
 
         border:
           1px solid
@@ -263,17 +304,19 @@
 
         border-radius:28px;
 
+        background:
+          rgba(255,255,255,.84);
+
+        backdrop-filter:
+          blur(28px);
+
+        -webkit-backdrop-filter:
+          blur(28px);
+
         box-shadow:
           0 30px 80px
           rgba(54,45,120,.20);
-
-        padding:38px 34px 34px;
-
-        position:relative;
-
-        overflow:hidden;
       }
-
 
       .raj-auth-box::before{
         content:"";
@@ -296,7 +339,6 @@
           );
       }
 
-
       .raj-auth-logo{
         width:62px;
         height:62px;
@@ -308,6 +350,11 @@
 
         border-radius:19px;
 
+        color:#fff;
+
+        font-size:29px;
+        font-weight:900;
+
         background:
           linear-gradient(
             135deg,
@@ -316,16 +363,10 @@
             #b052ef
           );
 
-        color:white;
-
-        font-size:29px;
-        font-weight:900;
-
         box-shadow:
           0 13px 28px
           rgba(99,76,230,.30);
       }
-
 
       .raj-auth-title{
         margin:0;
@@ -340,7 +381,6 @@
         letter-spacing:-.7px;
       }
 
-
       .raj-auth-subtitle{
         margin:
           7px
@@ -354,11 +394,9 @@
         font-size:12px;
       }
 
-
       .raj-auth-field{
         margin-bottom:15px;
       }
-
 
       .raj-auth-field label{
         display:block;
@@ -371,14 +409,11 @@
         font-weight:850;
       }
 
-
       .raj-auth-field input{
         width:100%;
         height:49px;
 
-        padding:
-          0
-          14px;
+        padding:0 14px;
 
         border:
           1px solid
@@ -389,7 +424,7 @@
         outline:none;
 
         background:
-          rgba(255,255,255,.88);
+          rgba(255,255,255,.90);
 
         color:#17213c;
 
@@ -400,7 +435,6 @@
           box-shadow .18s;
       }
 
-
       .raj-auth-field input:focus{
         border-color:
           rgba(95,75,235,.62);
@@ -409,7 +443,6 @@
           0 0 0 4px
           rgba(95,75,235,.10);
       }
-
 
       #rajLoginButton{
         width:100%;
@@ -444,8 +477,7 @@
           box-shadow .18s;
       }
 
-
-      #rajLoginButton:hover{
+      #rajLoginButton:hover:not(:disabled){
         transform:
           translateY(-2px);
 
@@ -454,13 +486,10 @@
           rgba(89,70,225,.31);
       }
 
-
       #rajLoginButton:disabled{
         opacity:.6;
         cursor:not-allowed;
-        transform:none;
       }
-
 
       #rajLoginMessage{
         min-height:21px;
@@ -473,16 +502,13 @@
         font-weight:750;
       }
 
-
       .raj-auth-error{
         color:#c8324e;
       }
 
-
       .raj-auth-success{
         color:#08794d;
       }
-
 
       .raj-auth-footer{
         margin-top:17px;
@@ -500,7 +526,6 @@
         font-size:10px;
       }
 
-
       #rajUserArea{
         display:flex;
         align-items:center;
@@ -508,7 +533,6 @@
 
         margin-left:10px;
       }
-
 
       .raj-user-card{
         display:flex;
@@ -530,7 +554,6 @@
         background:
           rgba(255,255,255,.72);
       }
-
 
       .raj-user-avatar{
         width:31px;
@@ -554,11 +577,9 @@
           );
       }
 
-
       .raj-user-text{
         min-width:80px;
       }
-
 
       .raj-user-name{
         color:#1d2743;
@@ -569,7 +590,6 @@
         line-height:1.15;
       }
 
-
       .raj-user-role{
         margin-top:2px;
 
@@ -578,7 +598,6 @@
         font-size:9px;
         font-weight:700;
       }
-
 
       #rajLogoutBtn{
         border:0;
@@ -598,7 +617,6 @@
         font-size:10px;
         font-weight:900;
       }
-
 
       #rajAccessBadge{
         margin:
@@ -629,7 +647,6 @@
         font-weight:800;
       }
 
-
       @media(max-width:760px){
 
         .raj-auth-box{
@@ -639,11 +656,9 @@
             25px;
         }
 
-
         .raj-auth-title{
           font-size:23px;
         }
-
 
         .raj-user-text{
           display:none;
@@ -661,26 +676,22 @@
   }
 
 
-
   /* =========================================================
-     CREATE LOGIN SCREEN
+     LOGIN SCREEN
      ========================================================= */
 
   function createLoginScreen(){
 
-    if(authEl('rajAuthScreen')){
+    let screen =
+      authEl('rajAuthScreen');
 
-      return;
 
+    if(screen){
+      return screen;
     }
 
 
-    document.body.classList.add(
-      'raj-auth-locked'
-    );
-
-
-    const screen =
+    screen =
       document.createElement('div');
 
 
@@ -696,16 +707,13 @@
           R
         </div>
 
-
         <h1 class="raj-auth-title">
           Raj Agencies
         </h1>
 
-
         <div class="raj-auth-subtitle">
           Sales Intelligence Dashboard
         </div>
-
 
         <form id="rajLoginForm">
 
@@ -727,7 +735,6 @@
 
           </div>
 
-
           <div class="raj-auth-field">
 
             <label>
@@ -744,7 +751,6 @@
 
           </div>
 
-
           <button
             id="rajLoginButton"
             type="submit"
@@ -752,13 +758,9 @@
             Login
           </button>
 
-
-          <div
-            id="rajLoginMessage"
-          ></div>
+          <div id="rajLoginMessage"></div>
 
         </form>
-
 
         <div class="raj-auth-footer">
           Authorized Raj Agencies users only
@@ -797,34 +799,22 @@
       }
     );
 
+
+    return screen;
+
   }
 
 
-
-  /* =========================================================
-     SHOW LOGIN
-     ========================================================= */
-
   function showLogin(message = ''){
 
-    createLoginScreen();
-
+    lockDashboard();
 
     const screen =
-      authEl('rajAuthScreen');
+      createLoginScreen();
 
 
-    if(screen){
-
-      screen.style.display =
-        'flex';
-
-    }
-
-
-    document.body.classList.add(
-      'raj-auth-locked'
-    );
+    screen.style.display =
+      'flex';
 
 
     const msg =
@@ -846,11 +836,6 @@
   }
 
 
-
-  /* =========================================================
-     HIDE LOGIN
-     ========================================================= */
-
   function hideLogin(){
 
     const screen =
@@ -865,16 +850,13 @@
     }
 
 
-    document.body.classList.remove(
-      'raj-auth-locked'
-    );
+    unlockDashboard();
 
   }
 
 
-
   /* =========================================================
-     RPC DIRECT
+     SUPABASE RPC
      ========================================================= */
 
   async function authRpc(
@@ -906,16 +888,13 @@
 
 
     if(error){
-
       throw error;
-
     }
 
 
     return data;
 
   }
-
 
 
   /* =========================================================
@@ -977,6 +956,15 @@
     }
 
 
+    /*
+      Important:
+      If user is on login screen and tries a new login,
+      remove any old browser session first.
+    */
+
+    clearSession();
+
+
     button.disabled =
       true;
 
@@ -1015,13 +1003,13 @@
         data.success !== true
       ){
 
-        message.textContent =
+        clearSession();
+
+        showLogin(
           data?.message
           ||
-          'Login failed.';
-
-        message.className =
-          'raj-auth-error';
+          'Login failed.'
+        );
 
         return;
 
@@ -1055,19 +1043,19 @@
 
     }catch(error){
 
+      clearSession();
+
       console.error(
         'Login error:',
         error
       );
 
 
-      message.textContent =
+      showLogin(
         error?.message
         ||
-        'Unable to login.';
-
-      message.className =
-        'raj-auth-error';
+        'Unable to login.'
+      );
 
     }finally{
 
@@ -1082,9 +1070,8 @@
   }
 
 
-
   /* =========================================================
-     VALIDATE SESSION
+     SESSION VALIDATION
      ========================================================= */
 
   async function validateSavedSession(){
@@ -1094,6 +1081,8 @@
 
 
     if(!token){
+
+      clearSession();
 
       return false;
 
@@ -1156,6 +1145,8 @@
       );
 
 
+      clearSession();
+
       return false;
 
     }
@@ -1163,37 +1154,8 @@
   }
 
 
-
   /* =========================================================
-     NORMALIZE ACCESS
-     ========================================================= */
-
-  function normalizeCodes(value){
-
-    if(!Array.isArray(value)){
-
-      return [];
-
-    }
-
-
-    return value
-
-      .map(
-        x =>
-          String(
-            x ?? ''
-          ).trim()
-      )
-
-      .filter(Boolean);
-
-  }
-
-
-
-  /* =========================================================
-     APPLY ROLE ACCESS
+     ROLE ACCESS
      ========================================================= */
 
   function forceRoleSelections(){
@@ -1203,9 +1165,7 @@
       ||
       typeof selected === 'undefined'
     ){
-
       return;
-
     }
 
 
@@ -1231,8 +1191,6 @@
       );
 
 
-    /* ADMIN / FULL VIEW */
-
     if(
       role === 'Admin'
       ||
@@ -1242,41 +1200,31 @@
       ||
       odAccess.includes('ALL')
     ){
-
       return;
-
     }
 
-
-    /* SM ROLE */
 
     if(role === 'SM'){
 
       selected.SM =
         [...smAccess];
 
-
       selected.budgetOD =
         [];
 
     }
 
-
-    /* OD ROLE */
 
     if(role === 'OD'){
 
       selected.SM =
         [];
 
-
       selected.budgetOD =
         [...odAccess];
 
     }
 
-
-    /* SALES HEAD */
 
     if(role === 'SalesHead'){
 
@@ -1300,17 +1248,50 @@
   }
 
 
-
   /* =========================================================
-     DISABLE ROLE FILTER UI
+     ROLE UI LOCK
      ========================================================= */
+
+  function disableMulti(
+    id,
+    disabled
+  ){
+
+    const multi =
+      authEl(id);
+
+
+    if(!multi){
+      return;
+    }
+
+
+    multi.style.opacity =
+      disabled
+        ? '.72'
+        : '1';
+
+
+    multi
+      .querySelectorAll(
+        'input,button'
+      )
+      .forEach(
+        node => {
+
+          node.disabled =
+            disabled;
+
+        }
+      );
+
+  }
+
 
   function lockRoleFilterUI(){
 
     if(!rajAuthUser){
-
       return;
-
     }
 
 
@@ -1330,79 +1311,67 @@
       fullView
     ){
 
+      disableMulti(
+        'multi_SM',
+        false
+      );
+
+      disableMulti(
+        'multi_budgetOD',
+        false
+      );
+
       return;
 
     }
 
 
-    /* SM dropdown */
+    if(role === 'SM'){
 
-    if(
-      role === 'SM'
-      ||
-      role === 'SalesHead'
-    ){
-
-      const multi =
-        authEl('multi_SM');
-
-
-      if(multi){
-
-        multi.style.opacity =
-          '.72';
-
-
-        multi
-          .querySelectorAll(
-            'input,button'
-          )
-          .forEach(
-            node => {
-
-              node.disabled =
-                true;
-
-            }
-          );
-
-      }
+      disableMulti(
+        'multi_SM',
+        true
+      );
 
     }
 
 
-    /* OD dropdown */
+    if(role === 'OD'){
 
-    if(
-      role === 'OD'
-      ||
-      role === 'SalesHead'
-    ){
+      disableMulti(
+        'multi_budgetOD',
+        true
+      );
 
-      const multi =
-        authEl(
-          'multi_budgetOD'
+    }
+
+
+    if(role === 'SalesHead'){
+
+      if(
+        normalizeCodes(
+          rajAuthUser.sm_access
+        ).length
+      ){
+
+        disableMulti(
+          'multi_SM',
+          true
         );
 
-
-      if(multi){
-
-        multi.style.opacity =
-          '.72';
+      }
 
 
-        multi
-          .querySelectorAll(
-            'input,button'
-          )
-          .forEach(
-            node => {
+      if(
+        normalizeCodes(
+          rajAuthUser.od_access
+        ).length
+      ){
 
-              node.disabled =
-                true;
-
-            }
-          );
+        disableMulti(
+          'multi_budgetOD',
+          true
+        );
 
       }
 
@@ -1411,17 +1380,14 @@
   }
 
 
-
   /* =========================================================
-     USER HEADER DISPLAY
+     USER HEADER
      ========================================================= */
 
   function renderUserArea(){
 
     if(!rajAuthUser){
-
       return;
-
     }
 
 
@@ -1433,7 +1399,6 @@
 
       area =
         document.createElement('div');
-
 
       area.id =
         'rajUserArea';
@@ -1462,12 +1427,6 @@
       );
 
 
-    const firstLetter =
-      name
-        .charAt(0)
-        .toUpperCase();
-
-
     const sm =
       normalizeCodes(
         rajAuthUser.sm_access
@@ -1481,7 +1440,9 @@
 
 
     let accessText =
-      rajAuthUser.role;
+      String(
+        rajAuthUser.role || ''
+      );
 
 
     if(
@@ -1515,23 +1476,24 @@
       <div class="raj-user-card">
 
         <div class="raj-user-avatar">
-          ${firstLetter}
+          ${escapeHtml(
+            name.charAt(0).toUpperCase()
+          )}
         </div>
 
         <div class="raj-user-text">
 
           <div class="raj-user-name">
-            ${escapeAuthHtml(name)}
+            ${escapeHtml(name)}
           </div>
 
           <div class="raj-user-role">
-            ${escapeAuthHtml(accessText)}
+            ${escapeHtml(accessText)}
           </div>
 
         </div>
 
       </div>
-
 
       <button
         type="button"
@@ -1552,23 +1514,6 @@
   }
 
 
-
-  function escapeAuthHtml(value){
-
-    const div =
-      document.createElement('div');
-
-
-    div.textContent =
-      String(value ?? '');
-
-
-    return div.innerHTML;
-
-  }
-
-
-
   /* =========================================================
      ACCESS BADGE
      ========================================================= */
@@ -1586,9 +1531,7 @@
       ||
       !rajAuthUser
     ){
-
       return;
-
     }
 
 
@@ -1601,10 +1544,8 @@
       badge =
         document.createElement('div');
 
-
       badge.id =
         'rajAccessBadge';
-
 
       hero.insertAdjacentElement(
         'afterend',
@@ -1615,7 +1556,9 @@
 
 
     const role =
-      rajAuthUser.role;
+      String(
+        rajAuthUser.role || ''
+      );
 
 
     const sm =
@@ -1664,207 +1607,38 @@
     }
 
 
+    if(role === 'SalesHead'){
+
+      const parts = [];
+
+      if(sm.length){
+        parts.push(
+          'SM: ' + sm.join(', ')
+        );
+      }
+
+      if(od.length){
+        parts.push(
+          'OD: ' + od.join(', ')
+        );
+      }
+
+      badge.textContent =
+        `Logged in as ${rajAuthUser.name} • Sales Head • ${parts.join(' • ')}`;
+
+      return;
+
+    }
+
+
     badge.textContent =
       `Logged in as ${rajAuthUser.name} • ${role}`;
 
   }
 
 
-
   /* =========================================================
-     ACTIVATE USER
-     ========================================================= */
-
-  async function activateUser(user){
-
-    rajAuthUser =
-      user;
-
-
-    forceRoleSelections();
-
-
-    renderUserArea();
-
-    renderAccessBadge();
-
-
-    /* Wait until dashboard filters exist */
-
-    setTimeout(
-      () => {
-
-        forceRoleSelections();
-
-        lockRoleFilterUI();
-
-        refreshVisibleDashboard();
-
-      },
-      300
-    );
-
-
-    setTimeout(
-      () => {
-
-        forceRoleSelections();
-
-        lockRoleFilterUI();
-
-      },
-      1000
-    );
-
-  }
-
-
-
-  /* =========================================================
-     REFRESH DASHBOARD
-     ========================================================= */
-
-  async function refreshVisibleDashboard(){
-
-    if(rajAuthRefreshing){
-
-      return;
-
-    }
-
-
-    if(
-      typeof loadDashboard
-      !== 'function'
-    ){
-
-      return;
-
-    }
-
-
-    rajAuthRefreshing =
-      true;
-
-
-    try{
-
-      forceRoleSelections();
-
-
-      page = 1;
-
-
-      if(
-        typeof budgetPage
-        !== 'undefined'
-      ){
-
-        budgetPage = 1;
-
-      }
-
-
-      await loadDashboard(false);
-
-
-    }catch(error){
-
-      console.error(
-        'Role refresh error:',
-        error
-      );
-
-
-    }finally{
-
-      rajAuthRefreshing =
-        false;
-
-    }
-
-  }
-
-
-
-  /* =========================================================
-     PROTECT loadDashboard
-     ========================================================= */
-
-  function protectDashboardLoader(){
-
-    if(
-      typeof loadDashboard
-      !== 'function'
-    ){
-
-      return false;
-
-    }
-
-
-    if(
-      loadDashboard
-        .__rajAuthProtected
-    ){
-
-      return true;
-
-    }
-
-
-    const originalLoadDashboard =
-      loadDashboard;
-
-
-    const protectedLoader =
-      async function(...args){
-
-        if(!rajAuthUser){
-
-          return;
-
-        }
-
-
-        forceRoleSelections();
-
-
-        const result =
-          await originalLoadDashboard
-            .apply(
-              this,
-              args
-            );
-
-
-        forceRoleSelections();
-
-        lockRoleFilterUI();
-
-
-        return result;
-
-      };
-
-
-    protectedLoader
-      .__rajAuthProtected =
-      true;
-
-
-    loadDashboard =
-      protectedLoader;
-
-
-    return true;
-
-  }
-
-
-
-  /* =========================================================
-     PROTECT NORMAL FILTER OBJECT
+     PROTECT DASHBOARD FILTER BUILDERS
      ========================================================= */
 
   function protectNormalFilterObject(){
@@ -1873,9 +1647,7 @@
       typeof normalFilterObject
       !== 'function'
     ){
-
       return false;
-
     }
 
 
@@ -1883,9 +1655,7 @@
       normalFilterObject
         .__rajAuthProtected
     ){
-
       return true;
-
     }
 
 
@@ -1904,29 +1674,22 @@
 
 
         if(!rajAuthUser){
-
           return obj;
-
         }
 
 
         const role =
-          rajAuthUser.role;
-
-
-        const full =
-          rajAuthUser.full_view
-          === true;
+          String(
+            rajAuthUser.role || ''
+          );
 
 
         if(
           role === 'Admin'
           ||
-          full
+          rajAuthUser.full_view === true
         ){
-
           return obj;
-
         }
 
 
@@ -1936,28 +1699,20 @@
           );
 
 
-        const od =
-          normalizeCodes(
-            rajAuthUser.od_access
-          );
-
-
-        if(role === 'SM'){
-
-          obj.SM =
-            [...sm];
-
-        }
-
-
         if(
-          role === 'SalesHead'
-          &&
-          sm.length
+          role === 'SM'
+          ||
+          (
+            role === 'SalesHead'
+            &&
+            sm.length
+          )
         ){
 
           obj.SM =
-            [...sm];
+            sm.length
+              ? [...sm]
+              : ['__RAJ_NO_ACCESS__'];
 
         }
 
@@ -1980,20 +1735,13 @@
   }
 
 
-
-  /* =========================================================
-     PROTECT RAW BUDGET ARGS
-     ========================================================= */
-
   function protectBudgetArgs(){
 
     if(
       typeof rawBudgetArgs
       !== 'function'
     ){
-
       return false;
-
     }
 
 
@@ -2001,9 +1749,7 @@
       rawBudgetArgs
         .__rajAuthProtected
     ){
-
       return true;
-
     }
 
 
@@ -2022,14 +1768,14 @@
 
 
         if(!rajAuthUser){
-
           return result;
-
         }
 
 
         const role =
-          rajAuthUser.role;
+          String(
+            rajAuthUser.role || ''
+          );
 
 
         if(
@@ -2037,9 +1783,7 @@
           ||
           rajAuthUser.full_view === true
         ){
-
           return result;
-
         }
 
 
@@ -2059,10 +1803,8 @@
 
           result.p_sms =
             sm.length
-              ? sm
-              : [
-                  '__RAJ_NO_ACCESS__'
-                ];
+              ? [...sm]
+              : ['__RAJ_NO_ACCESS__'];
 
         }
 
@@ -2071,10 +1813,8 @@
 
           result.p_ods =
             od.length
-              ? od
-              : [
-                  '__RAJ_NO_ACCESS__'
-                ];
+              ? [...od]
+              : ['__RAJ_NO_ACCESS__'];
 
         }
 
@@ -2082,18 +1822,13 @@
         if(role === 'SalesHead'){
 
           if(sm.length){
-
             result.p_sms =
               [...sm];
-
           }
 
-
           if(od.length){
-
             result.p_ods =
               [...od];
-
           }
 
         }
@@ -2117,6 +1852,218 @@
   }
 
 
+  function protectDashboardLoader(){
+
+    if(
+      typeof loadDashboard
+      !== 'function'
+    ){
+      return false;
+    }
+
+
+    if(
+      loadDashboard
+        .__rajAuthProtected
+    ){
+      return true;
+    }
+
+
+    const original =
+      loadDashboard;
+
+
+    const wrapped =
+      async function(...args){
+
+        /*
+          Never allow dashboard reload without
+          an authenticated user.
+        */
+
+        if(!rajAuthUser){
+          return;
+        }
+
+
+        forceRoleSelections();
+
+
+        const result =
+          await original.apply(
+            this,
+            args
+          );
+
+
+        forceRoleSelections();
+
+        lockRoleFilterUI();
+
+
+        return result;
+
+      };
+
+
+    wrapped.__rajAuthProtected =
+      true;
+
+
+    loadDashboard =
+      wrapped;
+
+
+    return true;
+
+  }
+
+
+  function installProtections(){
+
+    let attempts = 0;
+
+
+    const timer =
+      setInterval(
+        () => {
+
+          attempts++;
+
+
+          const a =
+            protectDashboardLoader();
+
+          const b =
+            protectNormalFilterObject();
+
+          const c =
+            protectBudgetArgs();
+
+
+          if(
+            (a && b && c)
+            ||
+            attempts >= 100
+          ){
+
+            clearInterval(
+              timer
+            );
+
+          }
+
+        },
+        50
+      );
+
+  }
+
+
+  /* =========================================================
+     REFRESH DASHBOARD AFTER LOGIN
+     ========================================================= */
+
+  async function refreshVisibleDashboard(){
+
+    if(
+      rajAuthRefreshing
+      ||
+      typeof loadDashboard
+        !== 'function'
+    ){
+      return;
+    }
+
+
+    rajAuthRefreshing =
+      true;
+
+
+    try{
+
+      forceRoleSelections();
+
+
+      if(
+        typeof page !== 'undefined'
+      ){
+        page = 1;
+      }
+
+
+      if(
+        typeof budgetPage !== 'undefined'
+      ){
+        budgetPage = 1;
+      }
+
+
+      await loadDashboard(false);
+
+
+    }catch(error){
+
+      console.error(
+        'Role refresh error:',
+        error
+      );
+
+    }finally{
+
+      rajAuthRefreshing =
+        false;
+
+    }
+
+  }
+
+
+  /* =========================================================
+     ACTIVATE LOGGED IN USER
+     ========================================================= */
+
+  async function activateUser(user){
+
+    rajAuthUser =
+      user;
+
+
+    forceRoleSelections();
+
+    renderUserArea();
+
+    renderAccessBadge();
+
+
+    setTimeout(
+      () => {
+
+        forceRoleSelections();
+
+        lockRoleFilterUI();
+
+        refreshVisibleDashboard();
+
+      },
+      250
+    );
+
+
+    setTimeout(
+      () => {
+
+        forceRoleSelections();
+
+        lockRoleFilterUI();
+
+      },
+      900
+    );
+
+  }
+
 
   /* =========================================================
      LOGOUT
@@ -2130,6 +2077,13 @@
 
     const deviceId =
       getDeviceId();
+
+
+    /*
+      Immediately lock UI before network call.
+    */
+
+    lockDashboard();
 
 
     try{
@@ -2162,72 +2116,35 @@
     clearSession();
 
 
-    location.reload();
+    /*
+      Reload without keeping dashboard visible.
+    */
+
+    window.location.replace(
+      window.location.pathname +
+      '?auth=' +
+      Date.now()
+    );
 
   }
 
 
-
   /* =========================================================
-     START AUTH
+     PAGE RESTORE / BF CACHE PROTECTION
      ========================================================= */
 
-  async function startAuth(){
-
-    addAuthStyles();
-
-
-    createLoginScreen();
-
+  async function recheckAfterPageRestore(){
 
     /*
-      Protect dashboard functions.
-      Poll only until JS functions are ready.
+      Browser back-forward cache can restore old HTML.
+      Lock first, then verify session again.
     */
 
-    let attempts = 0;
-
-
-    const protectTimer =
-      setInterval(
-        () => {
-
-          attempts++;
-
-
-          const a =
-            protectDashboardLoader();
-
-          const b =
-            protectNormalFilterObject();
-
-          const c =
-            protectBudgetArgs();
-
-
-          if(
-            (a && b && c)
-            ||
-            attempts > 50
-          ){
-
-            clearInterval(
-              protectTimer
-            );
-
-          }
-
-        },
-        100
-      );
+    lockDashboard();
 
 
     const valid =
       await validateSavedSession();
-
-
-    rajAuthReady =
-      true;
 
 
     if(valid){
@@ -2243,10 +2160,88 @@
   }
 
 
+  window.addEventListener(
+    'pageshow',
+    event => {
+
+      if(
+        event.persisted
+        ||
+        !getSessionToken()
+      ){
+
+        recheckAfterPageRestore();
+
+      }
+
+    }
+  );
+
+
+  document.addEventListener(
+    'visibilitychange',
+    () => {
+
+      if(
+        document.visibilityState === 'visible'
+        &&
+        !getSessionToken()
+      ){
+
+        showLogin();
+
+      }
+
+    }
+  );
+
 
   /* =========================================================
      START
      ========================================================= */
+
+  async function startAuth(){
+
+    if(rajAuthStarted){
+      return;
+    }
+
+
+    rajAuthStarted =
+      true;
+
+
+    /*
+      IMPORTANT:
+      Page begins locked from index.html.
+      Keep it locked until validation completes.
+    */
+
+    lockDashboard();
+
+    addAuthStyles();
+
+    createLoginScreen();
+
+    installProtections();
+
+
+    const valid =
+      await validateSavedSession();
+
+
+    if(valid){
+
+      hideLogin();
+
+    }else{
+
+      showLogin();
+
+    }
+
+  }
+
 
   if(
     document.readyState ===
@@ -2255,7 +2250,10 @@
 
     document.addEventListener(
       'DOMContentLoaded',
-      startAuth
+      startAuth,
+      {
+        once:true
+      }
     );
 
   }else{
