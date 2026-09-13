@@ -1,22 +1,24 @@
 /* ============================================================
-   RAJ DASHBOARD - SAFE SORT + PRODUCT ANALYSIS ADDON
-   VERSION: online22
+   RAJ DASHBOARD
+   SAFE SORT + FAST PRODUCT ANALYSIS
+   VERSION: online23
 
-   FEATURES:
-   - NO MutationObserver
-   - NO infinite browser loop
-   - Detailed Sales default MainGrp A-Z
-   - Detailed Sales server-side sorting
-   - Analysis View client-side sorting
-   - Product Wise:
-       1st Column  = ItemCode
-       2nd Column  = Product / Item Name
+   FIXED:
+   - Product Analysis timeout removed
+   - Product Analysis now uses ONE RPC call
+   - ItemCode is FIRST column
+   - ItemName is SECOND column
+   - Month-wise Taxable Sales
+   - Detailed Sales sorting preserved
+   - Analysis sorting preserved
+   - No MutationObserver
+   - No infinite loop
    ============================================================ */
 
 
 /* ============================================================
-   DETAILED TABLE SORT STATE
-============================================================ */
+   DETAILED SORT STATE
+   ============================================================ */
 
 let rajDetailSortColumn =
   'MainGrp';
@@ -27,22 +29,23 @@ let rajDetailSortDirection =
 
 /* ============================================================
    ANALYSIS SORT STATE
-============================================================ */
+   ============================================================ */
 
 const rajAnalysisSortByView = {};
 
 
 /* ============================================================
    SAVE ORIGINAL RPC
-============================================================ */
+   ============================================================ */
 
 const rajOriginalRpc =
   rpc;
 
 
 /* ============================================================
-   INTERCEPT DETAILED SALES ROW RPC
-============================================================ */
+   DETAILED SALES:
+   REDIRECT NORMAL ROW RPC TO SORTED RPC
+   ============================================================ */
 
 rpc =
   async function(
@@ -58,6 +61,7 @@ rpc =
       return await rajOriginalRpc(
         'raj_dashboard_rows_sorted',
         {
+
           ...params,
 
           p_sort_column:
@@ -65,6 +69,7 @@ rpc =
 
           p_sort_direction:
             rajDetailSortDirection
+
         }
       );
 
@@ -80,46 +85,8 @@ rpc =
 
 
 /* ============================================================
-   MONEY
-============================================================ */
-
-function rajMoney(value){
-
-  return '₹' +
-    new Intl.NumberFormat(
-      'en-IN',
-      {
-        minimumFractionDigits:2,
-        maximumFractionDigits:2
-      }
-    ).format(
-      Number(value || 0)
-    );
-
-}
-
-
-/* ============================================================
-   NUMBER
-============================================================ */
-
-function rajNumber(value){
-
-  return new Intl.NumberFormat(
-    'en-IN',
-    {
-      maximumFractionDigits:2
-    }
-  ).format(
-    Number(value || 0)
-  );
-
-}
-
-
-/* ============================================================
-   ESCAPE
-============================================================ */
+   HELPERS
+   ============================================================ */
 
 function rajEsc(value){
 
@@ -140,9 +107,76 @@ function rajEsc(value){
 }
 
 
+function rajMoney(value){
+
+  return '₹' +
+    new Intl.NumberFormat(
+      'en-IN',
+      {
+        minimumFractionDigits:2,
+        maximumFractionDigits:2
+      }
+    ).format(
+      Number(
+        value || 0
+      )
+    );
+
+}
+
+
+function rajNumber(value){
+
+  return new Intl.NumberFormat(
+    'en-IN',
+    {
+      maximumFractionDigits:2
+    }
+  ).format(
+    Number(
+      value || 0
+    )
+  );
+
+}
+
+
 /* ============================================================
-   DETAIL NUMERIC COLUMN
-============================================================ */
+   SORT HELPERS
+   ============================================================ */
+
+function rajCleanHeaderText(text){
+
+  return String(
+    text || ''
+  )
+    .replace(
+      /\s*[▲▼↕]\s*$/g,
+      ''
+    )
+    .trim();
+
+}
+
+
+function rajSortArrow(
+  active,
+  direction
+){
+
+  if(!active){
+
+    return ' ↕';
+
+  }
+
+
+  return direction === 'asc'
+    ? ' ▲'
+    : ' ▼';
+
+}
+
 
 function rajIsNumericDetailColumn(
   column
@@ -193,10 +227,6 @@ function rajIsNumericDetailColumn(
 }
 
 
-/* ============================================================
-   ANALYSIS NUMERIC HEADER
-============================================================ */
-
 function rajIsNumericAnalysisHeader(
   text
 ){
@@ -241,51 +271,8 @@ function rajIsNumericAnalysisHeader(
 
 
 /* ============================================================
-   CLEAN SORT SYMBOL
-============================================================ */
-
-function rajCleanHeaderText(
-  text
-){
-
-  return String(
-    text || ''
-  )
-    .replace(
-      /\s*[▲▼↕]\s*$/g,
-      ''
-    )
-    .trim();
-
-}
-
-
-/* ============================================================
-   SORT ARROW
-============================================================ */
-
-function rajSortArrow(
-  active,
-  direction
-){
-
-  if(!active){
-
-    return ' ↕';
-
-  }
-
-
-  return direction === 'asc'
-    ? ' ▲'
-    : ' ▼';
-
-}
-
-
-/* ============================================================
-   DETAILED SALES HEADER SORT
-============================================================ */
+   DETAILED SALES SORT UI
+   ============================================================ */
 
 function rajApplyDetailHeaderUI(){
 
@@ -327,8 +314,7 @@ function rajApplyDetailHeaderUI(){
 
       const column =
 
-        index <
-        columns.length
+        index < columns.length
 
           ? columns[index]
 
@@ -410,7 +396,8 @@ function rajApplyDetailHeaderUI(){
           }
 
 
-          page = 1;
+          page =
+            1;
 
 
           rajApplyDetailHeaderUI();
@@ -433,7 +420,7 @@ function rajApplyDetailHeaderUI(){
 
 /* ============================================================
    ANALYSIS SORT STATE
-============================================================ */
+   ============================================================ */
 
 function rajGetAnalysisSortState(){
 
@@ -465,15 +452,12 @@ function rajGetAnalysisSortState(){
 
 
 /* ============================================================
-   TEXT -> NUMBER
-============================================================ */
+   DISPLAY TEXT -> NUMBER
+   ============================================================ */
 
-function rajParseNumber(
-  text
-){
+function rajParseNumber(text){
 
   const cleaned =
-
     String(
       text || ''
     )
@@ -518,7 +502,7 @@ function rajParseNumber(
 
 /* ============================================================
    ANALYSIS SORT
-============================================================ */
+   ============================================================ */
 
 function rajApplyAnalysisSort(){
 
@@ -576,9 +560,7 @@ function rajApplyAnalysisSort(){
 
 
   /*
-    Do not sort the
-    "No summary data found"
-    placeholder row.
+    Don't sort placeholder/error row.
   */
 
   if(
@@ -606,6 +588,7 @@ function rajApplyAnalysisSort(){
     state.columnIndex =
       0;
 
+
     state.direction =
       'asc';
 
@@ -613,7 +596,6 @@ function rajApplyAnalysisSort(){
 
 
   const activeHeaderText =
-
     rajCleanHeaderText(
       headers[
         state.columnIndex
@@ -623,17 +605,16 @@ function rajApplyAnalysisSort(){
 
 
   const activeIsNumeric =
-
     rajIsNumericAnalysisHeader(
       activeHeaderText
     );
 
 
   rows.sort(
-    function(
+    (
       rowA,
       rowB
-    ){
+    ) => {
 
       const cellA =
         rowA.children[
@@ -666,21 +647,17 @@ function rajApplyAnalysisSort(){
         activeIsNumeric
       ){
 
-        const valueA =
+        result =
+
           rajParseNumber(
             cellA.textContent
-          );
+          )
 
+          -
 
-        const valueB =
           rajParseNumber(
             cellB.textContent
           );
-
-
-        result =
-          valueA -
-          valueB;
 
 
       }else{
@@ -712,16 +689,12 @@ function rajApplyAnalysisSort(){
       }
 
 
-      return (
-
-        state.direction ===
+      return state.direction ===
         'asc'
 
           ? result
 
-          : -result
-
-      );
+          : -result;
 
     }
   );
@@ -754,21 +727,18 @@ function rajApplyAnalysisSort(){
     ) => {
 
       const baseText =
-
         rajCleanHeaderText(
           th.textContent
         );
 
 
       const numeric =
-
         rajIsNumericAnalysisHeader(
           baseText
         );
 
 
       const active =
-
         index ===
         state.columnIndex;
 
@@ -848,138 +818,131 @@ function rajApplyAnalysisSort(){
 
 
 /* ============================================================
-   PRODUCT ROW KEY
+   MONTH TAXABLE VALUE FROM FAST PRODUCT RPC
+   ============================================================ */
 
-   ItemCode + ItemName
-============================================================ */
-
-function rajProductKey(
-  row
+function rajProductMonthTaxable(
+  row,
+  month
 ){
 
-  const itemCode =
+  const key =
     String(
-      row?.itemcode
+      month || ''
+    )
+      .toLowerCase();
+
+
+  if(
+    key === 'apr'
+    ||
+    key === 'april'
+  ){
+
+    return Number(
+      row.aprtaxable
       ??
-      row?.ItemCode
+      row.AprTaxable
       ??
-      ''
+      0
     );
 
+  }
 
-  const itemName =
-    String(
-      row?.itemname
+
+  if(
+    key === 'may'
+  ){
+
+    return Number(
+      row.maytaxable
       ??
-      row?.ItemName
+      row.MayTaxable
       ??
-      ''
+      0
     );
 
+  }
 
-  return (
-    itemCode
-    +
-    '\u0001'
-    +
-    itemName
-  );
+
+  if(
+    key === 'jun'
+    ||
+    key === 'june'
+  ){
+
+    return Number(
+      row.junetaxable
+      ??
+      row.JuneTaxable
+      ??
+      0
+    );
+
+  }
+
+
+  if(
+    key === 'jul'
+    ||
+    key === 'july'
+  ){
+
+    return Number(
+      row.jultaxable
+      ??
+      row.JulyTaxable
+      ??
+      0
+    );
+
+  }
+
+
+  if(
+    key === 'aug'
+    ||
+    key === 'august'
+  ){
+
+    return Number(
+      row.augtaxable
+      ??
+      row.AugTaxable
+      ??
+      0
+    );
+
+  }
+
+
+  if(
+    key === 'sep'
+    ||
+    key === 'sept'
+    ||
+    key === 'september'
+  ){
+
+    return Number(
+      row.septtaxable
+      ??
+      row.SeptTaxable
+      ??
+      0
+    );
+
+  }
+
+
+  return 0;
 
 }
 
 
 /* ============================================================
-   PRODUCT ANALYSIS ROW VALUES
-============================================================ */
-
-function rajProductQty(
-  row
-){
-
-  return Number(
-    row?.qty
-    ??
-    row?.Qty
-    ??
-    0
-  );
-
-}
-
-
-function rajProductTaxable(
-  row
-){
-
-  return Number(
-    row?.taxable
-    ??
-    row?.Taxable
-    ??
-    0
-  );
-
-}
-
-
-function rajProductProductsSold(
-  row
-){
-
-  return Number(
-    row?.productssold
-    ??
-    row?.productsSold
-    ??
-    row?.ProductsSold
-    ??
-    0
-  );
-
-}
-
-
-function rajProductCustomersBilled(
-  row
-){
-
-  return Number(
-    row?.customersbilled
-    ??
-    row?.customersBilled
-    ??
-    row?.CustomersBilled
-    ??
-    0
-  );
-
-}
-
-
-function rajProductRecords(
-  row
-){
-
-  return Number(
-    row?.records
-    ??
-    row?.Records
-    ??
-    0
-  );
-
-}
-
-
-/* ============================================================
-   PRODUCT WISE ANALYSIS
-
-   FIRST COLUMN:
-   ItemCode
-
-   SECOND COLUMN:
-   Product / Item Name
-============================================================ */
+   FAST PRODUCT WISE ANALYSIS
+   ============================================================ */
 
 async function rajLoadProductAnalysis(){
 
@@ -1025,9 +988,9 @@ async function rajLoadProductAnalysis(){
       : [...months];
 
 
-  /*
-    Header
-  */
+  /* ========================================================
+     BUILD HEADER
+     ======================================================== */
 
   let header = `
 
@@ -1048,13 +1011,11 @@ async function rajLoadProductAnalysis(){
       header += `
 
         <th>
-          ${
-            rajEsc(
-              monthNames[month]
-              ||
-              month
-            )
-          }
+          ${rajEsc(
+            monthNames[month]
+            ||
+            month
+          )}
           Taxable Sale
         </th>
 
@@ -1097,76 +1058,81 @@ async function rajLoadProductAnalysis(){
     header;
 
 
+  body.innerHTML = `
+
+    <tr>
+
+      <td
+        class="empty"
+        colspan="${
+          analysisMonths.length
+          +
+          8
+        }"
+      >
+        Loading Product Analysis...
+      </td>
+
+    </tr>
+
+  `;
+
+
   try{
+
+    /*
+      args() already contains:
+      - effective dashboard filters
+      - role restricted SM
+      - month selection
+      - product sale status
+      - search
+    */
 
     const baseArgs =
       args();
 
 
-    const results =
+    /*
+      IMPORTANT:
+      ONE RPC ONLY.
 
-      await Promise.all(
-        [
+      Previous version made:
+      Total + every month = many scans.
 
-          rajOriginalRpc(
-            'raj_product_analysis',
-            {
-              p_filters:
-                baseArgs.p_filters,
+      This version performs
+      one database scan.
+    */
 
-              p_months:
-                baseArgs.p_months,
+    const data =
+      await rajOriginalRpc(
+        'raj_product_analysis_fast',
+        {
 
-              p_sale_status:
-                baseArgs.p_sale_status,
+          p_filters:
+            baseArgs.p_filters,
 
-              p_search:
-                baseArgs.p_search
-            }
-          ),
+          p_months:
+            baseArgs.p_months,
 
+          p_sale_status:
+            baseArgs.p_sale_status,
 
-          ...analysisMonths.map(
-            month =>
+          p_search:
+            baseArgs.p_search
 
-              rajOriginalRpc(
-                'raj_product_analysis',
-                {
-                  p_filters:
-                    baseArgs.p_filters,
-
-                  p_months:[
-                    month
-                  ],
-
-                  p_sale_status:
-                    baseArgs.p_sale_status,
-
-                  p_search:
-                    baseArgs.p_search
-                }
-              )
-
-          )
-
-        ]
+        }
       );
 
 
-    const totalRows =
-      Array.isArray(
-        results[0]
-      )
-        ? results[0]
+    const rows =
+      Array.isArray(data)
+        ? data
         : [];
 
 
-    const monthlyRows =
-      results.slice(1);
-
-
     if(
-      !totalRows.length
+      !rows.length
     ){
 
       body.innerHTML = `
@@ -1194,79 +1160,37 @@ async function rajLoadProductAnalysis(){
     }
 
 
-    const monthMaps =
-
-      monthlyRows.map(
-        rows => {
-
-          const map =
-            new Map();
-
-
-          (
-            Array.isArray(rows)
-              ? rows
-              : []
-          )
-            .forEach(
-              row => {
-
-                map.set(
-                  rajProductKey(row),
-                  rajProductTaxable(row)
-                );
-
-              }
-            );
-
-
-          return map;
-
-        }
-      );
-
+    /* ======================================================
+       BUILD PRODUCT ROWS
+       ====================================================== */
 
     body.innerHTML =
-
-      totalRows
+      rows
         .map(
           row => {
 
             const itemCode =
-              row?.itemcode
+              row.itemcode
               ??
-              row?.ItemCode
+              row.ItemCode
               ??
               '';
 
 
             const itemName =
-              row?.itemname
+              row.itemname
               ??
-              row?.ItemName
+              row.ItemName
               ??
               '';
 
 
-            const key =
-              rajProductKey(
-                row
-              );
-
-
             const monthSales =
-
               analysisMonths.map(
-                (
-                  month,
-                  index
-                ) =>
-
-                  Number(
-                    monthMaps[index]
-                      ?.get(key)
-                    ??
-                    0
+                month =>
+                  rajProductMonthTaxable(
+                    row,
+                    month
                   )
               );
 
@@ -1290,7 +1214,6 @@ async function rajLoadProductAnalysis(){
 
 
             const monthCells =
-
               monthSales
                 .map(
                   value =>
@@ -1299,51 +1222,107 @@ async function rajLoadProductAnalysis(){
                 .join('');
 
 
+            const qty =
+              Number(
+                row.qty
+                ??
+                row.Qty
+                ??
+                0
+              );
+
+
+            const taxable =
+              Number(
+                row.taxable
+                ??
+                row.Taxable
+                ??
+                0
+              );
+
+
+            const productsSold =
+              Number(
+                row.productssold
+                ??
+                row.ProductsSold
+                ??
+                0
+              );
+
+
+            const customersBilled =
+              Number(
+                row.customersbilled
+                ??
+                row.CustomersBilled
+                ??
+                0
+              );
+
+
+            const records =
+              Number(
+                row.records
+                ??
+                row.Records
+                ??
+                0
+              );
+
+
             return `
 
               <tr>
 
                 <td>
-                  ${rajEsc(itemCode)}
+                  ${rajEsc(
+                    itemCode
+                  )}
                 </td>
 
                 <td>
-                  ${rajEsc(itemName)}
+                  ${rajEsc(
+                    itemName
+                  )}
                 </td>
 
                 ${monthCells}
 
                 <td>
-                  ${rajMoney(avg)}
+                  ${rajMoney(
+                    avg
+                  )}
                 </td>
 
                 <td>
                   ${rajNumber(
-                    rajProductQty(row)
+                    qty
                   )}
                 </td>
 
                 <td>
                   ${rajMoney(
-                    rajProductTaxable(row)
+                    taxable
                   )}
                 </td>
 
                 <td>
                   ${rajNumber(
-                    rajProductProductsSold(row)
+                    productsSold
                   )}
                 </td>
 
                 <td>
                   ${rajNumber(
-                    rajProductCustomersBilled(row)
+                    customersBilled
                   )}
                 </td>
 
                 <td>
                   ${rajNumber(
-                    rajProductRecords(row)
+                    records
                   )}
                 </td>
 
@@ -1359,7 +1338,7 @@ async function rajLoadProductAnalysis(){
   }catch(error){
 
     console.error(
-      'Product Analysis Error:',
+      'Fast Product Analysis Error:',
       error
     );
 
@@ -1376,14 +1355,12 @@ async function rajLoadProductAnalysis(){
             8
           }"
         >
-
           Product Analysis error:
           ${rajEsc(
             error?.message
             ||
             error
           )}
-
         </td>
 
       </tr>
@@ -1396,8 +1373,8 @@ async function rajLoadProductAnalysis(){
 
 
 /* ============================================================
-   WRAP EXISTING ANALYSIS FUNCTION
-============================================================ */
+   WRAP NORMAL ANALYSIS
+   ============================================================ */
 
 const rajOriginalLoadGroupSummary =
   loadGroupSummary;
@@ -1407,8 +1384,8 @@ loadGroupSummary =
   async function(){
 
     /*
-      Product Wise gets its own
-      ItemCode + ItemName report.
+      PRODUCT WISE:
+      Use optimized ItemCode + ItemName report.
     */
 
     if(
@@ -1428,8 +1405,9 @@ loadGroupSummary =
 
 
     /*
-      All other Analysis tabs
-      remain exactly as before.
+      CUSTOMER / COMPANY / SM /
+      DIVISION / PINCODE:
+      keep original dashboard logic.
     */
 
     await rajOriginalLoadGroupSummary();
@@ -1442,22 +1420,21 @@ loadGroupSummary =
 
 /* ============================================================
    INITIAL SETUP
-============================================================ */
+   ============================================================ */
 
 document.addEventListener(
   'DOMContentLoaded',
   function(){
 
-    /*
-      Detailed Sales headers
-    */
+    /* --------------------------------------------------------
+       Detailed Sales headers
+       -------------------------------------------------------- */
 
     let detailTries =
       0;
 
 
     const detailTimer =
-
       setInterval(
         function(){
 
@@ -1499,16 +1476,15 @@ document.addEventListener(
       );
 
 
-    /*
-      Analysis table initial sort
-    */
+    /* --------------------------------------------------------
+       Analysis initial sort
+       -------------------------------------------------------- */
 
     let analysisTries =
       0;
 
 
     const analysisTimer =
-
       setInterval(
         function(){
 
