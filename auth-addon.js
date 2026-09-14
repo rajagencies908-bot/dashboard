@@ -1,25 +1,21 @@
 /* ============================================================
    RAJ AGENCIES
    AUTH + ROLE ACCESS ADDON
-   Version: online21
+   Version: online28
 
-   FIXED:
-   - Mobile + Password Login
-   - Session Validation
+   FINAL ORDER / OD ARCHITECTURE
+   - Login + Session Validation
    - Device Lock
    - Logout
-   - SM Role Access
-   - OD Role Access
-   - SalesHead Access
    - Admin Full Access
-   - SM user can select SUBSET of allowed SM codes
-   - Example DH/RM -> DH only / RM only / both
-   - Unauthorized SM codes hidden
-   - Unauthorized OD codes hidden
-   - Analysis View respects selected allowed SM
-   - NO rawBudgetArgs reassignment
-   - NO const reassignment error
-   - Fail Closed Dashboard
+   - SM role -> products.SM
+   - OD role -> products.Order
+   - SalesHead -> allowed SM / Order access
+   - Unauthorized SM / OD options hidden
+   - User can choose a subset of allowed codes
+   - Empty restricted selection means ALL ALLOWED, never whole company
+   - Main dashboard + Analysis remain role protected
+   - Fail-closed dashboard
    ============================================================ */
 
 (() => {
@@ -107,6 +103,78 @@
   }
 
 
+  function currentRole(){
+
+    return String(
+      rajAuthUser?.role
+      ||
+      ''
+    );
+
+  }
+
+
+  function isFullUser(){
+
+    return (
+      currentRole() === 'Admin'
+      ||
+      rajAuthUser?.full_view === true
+    );
+
+  }
+
+
+  function allowedSM(){
+
+    return uniqueCodes(
+      rajAuthUser?.sm_access
+    )
+      .filter(
+        value =>
+          value !== 'ALL'
+      );
+
+  }
+
+
+  function allowedOD(){
+
+    return uniqueCodes(
+      rajAuthUser?.od_access
+    )
+      .filter(
+        value =>
+          value !== 'ALL'
+      );
+
+  }
+
+
+  function intersectSelection(
+    current,
+    allowed
+  ){
+
+    const allowedSet =
+      new Set(
+        allowed.map(String)
+      );
+
+
+    return uniqueCodes(
+      current
+    )
+      .filter(
+        value =>
+          allowedSet.has(
+            String(value)
+          )
+      );
+
+  }
+
+
   /* =========================================================
      DASHBOARD LOCK
      ========================================================= */
@@ -179,13 +247,18 @@
     }else{
 
       deviceId =
-        'raj-' +
-        Date.now() +
-        '-' +
+        'raj-'
+        +
+        Date.now()
+        +
+        '-'
+        +
         Math.random()
           .toString(36)
-          .slice(2) +
-        '-' +
+          .slice(2)
+        +
+        '-'
+        +
         Math.random()
           .toString(36)
           .slice(2);
@@ -322,25 +395,21 @@
           sans-serif;
 
         background:
-
           radial-gradient(
             circle at 15% 10%,
             rgba(95,75,245,.35),
             transparent 30%
           ),
-
           radial-gradient(
             circle at 88% 15%,
             rgba(236,72,153,.22),
             transparent 27%
           ),
-
           radial-gradient(
             circle at 80% 90%,
             rgba(6,182,212,.22),
             transparent 30%
           ),
-
           linear-gradient(
             135deg,
             #edf3ff 0%,
@@ -378,8 +447,7 @@
             .90
           );
 
-        border-radius:
-          28px;
+        border-radius:28px;
 
         background:
           rgba(
@@ -389,11 +457,8 @@
             .84
           );
 
-        backdrop-filter:
-          blur(28px);
-
-        -webkit-backdrop-filter:
-          blur(28px);
+        backdrop-filter:blur(28px);
+        -webkit-backdrop-filter:blur(28px);
 
         box-shadow:
           0 30px 80px
@@ -456,9 +521,7 @@
         color:#17213c;
 
         font-size:26px;
-
         font-weight:900;
-
         letter-spacing:-.7px;
 
       }
@@ -482,8 +545,7 @@
 
       .raj-auth-field{
 
-        margin-bottom:
-          15px;
+        margin-bottom:15px;
 
       }
 
@@ -492,13 +554,11 @@
 
         display:block;
 
-        margin-bottom:
-          7px;
+        margin-bottom:7px;
 
         color:#505970;
 
         font-size:11px;
-
         font-weight:850;
 
       }
@@ -524,8 +584,7 @@
             .18
           );
 
-        border-radius:
-          13px;
+        border-radius:13px;
 
         outline:none;
 
@@ -574,7 +633,6 @@
         margin-top:5px;
 
         border:0;
-
         border-radius:14px;
 
         cursor:pointer;
@@ -582,7 +640,6 @@
         color:#fff;
 
         font-size:14px;
-
         font-weight:900;
 
         background:
@@ -607,7 +664,6 @@
       #rajLoginButton:disabled{
 
         opacity:.60;
-
         cursor:not-allowed;
 
       }
@@ -622,30 +678,24 @@
         text-align:center;
 
         font-size:12px;
-
         font-weight:750;
 
       }
 
 
       .raj-auth-error{
-
         color:#c8324e;
-
       }
 
 
       .raj-auth-success{
-
         color:#08794d;
-
       }
 
 
       .raj-auth-footer{
 
         margin-top:17px;
-
         padding-top:15px;
 
         border-top:
@@ -660,7 +710,6 @@
         color:#979cab;
 
         text-align:center;
-
         font-size:10px;
 
       }
@@ -669,9 +718,7 @@
       #rajUserArea{
 
         display:flex;
-
         align-items:center;
-
         gap:10px;
 
         margin-left:10px;
@@ -682,9 +729,7 @@
       .raj-user-card{
 
         display:flex;
-
         align-items:center;
-
         gap:9px;
 
         padding:
@@ -702,8 +747,7 @@
             .10
           );
 
-        border-radius:
-          999px;
+        border-radius:999px;
 
         background:
           rgba(
@@ -722,7 +766,6 @@
         height:31px;
 
         display:grid;
-
         place-items:center;
 
         border-radius:50%;
@@ -730,7 +773,6 @@
         color:#fff;
 
         font-size:12px;
-
         font-weight:900;
 
         background:
@@ -744,10 +786,7 @@
 
 
       .raj-user-text{
-
-        min-width:
-          80px;
-
+        min-width:80px;
       }
 
 
@@ -756,9 +795,7 @@
         color:#1d2743;
 
         font-size:11px;
-
         font-weight:900;
-
         line-height:1.15;
 
       }
@@ -771,7 +808,6 @@
         color:#81889a;
 
         font-size:9px;
-
         font-weight:700;
 
       }
@@ -785,17 +821,14 @@
           8px
           11px;
 
-        border-radius:
-          999px;
+        border-radius:999px;
 
         cursor:pointer;
 
         color:#b5223c;
-
         background:#fff0f3;
 
         font-size:10px;
-
         font-weight:900;
 
       }
@@ -843,7 +876,6 @@
         color:#5648c7;
 
         font-size:11px;
-
         font-weight:800;
 
       }
@@ -858,7 +890,6 @@
         color:#6d28d9;
 
         font-size:9px;
-
         font-weight:800;
 
       }
@@ -877,16 +908,12 @@
 
 
         .raj-auth-title{
-
           font-size:23px;
-
         }
 
 
         .raj-user-text{
-
           display:none;
-
         }
 
       }
@@ -1124,8 +1151,7 @@
   ){
 
     if(
-      typeof sb
-        === 'undefined'
+      typeof sb === 'undefined'
       ||
       !sb
     ){
@@ -1234,11 +1260,6 @@
 
     }
 
-
-    /*
-      Remove previous browser session token.
-      Device ID is intentionally retained.
-    */
 
     clearSession();
 
@@ -1445,87 +1466,7 @@
 
 
   /* =========================================================
-     ROLE HELPERS
-     ========================================================= */
-
-  function currentRole(){
-
-    return String(
-      rajAuthUser?.role
-      ||
-      ''
-    );
-
-  }
-
-
-  function isFullUser(){
-
-    return (
-      currentRole()
-        === 'Admin'
-      ||
-      rajAuthUser?.full_view
-        === true
-    );
-
-  }
-
-
-  function allowedSM(){
-
-    return uniqueCodes(
-      rajAuthUser?.sm_access
-    )
-      .filter(
-        value =>
-          value !== 'ALL'
-      );
-
-  }
-
-
-  function allowedOD(){
-
-    return uniqueCodes(
-      rajAuthUser?.od_access
-    )
-      .filter(
-        value =>
-          value !== 'ALL'
-      );
-
-  }
-
-
-  function intersectSelection(
-    current,
-    allowed
-  ){
-
-    const allowedSet =
-      new Set(
-        allowed.map(
-          String
-        )
-      );
-
-
-    return uniqueCodes(
-      current
-    )
-      .filter(
-        value =>
-          allowedSet.has(
-            String(value)
-          )
-      );
-
-  }
-
-
-  /* =========================================================
-     ENFORCE ROLE SELECTION
+     ROLE SELECTION ENFORCEMENT
      ========================================================= */
 
   function enforceRoleSelections(){
@@ -1533,8 +1474,7 @@
     if(
       !rajAuthUser
       ||
-      typeof selected
-        === 'undefined'
+      typeof selected === 'undefined'
     ){
 
       return;
@@ -1563,27 +1503,6 @@
       allowedOD();
 
 
-    /*
-      =====================================================
-      SM USER
-
-      Example access:
-      DH + RM
-
-      Initial:
-      DH + RM
-
-      Then user may select:
-      DH only
-      RM only
-      DH + RM
-
-      If selection becomes empty:
-      interpret it as ALL ALLOWED,
-      not ALL COMPANY.
-      =====================================================
-    */
-
     if(
       role === 'SM'
     ){
@@ -1601,21 +1520,11 @@
           : [...sm];
 
 
-      /*
-        SM user cannot use OD role scope.
-      */
-
-      selected.budgetOD =
+      selected.Order =
         [];
 
     }
 
-
-    /*
-      =====================================================
-      OD USER
-      =====================================================
-    */
 
     if(
       role === 'OD'
@@ -1623,12 +1532,12 @@
 
       const valid =
         intersectSelection(
-          selected.budgetOD,
+          selected.Order,
           od
         );
 
 
-      selected.budgetOD =
+      selected.Order =
         valid.length
           ? valid
           : [...od];
@@ -1639,12 +1548,6 @@
 
     }
 
-
-    /*
-      =====================================================
-      SALES HEAD
-      =====================================================
-    */
 
     if(
       role === 'SalesHead'
@@ -1671,12 +1574,12 @@
 
         const validOD =
           intersectSelection(
-            selected.budgetOD,
+            selected.Order,
             od
           );
 
 
-        selected.budgetOD =
+        selected.Order =
           validOD.length
             ? validOD
             : [...od];
@@ -1685,10 +1588,6 @@
 
     }
 
-
-    /*
-      Update visible labels.
-    */
 
     try{
 
@@ -1701,19 +1600,10 @@
           'SM'
         );
 
-      }
 
-    }catch(_){}
-
-
-    try{
-
-      if(
-        typeof updateODLabel
-          === 'function'
-      ){
-
-        updateODLabel();
+        updateMultiLabel(
+          'Order'
+        );
 
       }
 
@@ -1723,7 +1613,7 @@
 
 
   /* =========================================================
-     REMOVE UNAUTHORIZED OPTIONS
+     RESTRICT DROPDOWN OPTIONS
      ========================================================= */
 
   function restrictOptionContainer(
@@ -1853,10 +1743,52 @@
   }
 
 
+  function setMultiEnabled(
+    multiId,
+    enabled
+  ){
+
+    const multi =
+      authEl(
+        multiId
+      );
+
+
+    if(!multi){
+
+      return;
+
+    }
+
+
+    multi.style.opacity =
+      enabled
+        ? '1'
+        : '.55';
+
+
+    multi
+      .querySelectorAll(
+        'button,input'
+      )
+      .forEach(
+        node => {
+
+          node.disabled =
+            !enabled;
+
+        }
+      );
+
+  }
+
+
   function applyRoleUI(){
 
     if(
       !rajAuthUser
+      ||
+      isFullUser()
     ){
 
       return;
@@ -1866,15 +1798,6 @@
 
     const role =
       currentRole();
-
-
-    if(
-      isFullUser()
-    ){
-
-      return;
-
-    }
 
 
     if(
@@ -1891,78 +1814,28 @@
       );
 
 
-      /*
-        IMPORTANT:
-        Do NOT disable SM control.
-        User must be able to select
-        DH only / RM only / both.
-      */
-
-      const smMulti =
-        authEl(
-          'multi_SM'
-        );
-
-
-      if(smMulti){
-
-        smMulti.style.opacity =
-          '1';
-
-
-        smMulti
-          .querySelectorAll(
-            'button,input'
-          )
-          .forEach(
-            node => {
-
-              node.disabled =
-                false;
-
-            }
-          );
-
-      }
+      setMultiEnabled(
+        'multi_SM',
+        true
+      );
 
 
       addRestrictionNote(
         'multi_SM',
-        'Allowed SM: ' +
+        'Allowed SM: '
+        +
         sm.join(', ')
       );
 
 
       /*
-        OD isn't assigned to SM role.
+        SM role has no OD role scope.
+        Keep OD / Order disabled.
       */
-
-      const odMulti =
-        authEl(
-          'multi_budgetOD'
-        );
-
-
-      if(odMulti){
-
-        odMulti
-          .querySelectorAll(
-            'button,input'
-          )
-          .forEach(
-            node => {
-
-              node.disabled =
-                true;
-
-            }
-          );
-
-
-        odMulti.style.opacity =
-          '.55';
-
-      }
+      setMultiEnabled(
+        'multi_Order',
+        false
+      );
 
     }
 
@@ -1976,42 +1849,21 @@
 
 
       restrictOptionContainer(
-        'options_budgetOD',
+        'options_Order',
         od
       );
 
 
-      const odMulti =
-        authEl(
-          'multi_budgetOD'
-        );
-
-
-      if(odMulti){
-
-        odMulti.style.opacity =
-          '1';
-
-
-        odMulti
-          .querySelectorAll(
-            'button,input'
-          )
-          .forEach(
-            node => {
-
-              node.disabled =
-                false;
-
-            }
-          );
-
-      }
+      setMultiEnabled(
+        'multi_Order',
+        true
+      );
 
 
       addRestrictionNote(
-        'multi_budgetOD',
-        'Allowed OD: ' +
+        'multi_Order',
+        'Allowed OD: '
+        +
         od.join(', ')
       );
 
@@ -2040,7 +1892,8 @@
 
         addRestrictionNote(
           'multi_SM',
-          'Allowed SM: ' +
+          'Allowed SM: '
+          +
           sm.join(', ')
         );
 
@@ -2050,14 +1903,15 @@
       if(od.length){
 
         restrictOptionContainer(
-          'options_budgetOD',
+          'options_Order',
           od
         );
 
 
         addRestrictionNote(
-          'multi_budgetOD',
-          'Allowed OD: ' +
+          'multi_Order',
+          'Allowed OD: '
+          +
           od.join(', ')
         );
 
@@ -2143,8 +1997,7 @@
 
 
     if(
-      currentRole()
-        === 'SM'
+      currentRole() === 'SM'
       &&
       !sm.includes(
         'ALL'
@@ -2152,15 +2005,15 @@
     ){
 
       accessText +=
-        ' • ' +
+        ' • '
+        +
         sm.join(', ');
 
     }
 
 
     if(
-      currentRole()
-        === 'OD'
+      currentRole() === 'OD'
       &&
       !od.includes(
         'ALL'
@@ -2168,7 +2021,8 @@
     ){
 
       accessText +=
-        ' • ' +
+        ' • '
+        +
         od.join(', ');
 
     }
@@ -2185,7 +2039,8 @@
       if(sm.length){
 
         parts.push(
-          'SM: ' +
+          'SM: '
+          +
           sm.join(', ')
         );
 
@@ -2195,7 +2050,8 @@
       if(od.length){
 
         parts.push(
-          'OD: ' +
+          'OD: '
+          +
           od.join(', ')
         );
 
@@ -2205,7 +2061,8 @@
       if(parts.length){
 
         accessText +=
-          ' • ' +
+          ' • '
+          +
           parts.join(' • ');
 
       }
@@ -2330,8 +2187,7 @@
     if(
       role === 'Admin'
       ||
-      rajAuthUser.full_view
-        === true
+      rajAuthUser.full_view === true
     ){
 
       badge.textContent =
@@ -2379,7 +2235,8 @@
       if(sm.length){
 
         parts.push(
-          'SM: ' +
+          'SM: '
+          +
           sm.join(', ')
         );
 
@@ -2389,7 +2246,8 @@
       if(od.length){
 
         parts.push(
-          'OD: ' +
+          'OD: '
+          +
           od.join(', ')
         );
 
@@ -2397,7 +2255,13 @@
 
 
       badge.textContent =
-        `Logged in as ${rajAuthUser.name} • Sales Head • ${parts.join(' • ')}`;
+        `Logged in as ${rajAuthUser.name} • Sales Head`
+        +
+        (
+          parts.length
+            ? ` • ${parts.join(' • ')}`
+            : ''
+        );
 
 
       return;
@@ -2445,11 +2309,6 @@
         ...args
       ){
 
-        /*
-          No authenticated session:
-          never load business data.
-        */
-
         if(
           !rajAuthUser
         ){
@@ -2458,11 +2317,6 @@
 
         }
 
-
-        /*
-          Make sure selected values
-          are inside role permission.
-        */
 
         enforceRoleSelections();
 
@@ -2474,11 +2328,6 @@
               args
             );
 
-
-        /*
-          Main script may rebuild filter HTML.
-          Restrict it again after rebuild.
-        */
 
         enforceRoleSelections();
 
@@ -2543,24 +2392,14 @@
         }
 
 
-        /*
-          Critical:
-          Analysis always uses current
-          allowed selected SM/OD.
-        */
-
         enforceRoleSelections();
 
 
-        const result =
-          await originalLoadGroupSummary
-            .apply(
-              this,
-              args
-            );
-
-
-        return result;
+        return await originalLoadGroupSummary
+          .apply(
+            this,
+            args
+          );
 
       };
 
@@ -2575,7 +2414,7 @@
 
 
   /* =========================================================
-     INSTALL SAFE PROTECTIONS
+     INSTALL PROTECTIONS
      ========================================================= */
 
   function installProtections(){
@@ -2736,11 +2575,6 @@
       250
     );
 
-
-    /*
-      Main script can rebuild filters
-      during initial load.
-    */
 
     setTimeout(
       () => {
@@ -2933,12 +2767,7 @@
 
 
   /* =========================================================
-     KEEP ROLE FILTER SAFE
-
-     Main dashboard rebuilds dropdown options.
-     This light check only removes unauthorized
-     visible options. It does NOT force DH/RM
-     back after user selects only RM.
+     KEEP ROLE FILTER UI SAFE
      ========================================================= */
 
   setInterval(
@@ -2988,21 +2817,6 @@
     createLoginScreen();
 
 
-    /*
-      IMPORTANT:
-      Only wrap safe function declarations.
-
-      We DO NOT reassign:
-      rawBudgetArgs
-      args
-      budgetArgs
-      comparisonBaseArgs
-
-      Therefore no:
-      "Assignment to constant variable"
-      error.
-    */
-
     installProtections();
 
 
@@ -3021,6 +2835,16 @@
     }
 
   }
+
+
+  /*
+    script.js is loaded before this addon.
+    Install wrappers immediately so the first
+    DOMContentLoaded dashboard call is already protected.
+  */
+  lockDashboard();
+
+  installProtections();
 
 
   if(
