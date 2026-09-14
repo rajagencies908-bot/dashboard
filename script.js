@@ -1,3 +1,4 @@
+/* RAJ AGENCIES script.js - online30 timeout-safe linked filters */
 const { createClient } = supabase;
 
 const sb = createClient(
@@ -1398,7 +1399,9 @@ async function applyBulkSelection(
     page = 1;
     budgetPage = 1;
 
-    await loadDashboard(true);
+    await loadDashboard(false);
+
+    await refreshPartyFilterOnly();
 
     restoreOpenFilter(
       'month'
@@ -1434,7 +1437,11 @@ async function applyBulkSelection(
   page = 1;
   budgetPage = 1;
 
-  await loadDashboard(true);
+  await loadDashboard(false);
+
+  if(id !== 'Party'){
+    await refreshPartyFilterOnly();
+  }
 
   restoreOpenFilter(id);
 
@@ -1543,7 +1550,9 @@ function buildMonths(){
             page = 1;
             budgetPage = 1;
 
-            await loadDashboard(true);
+            await loadDashboard(false);
+
+            await refreshPartyFilterOnly();
 
             restoreOpenFilter(
               'month'
@@ -1887,7 +1896,11 @@ async function loadFilter(column){
             budgetPage = 1;
 
 
-            await loadDashboard(true);
+            await loadDashboard(false);
+
+            if(column !== 'Party'){
+              await refreshPartyFilterOnly();
+            }
 
             restoreOpenFilter(
               column
@@ -1911,6 +1924,36 @@ async function refreshFilters(){
   for(const column of filters){
 
     await loadFilter(column);
+
+  }
+
+}
+
+
+/* =====================================================
+   LIGHTWEIGHT CUSTOMER LINK REFRESH
+
+   After a filter changes we do NOT reload every dropdown.
+   That caused many RPC calls and statement timeout.
+
+   We refresh only Customer / Party immediately.
+   Other dropdowns refresh themselves when opened.
+===================================================== */
+
+async function refreshPartyFilterOnly(){
+
+  try{
+
+    await loadFilter(
+      'Party'
+    );
+
+  }catch(error){
+
+    console.error(
+      'Party filter refresh error:',
+      error
+    );
 
   }
 
@@ -4198,7 +4241,9 @@ document.addEventListener(
 
             page = 1;
 
-            await loadDashboard(true);
+            await loadDashboard(false);
+
+            await refreshPartyFilterOnly();
 
           };
 
@@ -4220,7 +4265,9 @@ document.addEventListener(
             page = 1;
             budgetPage = 1;
 
-            await loadDashboard(true);
+            await loadDashboard(false);
+
+            await refreshPartyFilterOnly();
 
           };
 
@@ -4242,7 +4289,9 @@ document.addEventListener(
             page = 1;
             budgetPage = 1;
 
-            await loadDashboard(true);
+            await loadDashboard(false);
+
+            await refreshPartyFilterOnly();
 
           };
 
@@ -4269,7 +4318,9 @@ document.addEventListener(
 
                   page = 1;
 
-                  await loadDashboard(true);
+                  await loadDashboard(false);
+
+                  await refreshPartyFilterOnly();
 
                 },
                 350
@@ -4501,7 +4552,9 @@ document.addEventListener(
             buildComparisonControls();
 
 
-            await loadDashboard(true);
+            await loadDashboard(false);
+
+            await refreshPartyFilterOnly();
 
           };
 
