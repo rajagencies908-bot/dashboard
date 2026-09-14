@@ -1,12 +1,9 @@
 /* ============================================================
    RAJ AGENCIES
-   LINKED / CASCADING CUSTOMER FILTER
-   VERSION: online26
+   HARD LINKED CUSTOMER FILTER
+   VERSION: online27
 
-   PURPOSE
-   ------------------------------------------------------------
-   Customer / Party dropdown automatically follows:
-
+   CUSTOMER / PARTY NOW FOLLOWS:
    - Main Group
    - Item Group
    - Item Code
@@ -20,15 +17,11 @@
    - Global Search
    - Budget Target
    - Budget Status
-   - OD Team / Order
+   - OD / Order
 
-   PERFORMANCE
-   ------------------------------------------------------------
-   Only CUSTOMER options are refreshed.
-
-   All other dropdown lists are NOT reloaded.
-
-   This keeps dashboard fast while making customer filter linked.
+   IMPORTANT:
+   Only Customer / Party options are refreshed.
+   Other dropdowns remain fast.
    ============================================================ */
 
 (() => {
@@ -40,197 +33,82 @@
      STATE
      ========================================================= */
 
-  let rajLinkedInstalled = false;
+  let linkedTimer = null;
 
-  let rajLinkedRunning = false;
+  let linkedBusy = false;
 
-  let rajLinkedLastSignature = '';
+  let linkedPending = false;
 
-  let rajLinkedRequestId = 0;
+  let linkedLastSignature = '';
+
+  let linkedRequestNo = 0;
 
 
   /* =========================================================
      HELPERS
      ========================================================= */
 
-  const rajLinkedEl = id =>
+  const linkedEl = id =>
     document.getElementById(id);
 
 
-  function rajLinkedEsc(value){
+  function linkedEsc(value){
 
     const div =
       document.createElement(
         'div'
       );
 
-
     div.textContent =
       String(
         value ?? ''
       );
-
 
     return div.innerHTML;
 
   }
 
 
-  function rajLinkedUnique(values){
+  function linkedArray(value){
+
+    if(!Array.isArray(value)){
+      return [];
+    }
+
 
     return [
+
       ...new Set(
-        (
-          Array.isArray(values)
-            ? values
-            : []
-        )
+
+        value
           .map(
-            value =>
+            item =>
               String(
-                value ?? ''
+                item ?? ''
               ).trim()
           )
           .filter(Boolean)
+
       )
+
     ];
 
   }
 
 
-  /* =========================================================
-     CURRENT FILTER SIGNATURE
-
-     Party itself is intentionally NOT included.
-
-     We refresh Customer options only when another
-     relevant filter changes.
-     ========================================================= */
-
-  function rajLinkedSignature(){
+  function linkedSelected(
+    key
+  ){
 
     try{
 
-      const target =
-        rajLinkedEl(
-          'budgetTarget'
-        )
-          ?.value
-        ||
-        'all';
-
-
-      const status =
-        rajLinkedEl(
-          'budgetStatus'
-        )
-          ?.value
-        ||
-        'all';
-
-
-      const saleStatus =
-        rajLinkedEl(
-          'productSaleStatus'
-        )
-          ?.value
-        ||
-        'All';
-
-
-      const search =
-        rajLinkedEl(
-          'search'
-        )
-          ?.value
-          ?.trim()
-        ||
-        '';
-
-
-      const state = {
-
-        MainGrp:
-          [
-            ...(selected.MainGrp || [])
-          ].sort(),
-
-        ItemGroup:
-          [
-            ...(selected.ItemGroup || [])
-          ].sort(),
-
-        ItemCode:
-          [
-            ...(selected.ItemCode || [])
-          ].sort(),
-
-        ItemName:
-          [
-            ...(selected.ItemName || [])
-          ].sort(),
-
-        SM:
-          [
-            ...(selected.SM || [])
-          ].sort(),
-
-        Division:
-          [
-            ...(selected.Division || [])
-          ].sort(),
-
-        City:
-          [
-            ...(selected.City || [])
-          ].sort(),
-
-        Pincode:
-          [
-            ...(selected.Pincode || [])
-          ].sort(),
-
-        month:
-          [
-            ...(selected.month || [])
-          ].sort(),
-
-        budgetOD:
-          [
-            ...(selected.budgetOD || [])
-          ].sort(),
-
-        target:
-          target,
-
-        status:
-          status,
-
-        saleStatus:
-          saleStatus,
-
-        search:
-          search
-
-      };
-
-
-      return JSON.stringify(
-        state
+      return linkedArray(
+        selected[key]
       );
 
+    }catch(_){
 
-    }catch(error){
-
-      console.warn(
-        'Linked customer signature error:',
-        error
-      );
-
-
-      return String(
-        Date.now()
-      );
+      return [];
 
     }
 
@@ -238,35 +116,442 @@
 
 
   /* =========================================================
-     PARSE FILTER RPC RESULT
+     CHECK BUDGET / TARGET SCOPE
      ========================================================= */
 
-  function rajLinkedParseValues(data){
+  function linkedBudgetTarget(){
 
-    const rawValues =
+    return (
+      linkedEl(
+        'budgetTarget'
+      )
+        ?.value
+      ||
+      'all'
+    );
 
-      (data || [])
+  }
+
+
+  function linkedBudgetStatus(){
+
+    return (
+      linkedEl(
+        'budgetStatus'
+      )
+        ?.value
+      ||
+      'all'
+    );
+
+  }
+
+
+  function linkedProductStatus(){
+
+    return (
+      linkedEl(
+        'productSaleStatus'
+      )
+        ?.value
+      ||
+      'All'
+    );
+
+  }
+
+
+  function linkedSearch(){
+
+    return (
+      linkedEl(
+        'search'
+      )
+        ?.value
+        ?.trim()
+      ||
+      ''
+    );
+
+  }
+
+
+  function linkedBudgetScopeActive(){
+
+    return (
+
+      linkedSelected(
+        'budgetOD'
+      ).length > 0
+
+      ||
+
+      linkedBudgetTarget()
+      !== 'all'
+
+      ||
+
+      linkedBudgetStatus()
+      !== 'all'
+
+    );
+
+  }
+
+
+  /* =========================================================
+     SIGNATURE
+
+     Party itself intentionally excluded.
+     ========================================================= */
+
+  function linkedSignature(){
+
+    const value = {
+
+      MainGrp:
+        linkedSelected(
+          'MainGrp'
+        ).sort(),
+
+      ItemGroup:
+        linkedSelected(
+          'ItemGroup'
+        ).sort(),
+
+      ItemCode:
+        linkedSelected(
+          'ItemCode'
+        ).sort(),
+
+      ItemName:
+        linkedSelected(
+          'ItemName'
+        ).sort(),
+
+      SM:
+        linkedSelected(
+          'SM'
+        ).sort(),
+
+      Division:
+        linkedSelected(
+          'Division'
+        ).sort(),
+
+      City:
+        linkedSelected(
+          'City'
+        ).sort(),
+
+      Pincode:
+        linkedSelected(
+          'Pincode'
+        ).sort(),
+
+      month:
+        linkedSelected(
+          'month'
+        ).sort(),
+
+      budgetOD:
+        linkedSelected(
+          'budgetOD'
+        ).sort(),
+
+      target:
+        linkedBudgetTarget(),
+
+      budgetStatus:
+        linkedBudgetStatus(),
+
+      productStatus:
+        linkedProductStatus(),
+
+      search:
+        linkedSearch()
+
+    };
+
+
+    return JSON.stringify(
+      value
+    );
+
+  }
+
+
+  /* =========================================================
+     NORMAL PRODUCT FILTER OBJECT
+     PARTY EXCLUDED
+     ========================================================= */
+
+  function linkedProductFilters(){
+
+    const obj = {};
+
+
+    const keys = [
+
+      'MainGrp',
+      'ItemGroup',
+      'ItemCode',
+      'ItemName',
+      'SM',
+      'Division',
+      'City',
+      'Pincode'
+
+    ];
+
+
+    keys.forEach(
+      key => {
+
+        const values =
+          linkedSelected(
+            key
+          );
+
+
+        if(
+          values.length
+        ){
+
+          obj[key] =
+            values;
+
+        }
+
+      }
+    );
+
+
+    return obj;
+
+  }
+
+
+  /* =========================================================
+     GET TARGET / OD / BUDGET CUSTOMER PARTY SCOPE
+     ========================================================= */
+
+  async function linkedGetBudgetPartyScope(){
+
+    if(
+      !linkedBudgetScopeActive()
+    ){
+
+      return null;
+
+    }
+
+
+    if(
+      typeof rpc
+      !== 'function'
+    ){
+
+      return [];
+
+    }
+
+
+    const result =
+      await rpc(
+        'raj_budget_sales_scope_parties',
+        {
+
+          p_sms:
+            linkedSelected('SM').length
+
+              ? linkedSelected('SM')
+
+              : null,
+
+
+          p_cities:
+            linkedSelected('City').length
+
+              ? linkedSelected('City')
+
+              : null,
+
+
+          p_pincodes:
+            linkedSelected('Pincode').length
+
+              ? linkedSelected('Pincode')
+
+              : null,
+
+
+          p_divisions:
+            linkedSelected('Division').length
+
+              ? linkedSelected('Division')
+
+              : null,
+
+
+          /*
+            Party must be null here.
+
+            We are trying to DISCOVER which customers
+            should be available.
+          */
+
+          p_parties:
+            null,
+
+
+          p_ods:
+            linkedSelected('budgetOD').length
+
+              ? linkedSelected('budgetOD')
+
+              : null,
+
+
+          p_target_mode:
+            linkedBudgetTarget(),
+
+
+          p_status:
+            linkedBudgetStatus(),
+
+
+          p_months:
+            linkedSelected('month').length
+
+              ? linkedSelected('month')
+
+              : null
+
+        }
+      );
+
+
+    return linkedArray(
+      Array.isArray(result)
+        ? result
+        : []
+    );
+
+  }
+
+
+  /* =========================================================
+     FETCH FINAL CUSTOMER VALUES
+     ========================================================= */
+
+  async function linkedFetchCustomers(){
+
+    if(
+      typeof rpc
+      !== 'function'
+    ){
+
+      return [];
+
+    }
+
+
+    const filters =
+      linkedProductFilters();
+
+
+    /*
+      If Target / OD / Budget Status active,
+      first obtain exact permitted Party scope.
+    */
+
+    const budgetParties =
+      await linkedGetBudgetPartyScope();
+
+
+    if(
+      budgetParties !== null
+    ){
+
+      /*
+        Scope active but no customers match.
+      */
+
+      if(
+        budgetParties.length === 0
+      ){
+
+        return [];
+
+      }
+
+
+      filters.Party =
+        budgetParties;
+
+    }
+
+
+    /*
+      Now ask products table for Party values
+      matching every selected normal filter.
+    */
+
+    const data =
+      await rpc(
+        'raj_filter_values',
+        {
+
+          p_column:
+            'Party',
+
+          p_filters:
+            filters,
+
+          p_months:
+            linkedSelected(
+              'month'
+            ),
+
+          p_sale_status:
+            linkedProductStatus(),
+
+          p_search:
+            linkedSearch()
+
+        }
+      );
+
+
+    const values =
+      (
+        Array.isArray(data)
+          ? data
+          : []
+      )
         .map(
-          value => {
+          row => {
 
             if(
-              typeof value === 'object'
+              row
               &&
-              value !== null
+              typeof row
+                === 'object'
             ){
 
               return (
 
-                value.value
+                row.value
 
                 ??
 
-                value.Value
+                row.Value
 
                 ??
 
                 Object.values(
-                  value
+                  row
                 )[0]
 
               );
@@ -274,14 +559,14 @@
             }
 
 
-            return value;
+            return row;
 
           }
         );
 
 
-    return rajLinkedUnique(
-      rawValues
+    return linkedArray(
+      values
     );
 
   }
@@ -291,7 +576,7 @@
      UPDATE CUSTOMER LABEL
      ========================================================= */
 
-  function rajLinkedUpdatePartyLabel(){
+  function linkedUpdateLabel(){
 
     try{
 
@@ -304,7 +589,6 @@
           'Party'
         );
 
-
         return;
 
       }
@@ -313,135 +597,394 @@
 
 
     const label =
-      rajLinkedEl(
+      linkedEl(
         'label_Party'
-      );
-
-
-    const chips =
-      rajLinkedEl(
-        'chips_Party'
       );
 
 
     if(label){
 
+      const values =
+        linkedSelected(
+          'Party'
+        );
+
+
       label.textContent =
 
-        selected.Party.length
+        values.length
 
-          ? `${selected.Party.length} selected`
+          ? `${values.length} selected`
 
           : 'All Customers';
 
     }
 
-
-    if(chips){
-
-      chips.innerHTML =
-
-        selected.Party
-          .slice(
-            0,
-            4
-          )
-          .map(
-            value =>
-              `<span class="chip">${
-                rajLinkedEsc(value)
-              }</span>`
-          )
-          .join('')
+  }
 
 
-        +
+  /* =========================================================
+     SEARCH CUSTOMER OPTIONS
+     ========================================================= */
+
+  function linkedApplyPartySearch(){
+
+    const search =
+      linkedEl(
+        'search_Party'
+      );
 
 
-        (
-          selected.Party.length > 4
+    if(!search){
+      return;
+    }
 
-            ? `<span class="chip">+${
-                selected.Party.length - 4
-              }</span>`
 
-            : ''
-        );
+    let value = '';
+
+
+    try{
+
+      value =
+        searchState.Party
+        ??
+        search.value
+        ??
+        '';
+
+    }catch(_){
+
+      value =
+        search.value
+        ||
+        '';
 
     }
+
+
+    search.value =
+      value;
+
+
+    const text =
+      String(value)
+        .toLowerCase()
+        .trim();
+
+
+    document
+      .querySelectorAll(
+        '#options_Party .multi-option'
+      )
+      .forEach(
+        option => {
+
+          const optionText =
+            String(
+              option.dataset.text
+              ||
+              ''
+            )
+              .toLowerCase();
+
+
+          option.style.display =
+
+            optionText.includes(
+              text
+            )
+
+              ? 'flex'
+
+              : 'none';
+
+        }
+      );
 
   }
 
 
   /* =========================================================
-     RESTORE PARTY DROPDOWN OPEN STATE
+     PARTY SELECT ALL / UNSELECT ALL
      ========================================================= */
 
-  function rajLinkedRestorePartyOpen(){
+  function linkedVisiblePartyValues(){
+
+    return [
+
+      ...document
+        .querySelectorAll(
+          '#options_Party .multi-option'
+        )
+
+    ]
+      .filter(
+        option =>
+          option.style.display
+          !== 'none'
+      )
+      .map(
+        option =>
+          option.querySelector(
+            'input[type="checkbox"]'
+          )
+            ?.value
+      )
+      .filter(Boolean);
+
+  }
+
+
+  async function linkedApplyPartyBulk(
+    selectAll
+  ){
+
+    if(
+      selectAll
+    ){
+
+      selected.Party =
+        linkedVisiblePartyValues();
+
+    }else{
+
+      selected.Party =
+        [];
+
+    }
+
+
+    linkedUpdateLabel();
+
 
     try{
 
-      if(
-        typeof restoreOpenFilter
-        === 'function'
-      ){
+      page =
+        1;
 
-        restoreOpenFilter(
-          'Party'
-        );
-
-
-        return;
-
-      }
+      budgetPage =
+        1;
 
     }catch(_){}
 
 
-    const multi =
-      rajLinkedEl(
-        'multi_Party'
-      );
+    if(
+      typeof loadDashboard
+      === 'function'
+    ){
 
-
-    if(multi){
-
-      multi.classList.add(
-        'open'
+      await loadDashboard(
+        false
       );
 
     }
+
+
+    linkedOpenParty();
 
   }
 
 
   /* =========================================================
-     CUSTOMER CHECKBOX HANDLER
+     RENDER CUSTOMER OPTIONS
      ========================================================= */
 
-  function rajLinkedWirePartyCheckboxes(){
+  function linkedRenderCustomers(
+    values
+  ){
 
     const box =
-      rajLinkedEl(
+      linkedEl(
         'options_Party'
       );
 
 
     if(!box){
-
       return;
-
     }
+
+
+    const validSet =
+      new Set(
+        values.map(
+          String
+        )
+      );
+
+
+    /*
+      Remove selected customer if it no longer belongs
+      to current filter combination.
+    */
+
+    selected.Party =
+      linkedSelected(
+        'Party'
+      )
+        .filter(
+          party =>
+            validSet.has(
+              String(party)
+            )
+        );
+
+
+    linkedUpdateLabel();
+
+
+    box.innerHTML = `
+
+      <div style="
+        display:flex;
+        gap:8px;
+        padding:8px 6px 10px;
+        border-bottom:1px solid #e5e7eb;
+        position:sticky;
+        top:0;
+        background:#fff;
+        z-index:5;
+      ">
+
+        <button
+          type="button"
+          id="rajLinkedPartySelectAll"
+          style="
+            flex:1;
+            padding:7px 9px;
+            border:1px solid #cbd5e1;
+            border-radius:8px;
+            background:#f8fafc;
+            cursor:pointer;
+            font-weight:600;
+          "
+        >
+          Select All
+        </button>
+
+
+        <button
+          type="button"
+          id="rajLinkedPartyUnselectAll"
+          style="
+            flex:1;
+            padding:7px 9px;
+            border:1px solid #cbd5e1;
+            border-radius:8px;
+            background:#f8fafc;
+            cursor:pointer;
+            font-weight:600;
+          "
+        >
+          Unselect All
+        </button>
+
+      </div>
+
+
+      ${
+        values.length
+
+          ? values
+              .map(
+                value => `
+
+                  <label
+                    class="multi-option"
+                    data-text="${linkedEsc(
+                      String(value)
+                        .toLowerCase()
+                    )}"
+                  >
+
+                    <input
+                      type="checkbox"
+                      value="${linkedEsc(value)}"
+                      ${
+                        selected.Party.includes(
+                          String(value)
+                        )
+                          ? 'checked'
+                          : ''
+                      }
+                    >
+
+                    <span>
+                      ${linkedEsc(value)}
+                    </span>
+
+                  </label>
+
+                `
+              )
+              .join('')
+
+          : `
+
+              <div style="
+                padding:18px 10px;
+                text-align:center;
+                color:#64748b;
+                font-size:12px;
+                font-weight:700;
+              ">
+                No customers match selected filters.
+              </div>
+
+            `
+      }
+
+    `;
+
+
+    linkedEl(
+      'rajLinkedPartySelectAll'
+    )
+      ?.addEventListener(
+        'click',
+        async event => {
+
+          event.preventDefault();
+
+          event.stopPropagation();
+
+
+          await linkedApplyPartyBulk(
+            true
+          );
+
+        }
+      );
+
+
+    linkedEl(
+      'rajLinkedPartyUnselectAll'
+    )
+      ?.addEventListener(
+        'click',
+        async event => {
+
+          event.preventDefault();
+
+          event.stopPropagation();
+
+
+          await linkedApplyPartyBulk(
+            false
+          );
+
+        }
+      );
 
 
     box
       .querySelectorAll(
-        'input[type="checkbox"]'
+        '.multi-option input[type="checkbox"]'
       )
       .forEach(
         checkbox => {
 
-          checkbox.onchange =
+          checkbox.addEventListener(
+            'change',
             async () => {
 
               if(
@@ -460,11 +1003,9 @@
 
                 }
 
-
               }else{
 
                 selected.Party =
-
                   selected.Party.filter(
                     value =>
                       value !==
@@ -474,7 +1015,7 @@
               }
 
 
-              rajLinkedUpdatePartyLabel();
+              linkedUpdateLabel();
 
 
               try{
@@ -488,15 +1029,6 @@
               }catch(_){}
 
 
-              /*
-                Party changed manually.
-
-                Dashboard reloads data,
-                but linked customer list itself does not
-                need another server refresh because Party
-                isn't part of linked signature.
-              */
-
               if(
                 typeof loadDashboard
                 === 'function'
@@ -509,145 +1041,51 @@
               }
 
 
-              rajLinkedRestorePartyOpen();
+              linkedOpenParty();
 
-            };
+            }
+          );
 
         }
       );
+
+
+    linkedApplyPartySearch();
 
   }
 
 
   /* =========================================================
-     RENDER LINKED CUSTOMERS
+     OPEN CUSTOMER MENU
      ========================================================= */
 
-  function rajLinkedRenderPartyOptions(
-    values
-  ){
+  function linkedOpenParty(){
 
-    const box =
-      rajLinkedEl(
-        'options_Party'
+    const multi =
+      linkedEl(
+        'multi_Party'
       );
 
 
-    if(!box){
-
+    if(!multi){
       return;
-
     }
 
 
-    /*
-      Preserve search text.
-    */
-
-    let searchText =
-      '';
-
-
-    try{
-
-      searchText =
-        searchState.Party
-        ||
-        rajLinkedEl(
-          'search_Party'
-        )
-          ?.value
-        ||
-        '';
-
-    }catch(_){}
-
-
-    /*
-      Standard dashboard Select All / Unselect All buttons.
-    */
-
-    let buttons = '';
+    multi.classList.add(
+      'open'
+    );
 
 
     try{
 
       if(
-        typeof bulkButtons
+        typeof rajPositionMulti
         === 'function'
       ){
 
-        buttons =
-          bulkButtons(
-            'Party'
-          );
-
-      }
-
-    }catch(_){}
-
-
-    box.innerHTML =
-
-      buttons
-
-      +
-
-      values
-        .map(
-          value => `
-
-            <label
-              class="multi-option"
-              data-text="${rajLinkedEsc(
-                String(value)
-                  .toLowerCase()
-              )}"
-            >
-
-              <input
-                type="checkbox"
-                value="${rajLinkedEsc(value)}"
-                ${
-                  selected.Party.includes(
-                    String(value)
-                  )
-                    ? 'checked'
-                    : ''
-                }
-              >
-
-              <span>
-                ${rajLinkedEsc(value)}
-              </span>
-
-            </label>
-
-          `
-        )
-        .join('');
-
-
-    rajLinkedWirePartyCheckboxes();
-
-
-    /*
-      Restore Customer search filter.
-    */
-
-    try{
-
-      searchState.Party =
-        searchText;
-
-
-      if(
-        typeof applySearchFilter
-        === 'function'
-      ){
-
-        applySearchFilter(
-          'Party'
+        rajPositionMulti(
+          multi
         );
 
       }
@@ -658,44 +1096,22 @@
 
 
   /* =========================================================
-     FETCH LINKED CUSTOMER VALUES
+     RUN CUSTOMER REFRESH
      ========================================================= */
 
-  async function rajRefreshLinkedCustomers(
+  async function linkedRefresh(
     force = false
   ){
 
-    if(
-      rajLinkedRunning
-    ){
-
-      return;
-
-    }
-
-
-    if(
-      typeof rpc
-      !== 'function'
-      ||
-      typeof filterArgs
-      !== 'function'
-    ){
-
-      return;
-
-    }
-
-
     const signature =
-      rajLinkedSignature();
+      linkedSignature();
 
 
     if(
       !force
       &&
       signature ===
-      rajLinkedLastSignature
+      linkedLastSignature
     ){
 
       return;
@@ -703,52 +1119,35 @@
     }
 
 
-    const requestId =
-      ++rajLinkedRequestId;
+    if(
+      linkedBusy
+    ){
+
+      linkedPending =
+        true;
+
+      return;
+
+    }
 
 
-    rajLinkedRunning =
+    linkedBusy =
       true;
+
+
+    const requestNo =
+      ++linkedRequestNo;
 
 
     try{
 
-      /*
-        filterArgs('Party') already uses:
-        - selected SM
-        - Main Group
-        - City
-        - Division
-        - Pincode
-        - Item filters
-        - Month
-        - Search
-        - Target / OD / Budget Status Party scope
-      */
+      const values =
+        await linkedFetchCustomers();
 
-      const data =
-        await rpc(
-          'raj_filter_values',
-          {
-
-            p_column:
-              'Party',
-
-            ...filterArgs(
-              'Party'
-            )
-
-          }
-        );
-
-
-      /*
-        Ignore stale result if a newer refresh started.
-      */
 
       if(
-        requestId !==
-        rajLinkedRequestId
+        requestNo !==
+        linkedRequestNo
       ){
 
         return;
@@ -756,111 +1155,49 @@
       }
 
 
-      const values =
-        rajLinkedParseValues(
-          data
-        );
-
-
-      const validSet =
-        new Set(
-          values.map(
-            String
-          )
-        );
-
-
-      /*
-        IMPORTANT:
-
-        If SM / City / OD / Target changes,
-        an old selected customer might no longer belong
-        to the new filter scope.
-
-        Remove invalid selected customers automatically.
-      */
-
-      const oldParty =
-        [
-          ...(selected.Party || [])
-        ];
-
-
-      selected.Party =
-
-        oldParty.filter(
-          party =>
-            validSet.has(
-              String(party)
-            )
-        );
-
-
-      const partyWasRemoved =
-
-        selected.Party.length
-        !==
-        oldParty.length;
-
-
-      rajLinkedUpdatePartyLabel();
-
-
-      rajLinkedRenderPartyOptions(
+      linkedRenderCustomers(
         values
       );
 
 
-      rajLinkedLastSignature =
+      linkedLastSignature =
         signature;
-
-
-      /*
-        If an invalid old customer was removed,
-        reload data once with corrected Party selection.
-
-        This prevents:
-        SM = Dh
-        old customer from another SM still filtering data.
-      */
-
-      if(
-        partyWasRemoved
-        &&
-        typeof loadDashboard
-          === 'function'
-      ){
-
-        try{
-
-          page =
-            1;
-
-          budgetPage =
-            1;
-
-        }catch(_){}
-
-
-        await loadDashboard(
-          false
-        );
-
-      }
 
 
     }catch(error){
 
       console.error(
-        'Linked Customer Filter Error:',
+        'Linked Customer error:',
         error
       );
 
 
     }finally{
 
-      rajLinkedRunning =
+      linkedBusy =
         false;
+
+
+      if(
+        linkedPending
+      ){
+
+        linkedPending =
+          false;
+
+
+        setTimeout(
+          () => {
+
+            linkedRefresh(
+              true
+            );
+
+          },
+          50
+        );
+
+      }
 
     }
 
@@ -868,24 +1205,321 @@
 
 
   /* =========================================================
-     WRAP DASHBOARD LOADER
-
-     Current speed addon intentionally avoids reloading every
-     filter list.
-
-     We keep that behavior and refresh ONLY Customer / Party.
+     DEBOUNCED REFRESH
      ========================================================= */
 
-  function rajInstallLinkedDashboard(){
+  function linkedQueueRefresh(
+    delay = 250
+  ){
 
-    if(
-      rajLinkedInstalled
-    ){
+    clearTimeout(
+      linkedTimer
+    );
 
-      return true;
 
+    linkedTimer =
+      setTimeout(
+        () => {
+
+          linkedRefresh(
+            false
+          );
+
+        },
+        delay
+      );
+
+  }
+
+
+  /* =========================================================
+     CAPTURE FILTER CHANGES DIRECTLY
+
+     This does not depend only on loadDashboard.
+     ========================================================= */
+
+  function linkedInstallGlobalListeners(){
+
+    document.addEventListener(
+      'change',
+      event => {
+
+        const target =
+          event.target;
+
+
+        if(!target){
+          return;
+        }
+
+
+        /*
+          Ignore Customer's own checkbox.
+        */
+
+        if(
+          target.closest(
+            '#options_Party'
+          )
+        ){
+
+          return;
+
+        }
+
+
+        /*
+          Main filters.
+        */
+
+        if(
+          target.closest(
+            '#filterGrid'
+          )
+        ){
+
+          linkedQueueRefresh(
+            300
+          );
+
+          return;
+
+        }
+
+
+        /*
+          Month.
+        */
+
+        if(
+          target.closest(
+            '#options_month'
+          )
+        ){
+
+          linkedQueueRefresh(
+            300
+          );
+
+          return;
+
+        }
+
+
+        /*
+          OD Team.
+        */
+
+        if(
+          target.closest(
+            '#options_budgetOD'
+          )
+        ){
+
+          linkedQueueRefresh(
+            300
+          );
+
+          return;
+
+        }
+
+
+        /*
+          Native selectors.
+        */
+
+        if(
+          target.id
+          === 'budgetTarget'
+
+          ||
+
+          target.id
+          === 'budgetStatus'
+
+          ||
+
+          target.id
+          === 'productSaleStatus'
+        ){
+
+          linkedQueueRefresh(
+            300
+          );
+
+        }
+
+      },
+      true
+    );
+
+
+    /*
+      Bulk select buttons use click,
+      not checkbox change.
+    */
+
+    document.addEventListener(
+      'click',
+      event => {
+
+        const button =
+          event.target.closest(
+            '[data-select-all], [data-unselect-all]'
+          );
+
+
+        if(!button){
+          return;
+        }
+
+
+        const id =
+
+          button.dataset.selectAll
+
+          ??
+
+          button.dataset.unselectAll;
+
+
+        if(
+          id
+          &&
+          id !== 'Party'
+          &&
+          id !== 'compareMonths'
+          &&
+          id !== 'actualMonths'
+        ){
+
+          linkedQueueRefresh(
+            450
+          );
+
+        }
+
+      },
+      true
+    );
+
+  }
+
+
+  /* =========================================================
+     GLOBAL SEARCH
+     ========================================================= */
+
+  function linkedInstallSearchListener(){
+
+    const search =
+      linkedEl(
+        'search'
+      );
+
+
+    if(!search){
+      return;
     }
 
+
+    search.addEventListener(
+      'input',
+      () => {
+
+        linkedQueueRefresh(
+          600
+        );
+
+      }
+    );
+
+  }
+
+
+  /* =========================================================
+     CUSTOMER SEARCH
+     ========================================================= */
+
+  function linkedInstallPartySearch(){
+
+    const search =
+      linkedEl(
+        'search_Party'
+      );
+
+
+    if(!search){
+      return;
+    }
+
+
+    search.addEventListener(
+      'input',
+      () => {
+
+        try{
+
+          searchState.Party =
+            search.value;
+
+        }catch(_){}
+
+
+        linkedApplyPartySearch();
+
+      }
+    );
+
+  }
+
+
+  /* =========================================================
+     CUSTOMER DROPDOWN OPEN
+
+     Force refresh before user sees list.
+     ========================================================= */
+
+  function linkedInstallPartyOpen(){
+
+    document.addEventListener(
+      'click',
+      event => {
+
+        const button =
+          event.target.closest(
+            '[data-open="Party"]'
+          );
+
+
+        if(!button){
+          return;
+        }
+
+
+        /*
+          Immediate server sync when opening Customer.
+        */
+
+        linkedRefresh(
+          true
+        );
+
+      },
+      true
+    );
+
+  }
+
+
+  /* =========================================================
+     WRAP DASHBOARD
+
+     Extra safety after dashboard data finishes loading.
+     ========================================================= */
+
+  function linkedWrapDashboard(){
 
     if(
       typeof loadDashboard
@@ -897,32 +1531,34 @@
     }
 
 
-    const previousLoadDashboard =
+    if(
+      loadDashboard.__rajLinkedOnline27
+    ){
+
+      return true;
+
+    }
+
+
+    const oldLoadDashboard =
       loadDashboard;
 
 
-    loadDashboard =
+    const wrapped =
       async function(
         ...args
       ){
 
         const result =
-          await previousLoadDashboard
+          await oldLoadDashboard
             .apply(
               this,
               args
             );
 
 
-        /*
-          refreshBudgetSalesScope() has already run inside
-          the dashboard load at this point.
-
-          Therefore OD / Target customer scope is ready.
-        */
-
-        await rajRefreshLinkedCustomers(
-          false
+        linkedQueueRefresh(
+          100
         );
 
 
@@ -931,8 +1567,12 @@
       };
 
 
-    rajLinkedInstalled =
+    wrapped.__rajLinkedOnline27 =
       true;
+
+
+    loadDashboard =
+      wrapped;
 
 
     return true;
@@ -941,184 +1581,17 @@
 
 
   /* =========================================================
-     REFRESH CUSTOMER WHEN PARTY DROPDOWN OPENS
-
-     This is an additional safety check.
-     ========================================================= */
-
-  function rajWirePartyOpen(){
-
-    const button =
-      document.querySelector(
-        '[data-open="Party"]'
-      );
-
-
-    if(
-      !button
-      ||
-      button.dataset.rajLinkedPartyOpen
-        === '1'
-    ){
-
-      return;
-
-    }
-
-
-    button.dataset.rajLinkedPartyOpen =
-      '1';
-
-
-    button.addEventListener(
-      'click',
-      () => {
-
-        setTimeout(
-          () => {
-
-            rajRefreshLinkedCustomers(
-              false
-            );
-
-          },
-          0
-        );
-
-      }
-    );
-
-  }
-
-
-  /* =========================================================
-     TARGET / STATUS DIRECT CHANGE SAFETY
-     ========================================================= */
-
-  function rajWireBudgetSelectors(){
-
-    [
-      'budgetTarget',
-      'budgetStatus',
-      'productSaleStatus'
-    ]
-      .forEach(
-        id => {
-
-          const node =
-            rajLinkedEl(id);
-
-
-          if(
-            !node
-            ||
-            node.dataset.rajLinkedChange
-              === '1'
-          ){
-
-            return;
-
-          }
-
-
-          node.dataset.rajLinkedChange =
-            '1';
-
-
-          node.addEventListener(
-            'change',
-            () => {
-
-              /*
-                Dashboard's own handler runs too.
-
-                Linked refresh happens after dashboard completes.
-              */
-
-              setTimeout(
-                () => {
-
-                  rajRefreshLinkedCustomers(
-                    false
-                  );
-
-                },
-                250
-              );
-
-            }
-          );
-
-        }
-      );
-
-  }
-
-
-  /* =========================================================
-     GLOBAL SEARCH SAFETY
-     ========================================================= */
-
-  function rajWireGlobalSearch(){
-
-    const search =
-      rajLinkedEl(
-        'search'
-      );
-
-
-    if(
-      !search
-      ||
-      search.dataset.rajLinkedSearch
-        === '1'
-    ){
-
-      return;
-
-    }
-
-
-    search.dataset.rajLinkedSearch =
-      '1';
-
-
-    search.addEventListener(
-      'input',
-      () => {
-
-        /*
-          Don't query on every keystroke instantly.
-        */
-
-        clearTimeout(
-          window.__rajLinkedSearchTimer
-        );
-
-
-        window.__rajLinkedSearchTimer =
-          setTimeout(
-            () => {
-
-              rajRefreshLinkedCustomers(
-                false
-              );
-
-            },
-            500
-          );
-
-      }
-    );
-
-  }
-
-
-  /* =========================================================
      INITIALIZE
      ========================================================= */
 
-  function rajInitLinkedCustomer(){
+  function linkedInit(){
+
+    linkedInstallGlobalListeners();
+
+    linkedInstallSearchListener();
+
+    linkedInstallPartyOpen();
+
 
     let attempts =
       0;
@@ -1131,53 +1604,44 @@
           attempts++;
 
 
-          rajWirePartyOpen();
+          linkedInstallPartySearch();
 
-          rajWireBudgetSelectors();
-
-          rajWireGlobalSearch();
-
-
-          const installed =
-            rajInstallLinkedDashboard();
+          const ready =
+            linkedWrapDashboard();
 
 
           if(
-            installed
+            ready
             &&
             typeof selected
               !== 'undefined'
             &&
-            rajLinkedEl(
+            linkedEl(
               'options_Party'
             )
           ){
 
-            /*
-              First customer list sync.
-            */
+            clearInterval(
+              timer
+            );
+
 
             setTimeout(
               () => {
 
-                rajRefreshLinkedCustomers(
+                linkedRefresh(
                   true
                 );
 
               },
-              800
-            );
-
-
-            clearInterval(
-              timer
+              700
             );
 
           }
 
 
           if(
-            attempts >= 200
+            attempts >= 150
           ){
 
             clearInterval(
@@ -1190,25 +1654,6 @@
         100
       );
 
-
-    /*
-      Main script may rebuild filter UI during startup.
-      Light safety wiring only; no database query here.
-    */
-
-    setInterval(
-      () => {
-
-        rajWirePartyOpen();
-
-        rajWireBudgetSelectors();
-
-        rajWireGlobalSearch();
-
-      },
-      1500
-    );
-
   }
 
 
@@ -1219,18 +1664,16 @@
 
     document.addEventListener(
       'DOMContentLoaded',
-      rajInitLinkedCustomer,
+      linkedInit,
       {
         once:true
       }
     );
 
-
   }else{
 
-    rajInitLinkedCustomer();
+    linkedInit();
 
   }
-
 
 })();
