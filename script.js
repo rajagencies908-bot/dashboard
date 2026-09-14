@@ -17,6 +17,8 @@ const filterDefs = [
   ['ItemCode','Item Code','All Item Codes'],
   ['ItemName','Product / Item Name','All Products'],
   ['SM','SM','All SM'],
+  ['Order','OD / Order','All OD'],
+  ['Area','Area','All Areas'],
   ['Division','Division','All Divisions'],
   ['City','City','All Cities'],
   ['Pincode','Pincode','All Pincodes']
@@ -41,11 +43,31 @@ filters.forEach(column => {
 });
 
 selected.month = [];
-selected.budgetOD = [];
 selected.compareMonths = [];
 
+/*
+  Backward-compatibility bridge for auth-addon.js.
+  Old auth code reads/writes selected.budgetOD.
+  It now transparently maps to the real products.Order filter.
+*/
+Object.defineProperty(
+  selected,
+  'budgetOD',
+  {
+    configurable:true,
+    get(){
+      return selected.Order;
+    },
+    set(value){
+      selected.Order =
+        Array.isArray(value)
+          ? value
+          : [];
+    }
+  }
+);
+
 searchState.month = '';
-searchState.budgetOD = '';
 searchState.compareMonths = '';
 
 let columns = [];
@@ -386,7 +408,7 @@ function normalFilterObject(){
 
 
 /* =====================================================
-   IS TARGET / OD / STATUS CUSTOMER SCOPE ACTIVE?
+   IS TARGET / BUDGET STATUS CUSTOMER SCOPE ACTIVE?
 ===================================================== */
 
 function budgetSalesScopeIsActive(){
@@ -404,10 +426,6 @@ function budgetSalesScopeIsActive(){
 
 
   return (
-
-    selected.budgetOD.length > 0
-
-    ||
 
     targetMode !== 'all'
 
@@ -455,8 +473,8 @@ const rawBudgetArgs = () => ({
       : null,
 
   p_ods:
-    selected.budgetOD.length
-      ? selected.budgetOD
+    selected.Order.length
+      ? selected.Order
       : null,
 
   p_target_mode:
@@ -478,7 +496,7 @@ const rawBudgetArgs = () => ({
 
 
 /* =====================================================
-   TARGET / OD / STATUS -> MATCHED PRODUCT PARTIES
+   TARGET / STATUS -> MATCHED PRODUCT PARTIES
 ===================================================== */
 
 async function refreshBudgetSalesScope(){
@@ -557,7 +575,7 @@ function effectiveFilterObject(){
 
 
   /*
-    Target / OD / Budget Status scope.
+    Target / Budget Status scope.
   */
 
   if(budgetSalesScopeIsActive()){
@@ -671,7 +689,7 @@ function filterObjectForOptions(column){
 
 
   /*
-    Party options should respect target/OD/status scope.
+    Party options should respect target/status scope.
   */
 
   if(column === 'Party'){
@@ -800,8 +818,8 @@ const budgetSummaryArgs = () => ({
     normalFilterObject(),
 
   p_ods:
-    selected.budgetOD.length
-      ? selected.budgetOD
+    selected.Order.length
+      ? selected.Order
       : null,
 
   p_target_mode:
@@ -1059,49 +1077,14 @@ function updateMonthLabel(){
 
 function updateODLabel(){
 
-  const label =
-    el('label_budgetOD');
+  /*
+    Backward-compatibility for the current auth addon.
+    OD is now the main products.Order filter.
+  */
 
-  const chips =
-    el('chips_budgetOD');
-
-
-  if(label){
-
-    label.textContent =
-
-      selected.budgetOD.length
-
-        ? `${selected.budgetOD.length} selected`
-
-        : 'All OD';
-
-  }
-
-
-  if(chips){
-
-    chips.innerHTML =
-
-      selected.budgetOD
-        .slice(0,4)
-        .map(
-          value =>
-            `<span class="chip">${esc(value)}</span>`
-        )
-        .join('')
-
-      +
-
-      (
-        selected.budgetOD.length > 4
-
-          ? `<span class="chip">+${selected.budgetOD.length - 4}</span>`
-
-          : ''
-      );
-
-  }
+  updateMultiLabel(
+    'Order'
+  );
 
 }
 
@@ -1425,35 +1408,6 @@ async function applyBulkSelection(
 
   }
 
-
-  if(id === 'budgetOD'){
-
-    selected.budgetOD =
-
-      selectAll
-
-        ? valuesFromOptions(
-            'budgetOD',
-            visibleOnly
-          )
-
-        : [];
-
-
-    updateODLabel();
-
-    page = 1;
-    budgetPage = 1;
-
-    await loadDashboard(true);
-
-    restoreOpenFilter(
-      'budgetOD'
-    );
-
-    return;
-
-  }
 
 
   if(!filters.includes(id)){
@@ -1959,149 +1913,6 @@ async function refreshFilters(){
     await loadFilter(column);
 
   }
-
-}
-
-
-/* =====================================================
-   OD OPTIONS
-===================================================== */
-
-async function loadODOptions(){
-
-  const box =
-    el(
-      'options_budgetOD'
-    );
-
-
-  if(!box){
-
-    return;
-
-  }
-
-
-  const data =
-    await rpc(
-      'raj_budget_od_values'
-    );
-
-
-  const values =
-
-    (data || [])
-      .map(
-        row =>
-          String(
-            row.OD
-            ??
-            row.od
-            ??
-            ''
-          )
-      )
-      .filter(Boolean);
-
-
-  box.innerHTML =
-
-    bulkButtons(
-      'budgetOD'
-    )
-
-    +
-
-    values
-      .map(
-        value => `
-
-          <label
-            class="multi-option"
-            data-text="${esc(
-              value.toLowerCase()
-            )}"
-          >
-
-            <input
-              type="checkbox"
-              value="${esc(value)}"
-              ${
-                selected.budgetOD.includes(
-                  value
-                )
-                  ? 'checked'
-                  : ''
-              }
-            >
-
-            <span>
-              ${esc(value)}
-            </span>
-
-          </label>
-
-        `
-      )
-      .join('');
-
-
-  box
-    .querySelectorAll(
-      'input[type="checkbox"]'
-    )
-    .forEach(
-      checkbox => {
-
-        checkbox.onchange =
-          async () => {
-
-            if(checkbox.checked){
-
-              if(
-                !selected.budgetOD.includes(
-                  checkbox.value
-                )
-              ){
-
-                selected.budgetOD.push(
-                  checkbox.value
-                );
-
-              }
-
-            }else{
-
-              selected.budgetOD =
-
-                selected.budgetOD.filter(
-                  value =>
-                    value !== checkbox.value
-                );
-
-            }
-
-
-            updateODLabel();
-
-            page = 1;
-            budgetPage = 1;
-
-            await loadDashboard(true);
-
-            restoreOpenFilter(
-              'budgetOD'
-            );
-
-          };
-
-      }
-    );
-
-
-  applySearchFilter(
-    'budgetOD'
-  );
 
 }
 
@@ -3850,7 +3661,7 @@ async function loadDashboard(
   try{
 
     /*
-      First build correct Target / OD / Status customer scope.
+      First build correct Target / Budget Status customer scope.
     */
 
     await refreshBudgetSalesScope();
@@ -4044,7 +3855,6 @@ async function loadDashboard(
 
       buildMonths();
 
-      await loadODOptions();
 
     }
 
@@ -4323,7 +4133,6 @@ document.addEventListener(
 
 
       wireSearchBox('month');
-      wireSearchBox('budgetOD');
       wireSearchBox('compareMonths');
 
 
@@ -4331,7 +4140,6 @@ document.addEventListener(
 
       await refreshFilters();
 
-      await loadODOptions();
 
       await loadDashboard();
 
@@ -4584,7 +4392,6 @@ document.addEventListener(
 
 
             selected.month = [];
-            selected.budgetOD = [];
             selected.compareMonths = [];
 
             budgetScopeParties = [];
@@ -4656,7 +4463,6 @@ document.addEventListener(
 
             updateMonthLabel();
 
-            updateODLabel();
 
             updateCompareLabel();
 
