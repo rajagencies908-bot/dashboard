@@ -3962,7 +3962,7 @@ document.addEventListener(
 
       document.addEventListener(
         'click',
-        event => {
+        async event => {
 
 
           const selectAll =
@@ -4032,6 +4032,33 @@ document.addEventListener(
             if(!multi){
 
               return;
+
+            }
+
+
+            /*
+              Always reload the dropdown being opened
+              using the latest selected filters.
+
+              This is especially important for Party:
+              Order / SM / Area / City / Company etc.
+              must be reflected immediately, even if an
+              earlier dashboard refresh was interrupted.
+            */
+            if(filters.includes(id)){
+
+              try{
+
+                await loadFilter(id);
+
+              }catch(error){
+
+                console.error(
+                  `Filter refresh error (${id}):`,
+                  error
+                );
+
+              }
 
             }
 
