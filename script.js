@@ -1,4 +1,4 @@
-/* RAJ AGENCIES script.js - online31 Area + City Analysis */
+/* RAJ AGENCIES script.js - online32 monthly customers + sticky analysis */
 const { createClient } = supabase;
 
 const sb = createClient(
@@ -2500,32 +2500,36 @@ async function loadGroupSummary(){
   const body =
     el('groupSummaryBody');
 
-
   if(!body){
-
     return;
-
   }
 
+  const table =
+    body.closest('table');
 
   const headRow =
-    body
-      .closest('table')
+    table
       ?.querySelector(
         'thead tr'
       );
 
-
   if(!headRow){
-
     return;
-
   }
-
 
   const analysisMonths =
     activeAverageMonths();
 
+  /*
+    Customer Wise already represents one customer per row,
+    so repeating monthly "Customers Billed = 1" is not useful.
+
+    All other Analysis views show:
+    Month Taxable Sale + Month Customers Billed
+    and Avg Taxable Sale + Avg Customers Billed.
+  */
+  const showMonthlyCustomers =
+    currentView !== 'Party';
 
   try{
 
@@ -2564,16 +2568,13 @@ async function loadGroupSummary(){
         ]
       );
 
-
     const totalData =
       results[0]
       ||
       [];
 
-
     const monthlyData =
       results.slice(1);
-
 
     const viewName =
 
@@ -2601,7 +2602,6 @@ async function loadGroupSummary(){
 
       currentView;
 
-
     let header = `
 
       <th id="viewLabel">
@@ -2609,7 +2609,6 @@ async function loadGroupSummary(){
       </th>
 
     `;
-
 
     analysisMonths.forEach(
       month => {
@@ -2623,15 +2622,33 @@ async function loadGroupSummary(){
 
         `;
 
+        if(showMonthlyCustomers){
+
+          header += `
+
+            <th>
+              ${esc(monthNames[month] || month)}
+              Customers Billed
+            </th>
+
+          `;
+
+        }
+
       }
     );
 
+    header +=
+      '<th>Avg Taxable Sale</th>';
+
+    if(showMonthlyCustomers){
+
+      header +=
+        '<th>Avg Customers Billed</th>';
+
+    }
 
     header +=
-
-      '<th>Avg Taxable Sale</th>'
-
-      +
 
       '<th>Qty</th>'
 
@@ -2645,18 +2662,41 @@ async function loadGroupSummary(){
 
       +
 
-      '<th>Customers Billed</th>'
+      '<th>Total Customers Billed</th>'
 
       +
 
       '<th>Records</th>';
 
-
     headRow.innerHTML =
       header;
 
+    /*
+      Mark the first Analysis column as sticky.
+      CSS also keeps the complete header row sticky.
+    */
+    if(table){
+      table.classList.add(
+        'analysis-sticky-table'
+      );
+    }
 
     if(!totalData.length){
+
+      const fixedColumns = 6;
+      const monthColumns =
+        analysisMonths.length
+        *
+        (
+          showMonthlyCustomers
+            ? 2
+            : 1
+        );
+
+      const averageColumns =
+        showMonthlyCustomers
+          ? 2
+          : 1;
 
       body.innerHTML = `
 
@@ -2664,7 +2704,15 @@ async function loadGroupSummary(){
 
           <td
             class="empty"
-            colspan="${7 + analysisMonths.length}"
+            colspan="${
+              1
+              +
+              monthColumns
+              +
+              averageColumns
+              +
+              fixedColumns
+            }"
           >
             No summary data found.
           </td>
@@ -2677,7 +2725,10 @@ async function loadGroupSummary(){
 
     }
 
-
+    /*
+      Each month map stores BOTH Taxable Sale and distinct
+      Customers Billed returned by raj_group_summary.
+    */
     const monthMaps =
 
       monthlyData.map(
@@ -2686,7 +2737,6 @@ async function loadGroupSummary(){
           const map =
             new Map();
 
-
           (rows || [])
             .forEach(
               row => {
@@ -2694,22 +2744,32 @@ async function loadGroupSummary(){
                 map.set(
                   String(row.label),
 
-                  Number(
-                    row.taxable
-                    ||
-                    0
-                  )
+                  {
+                    taxable:
+                      Number(
+                        row.taxable
+                        ||
+                        0
+                      ),
+
+                    customers:
+                      Number(
+                        row.customersBilled
+                        ??
+                        row.customersbilled
+                        ??
+                        0
+                      )
+                  }
                 );
 
               }
             );
 
-
           return map;
 
         }
       );
-
 
     body.innerHTML =
 
@@ -2717,7 +2777,7 @@ async function loadGroupSummary(){
         .map(
           row => {
 
-            const monthSales =
+            const monthStats =
 
               analysisMonths.map(
                 (month,index) =>
@@ -2729,11 +2789,33 @@ async function loadGroupSummary(){
 
                   ||
 
-                  0
+                  {
+                    taxable:0,
+                    customers:0
+                  }
               );
 
+            const monthSales =
+              monthStats.map(
+                stat =>
+                  Number(
+                    stat.taxable
+                    ||
+                    0
+                  )
+              );
 
-            const avg =
+            const monthCustomers =
+              monthStats.map(
+                stat =>
+                  Number(
+                    stat.customers
+                    ||
+                    0
+                  )
+              );
+
+            const avgTaxable =
 
               monthSales.length
 
@@ -2751,16 +2833,45 @@ async function loadGroupSummary(){
 
                 : 0;
 
+            const avgCustomers =
+
+              monthCustomers.length
+
+                ? monthCustomers.reduce(
+                    (
+                      total,
+                      value
+                    ) =>
+                      total + value,
+
+                    0
+                  )
+                  /
+                  monthCustomers.length
+
+                : 0;
 
             const monthCells =
 
-              monthSales
+              monthStats
                 .map(
-                  value =>
-                    `<td>${money(value)}</td>`
+                  stat => {
+
+                    let cells =
+                      `<td>${money(stat.taxable)}</td>`;
+
+                    if(showMonthlyCustomers){
+
+                      cells +=
+                        `<td>${fmt(stat.customers)}</td>`;
+
+                    }
+
+                    return cells;
+
+                  }
                 )
                 .join('');
-
 
             return `
 
@@ -2773,8 +2884,20 @@ async function loadGroupSummary(){
                 ${monthCells}
 
                 <td>
-                  ${money(avg)}
+                  ${money(avgTaxable)}
                 </td>
+
+                ${
+                  showMonthlyCustomers
+
+                    ? `
+                      <td>
+                        ${fmt(avgCustomers)}
+                      </td>
+                    `
+
+                    : ''
+                }
 
                 <td>
                   ${fmt(row.qty)}
@@ -2789,7 +2912,15 @@ async function loadGroupSummary(){
                 </td>
 
                 <td>
-                  ${fmt(row.customersBilled)}
+                  ${
+                    fmt(
+                      row.customersBilled
+                      ??
+                      row.customersbilled
+                      ??
+                      0
+                    )
+                  }
                 </td>
 
                 <td>
@@ -2804,14 +2935,12 @@ async function loadGroupSummary(){
         )
         .join('');
 
-
   }catch(error){
 
     console.error(
       'Analysis error:',
       error
     );
-
 
     body.innerHTML = `
 
