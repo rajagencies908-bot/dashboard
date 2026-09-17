@@ -1,4 +1,4 @@
-/* RAJ AGENCIES script.js - online35 clean table controls */
+/* RAJ AGENCIES script.js - online36 dynamic latest-month trend */
 const { createClient } = supabase;
 
 const sb = createClient(
@@ -2498,6 +2498,125 @@ function renderRows(rows){
    TAXABLE SALES
 ===================================================== */
 
+
+/* =====================================================
+   DYNAMIC LATEST 2 MONTH SALES TREND
+
+   No month names are hard-coded here.
+   We use the dashboard's dynamically discovered months.
+
+   The latest month is treated as "active" only when
+   the Analysis result has actual Taxable Sales in it.
+   Therefore a newly-added empty month will NOT create
+   a false -100% comparison.
+
+   Example:
+   Apr..Sep data => Aug vs Sep
+   Oct gets real sales => Sep vs Oct
+===================================================== */
+
+function latestTwoActiveAnalysisMonthIndexes(
+  monthlyData
+){
+
+  const activeIndexes = [];
+
+  (monthlyData || [])
+    .forEach(
+      (rows,index) => {
+
+        const hasActualSales =
+          (rows || [])
+            .some(
+              row =>
+                Number(
+                  row.taxable
+                  ||
+                  0
+                )
+                !==
+                0
+            );
+
+        if(hasActualSales){
+          activeIndexes.push(index);
+        }
+
+      }
+    );
+
+  return activeIndexes.slice(-2);
+
+}
+
+
+function latestMonthTrendHtml(
+  currentValue,
+  previousValue
+){
+
+  const current =
+    Number(currentValue || 0);
+
+  const previous =
+    Number(previousValue || 0);
+
+  const difference =
+    current - previous;
+
+  if(
+    !Number.isFinite(current)
+    ||
+    !Number.isFinite(previous)
+  ){
+    return '';
+  }
+
+  if(difference === 0){
+
+    return `
+      <div class="month-trend trend-equal">
+        = No Change
+      </div>
+    `;
+
+  }
+
+  const percent =
+    previous !== 0
+      ? (difference / Math.abs(previous)) * 100
+      : null;
+
+  const isUp =
+    difference > 0;
+
+  const sign =
+    isUp ? '+' : '-';
+
+  const arrow =
+    isUp ? '▲' : '▼';
+
+  const className =
+    isUp
+      ? 'trend-up'
+      : 'trend-down';
+
+  const percentText =
+    percent === null
+      ? ''
+      : ` (${sign}${Math.abs(percent).toFixed(1)}%)`;
+
+  return `
+    <div class="month-trend ${className}">
+      ${arrow}
+      ${sign}${money(Math.abs(difference))}
+      ${percentText}
+    </div>
+  `;
+
+}
+
+
 async function loadGroupSummary(){
 
   const body =
@@ -2578,6 +2697,26 @@ async function loadGroupSummary(){
 
     const monthlyData =
       results.slice(1);
+
+    /*
+      Find the last two months that actually contain sales.
+      This switches automatically when a future month starts
+      receiving data.
+    */
+    const latestTwoMonthIndexes =
+      latestTwoActiveAnalysisMonthIndexes(
+        monthlyData
+      );
+
+    const previousTrendMonthIndex =
+      latestTwoMonthIndexes.length === 2
+        ? latestTwoMonthIndexes[0]
+        : -1;
+
+    const latestTrendMonthIndex =
+      latestTwoMonthIndexes.length === 2
+        ? latestTwoMonthIndexes[1]
+        : -1;
 
     const viewName =
 
@@ -2879,10 +3018,45 @@ async function loadGroupSummary(){
 
               monthStats
                 .map(
-                  stat => {
+                  (stat,index) => {
 
-                    let cells =
-                      `<td>${money(stat.taxable)}</td>`;
+                    let trendHtml = '';
+
+                    /*
+                      Only the LATEST active month gets the
+                      comparison indicator, and only against
+                      the immediately previous active month.
+                    */
+                    if(
+                      index === latestTrendMonthIndex
+                      &&
+                      previousTrendMonthIndex >= 0
+                    ){
+
+                      trendHtml =
+                        latestMonthTrendHtml(
+                          stat.taxable,
+                          monthStats[
+                            previousTrendMonthIndex
+                          ]?.taxable
+                          ||
+                          0
+                        );
+
+                    }
+
+                    let cells = `
+                      <td class="${
+                        trendHtml
+                          ? 'latest-trend-cell'
+                          : ''
+                      }">
+                        <div class="month-sale-value">
+                          ${money(stat.taxable)}
+                        </div>
+                        ${trendHtml}
+                      </td>
+                    `;
 
                     if(showMonthlyCustomers){
 
