@@ -119,12 +119,68 @@
       white-space:nowrap;
     }
 
+
+    /* =====================================================
+       ANALYSIS VIEW - STICKY HEADER + STICKY LEFT COLUMN
+       ===================================================== */
+
+    .summary-table-wrap{
+      position:relative;
+      max-height:72vh;
+      overflow:auto;
+      overscroll-behavior:contain;
+    }
+
+    .summary-table{
+      border-collapse:separate;
+      border-spacing:0;
+    }
+
+    .summary-table.analysis-sticky-table thead th{
+      position:sticky;
+      top:0;
+      z-index:30;
+      background:#f7f6ff;
+      box-shadow:
+        0 1px 0 rgba(102,87,245,.18),
+        0 4px 10px rgba(60,50,140,.06);
+    }
+
+    .summary-table.analysis-sticky-table th:first-child,
+    .summary-table.analysis-sticky-table td:first-child{
+      position:sticky;
+      left:0;
+      min-width:190px;
+      max-width:280px;
+    }
+
+    .summary-table.analysis-sticky-table td:first-child{
+      z-index:20;
+      background:#ffffff;
+      box-shadow:
+        1px 0 0 rgba(102,87,245,.12),
+        5px 0 12px rgba(60,50,140,.04);
+    }
+
+    .summary-table.analysis-sticky-table thead th:first-child{
+      z-index:40;
+      background:#f2efff;
+      box-shadow:
+        1px 0 0 rgba(102,87,245,.18),
+        5px 0 12px rgba(60,50,140,.07);
+    }
+
+    .summary-table.analysis-sticky-table tbody tr:hover td:first-child{
+      background:#faf9ff;
+    }
+
+
   </style>
 
 
   <link
     rel="stylesheet"
-    href="style.css?v=online17"
+    href="style.css?v=online32"
   >
 
 </head>
@@ -1041,7 +1097,7 @@
 
 
 <script
-  src="script.js?v=online31"
+  src="script.js?v=online32"
 ></script>
 
 
