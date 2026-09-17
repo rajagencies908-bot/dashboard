@@ -121,155 +121,59 @@
 
 
     /* =====================================================
-       UNIFIED TABLE FREEZE + ROW CONTROLS
-       Used by Analysis, Budget and Detailed Sales tables.
+       CLEAN UNIFIED TABLE FREEZE + ROW CONTROLS
        ===================================================== */
 
-    .budget-head-actions{
-      display:flex;
-      align-items:flex-end;
-      justify-content:flex-end;
-      gap:12px;
-      flex-wrap:wrap;
-    }
-
-    .budget-head-actions .row-count{
-      min-width:110px;
-    }
-
-    .budget-head-actions .row-count label{
-      margin-bottom:5px;
-    }
+    .budget-head-actions{display:flex;align-items:flex-end;justify-content:flex-end;gap:12px;flex-wrap:wrap;}
+    .row-count{min-width:90px;}
+    .row-count label{margin-bottom:5px;}
+    .row-count select{min-width:88px;}
 
     .freeze-table-wrap{
       position:relative;
       width:100%;
-      overflow-x:auto !important;
-      overflow-y:visible !important;
-      overscroll-behavior-x:contain;
+      max-height:68vh;
+      overflow:auto !important;
+      overscroll-behavior:contain;
       -webkit-overflow-scrolling:touch;
+      border-radius:14px;
     }
 
-    .freeze-table{
-      border-collapse:separate !important;
-      border-spacing:0 !important;
-      width:max-content;
-      min-width:100%;
-    }
+    .freeze-table{border-collapse:separate !important;border-spacing:0 !important;width:max-content;min-width:100%;}
 
-    /*
-      All three tables use the same sticky heading.
-      It stays just below the dashboard topbar while
-      the MAIN PAGE scrolls vertically.
-    */
     .freeze-table thead th{
       position:-webkit-sticky !important;
       position:sticky !important;
-      top:78px !important;
-      z-index:70 !important;
-      background:#f5f3ff !important;
+      top:0 !important;
+      z-index:30 !important;
+      background:#f1efff !important;
       white-space:nowrap;
-      box-shadow:
-        inset 0 -1px 0 rgba(102,87,245,.18),
-        0 5px 12px rgba(60,50,140,.07);
+      box-shadow:inset 0 -1px 0 rgba(102,87,245,.18);
     }
 
-    /*
-      Freeze the first/main column for Analysis
-      and Detailed Sales.
-    */
-    .freeze-first-1 th:first-child,
-    .freeze-first-1 td:first-child{
-      position:-webkit-sticky !important;
-      position:sticky !important;
-      left:0 !important;
-      min-width:168px;
-      max-width:280px;
+    .freeze-first-1 th:first-child,.freeze-first-1 td:first-child{
+      position:-webkit-sticky !important;position:sticky !important;left:0 !important;min-width:168px;max-width:280px;
     }
+    .freeze-first-1 tbody td:first-child{z-index:20 !important;background:#fff !important;box-shadow:inset -1px 0 0 rgba(102,87,245,.14);}
+    .freeze-first-1 thead th:first-child{z-index:50 !important;background:#eae7ff !important;}
 
-    .freeze-first-1 tbody td:first-child{
-      z-index:45 !important;
-      background:#fff !important;
-      box-shadow:
-        inset -1px 0 0 rgba(102,87,245,.14),
-        6px 0 12px rgba(60,50,140,.05);
+    .freeze-first-2 th:nth-child(1),.freeze-first-2 td:nth-child(1){
+      position:-webkit-sticky !important;position:sticky !important;left:0 !important;min-width:90px;width:90px;max-width:90px;
     }
-
-    .freeze-first-1 thead th:first-child{
-      z-index:95 !important;
-      background:#eeeaff !important;
+    .freeze-first-2 th:nth-child(2),.freeze-first-2 td:nth-child(2){
+      position:-webkit-sticky !important;position:sticky !important;left:90px !important;min-width:230px;max-width:320px;
     }
+    .freeze-first-2 tbody td:nth-child(1),.freeze-first-2 tbody td:nth-child(2){z-index:20 !important;background:#fff !important;}
+    .freeze-first-2 tbody td:nth-child(2){box-shadow:inset -1px 0 0 rgba(102,87,245,.14);}
+    .freeze-first-2 thead th:nth-child(1),.freeze-first-2 thead th:nth-child(2){z-index:50 !important;background:#eae7ff !important;}
 
-    /*
-      Budget table: freeze SM + Customer / Party.
-      Customer column starts after the fixed SM column.
-    */
-    .freeze-first-2 th:nth-child(1),
-    .freeze-first-2 td:nth-child(1){
-      position:-webkit-sticky !important;
-      position:sticky !important;
-      left:0 !important;
-      min-width:95px;
-      width:95px;
-      max-width:95px;
-    }
+    .analysis-pager{margin-top:12px;}
 
-    .freeze-first-2 th:nth-child(2),
-    .freeze-first-2 td:nth-child(2){
-      position:-webkit-sticky !important;
-      position:sticky !important;
-      left:95px !important;
-      min-width:230px;
-      max-width:320px;
-    }
-
-    .freeze-first-2 tbody td:nth-child(1),
-    .freeze-first-2 tbody td:nth-child(2){
-      z-index:45 !important;
-      background:#fff !important;
-    }
-
-    .freeze-first-2 tbody td:nth-child(2){
-      box-shadow:
-        inset -1px 0 0 rgba(102,87,245,.14),
-        6px 0 12px rgba(60,50,140,.05);
-    }
-
-    .freeze-first-2 thead th:nth-child(1),
-    .freeze-first-2 thead th:nth-child(2){
-      z-index:95 !important;
-      background:#eeeaff !important;
-    }
-
-    .freeze-table tbody tr:hover td:first-child,
-    .freeze-first-2 tbody tr:hover td:nth-child(2){
-      background:#faf9ff !important;
-    }
-
-    @media (max-width:700px){
-      .freeze-table thead th{
-        top:78px !important;
-      }
-
-      .freeze-first-1 th:first-child,
-      .freeze-first-1 td:first-child{
-        min-width:145px;
-        max-width:210px;
-      }
-
-      .freeze-first-2 th:nth-child(1),
-      .freeze-first-2 td:nth-child(1){
-        min-width:80px;
-        width:80px;
-        max-width:80px;
-      }
-
-      .freeze-first-2 th:nth-child(2),
-      .freeze-first-2 td:nth-child(2){
-        left:80px !important;
-        min-width:190px;
-        max-width:240px;
-      }
+    @media(max-width:700px){
+      .freeze-table-wrap{max-height:62vh;}
+      .freeze-first-1 th:first-child,.freeze-first-1 td:first-child{min-width:145px;max-width:210px;}
+      .freeze-first-2 th:nth-child(1),.freeze-first-2 td:nth-child(1){min-width:78px;width:78px;max-width:78px;}
+      .freeze-first-2 th:nth-child(2),.freeze-first-2 td:nth-child(2){left:78px !important;min-width:185px;max-width:235px;}
     }
 
 
@@ -278,7 +182,7 @@
 
   <link
     rel="stylesheet"
-    href="style.css?v=online34"
+    href="style.css?v=online35"
   >
 
 </head>
@@ -917,6 +821,19 @@
 
       </div>
 
+      <div class="row-count">
+        <label>Rows</label>
+        <select id="analysisPageSize">
+          <option value="25" selected>25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="500">500</option>
+          <option value="1000">1000</option>
+          <option value="5000">5000</option>
+          <option value="10000">10000</option>
+        </select>
+      </div>
+
     </div>
 
 
@@ -986,6 +903,12 @@
 
       </table>
 
+    </div>
+
+    <div class="pager analysis-pager">
+      <button id="analysisPrev">Previous</button>
+      <span id="analysisPageInfo">Page 1</span>
+      <button id="analysisNext">Next</button>
     </div>
 
   </section>
@@ -1209,7 +1132,7 @@
 
 
 <script
-  src="script.js?v=online34"
+  src="script.js?v=online35"
 ></script>
 
 
