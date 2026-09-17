@@ -1,4 +1,4 @@
-/* RAJ AGENCIES script.js - online32 monthly customers + sticky analysis */
+/* RAJ AGENCIES script.js - online34 unified rows + freeze tables */
 const { createClient } = supabase;
 
 const sb = createClient(
@@ -88,7 +88,7 @@ let budgetScopeParties = [];
 
 let budgetMonthStats = {};
 
-const budgetPageSize = 25;
+let budgetPageSize = 25;
 
 
 /* =====================================================
@@ -4520,6 +4520,31 @@ document.addEventListener(
               await loadDashboard();
 
             }
+
+          };
+
+      }
+
+
+      /* BUDGET PAGE SIZE */
+
+      if(el('budgetPageSize')){
+
+        el(
+          'budgetPageSize'
+        ).onchange =
+          () => {
+
+            budgetPage = 1;
+
+            budgetPageSize =
+              Number(
+                el('budgetPageSize').value
+                ||
+                25
+              );
+
+            renderBudget();
 
           };
 
