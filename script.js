@@ -1,4 +1,4 @@
-/* RAJ AGENCIES script.js - online34 unified rows + freeze tables */
+/* RAJ AGENCIES script.js - online35 clean table controls */
 const { createClient } = supabase;
 
 const sb = createClient(
@@ -78,6 +78,9 @@ let page = 1;
 let totalPages = 1;
 
 let currentView = 'Party';
+
+let analysisPageSize = 25;
+let analysisPage = 1;
 
 let timer = null;
 
@@ -2771,9 +2774,30 @@ async function loadGroupSummary(){
         }
       );
 
+    const analysisTotalPages =
+      Math.max(1, Math.ceil(totalData.length / analysisPageSize));
+
+    if(analysisPage > analysisTotalPages){
+      analysisPage = analysisTotalPages;
+    }
+
+    const analysisStart = (analysisPage - 1) * analysisPageSize;
+    const analysisRows = totalData.slice(
+      analysisStart,
+      analysisStart + analysisPageSize
+    );
+
+    if(el('analysisPageInfo')){
+      el('analysisPageInfo').textContent =
+        `Page ${analysisPage} of ${analysisTotalPages} • ${fmt(totalData.length)} groups`;
+    }
+
+    if(el('analysisPrev')) el('analysisPrev').disabled = analysisPage <= 1;
+    if(el('analysisNext')) el('analysisNext').disabled = analysisPage >= analysisTotalPages;
+
     body.innerHTML =
 
-      totalData
+      analysisRows
         .map(
           row => {
 
@@ -4464,6 +4488,33 @@ document.addEventListener(
       }
 
 
+      /* ANALYSIS ROW CONTROLS */
+
+      if(el('analysisPageSize')){
+        el('analysisPageSize').onchange = async () => {
+          analysisPageSize = Number(el('analysisPageSize').value || 25);
+          analysisPage = 1;
+          await loadGroupSummary();
+        };
+      }
+
+      if(el('analysisPrev')){
+        el('analysisPrev').onclick = async () => {
+          if(analysisPage > 1){
+            analysisPage--;
+            await loadGroupSummary();
+          }
+        };
+      }
+
+      if(el('analysisNext')){
+        el('analysisNext').onclick = async () => {
+          analysisPage++;
+          await loadGroupSummary();
+        };
+      }
+
+
       /* PAGE SIZE */
 
       if(el('pageSize')){
@@ -4751,6 +4802,8 @@ document.addEventListener(
 
                 currentView =
                   button.dataset.view;
+
+                analysisPage = 1;
 
 
                 await Promise.all(
