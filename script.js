@@ -1,4 +1,4 @@
-/* RAJ AGENCIES script.js - online30 timeout-safe linked filters */
+/* RAJ AGENCIES script.js - online31 Area + City Analysis */
 const { createClient } = supabase;
 
 const sb = createClient(
@@ -2588,6 +2588,10 @@ async function loadGroupSummary(){
         SM:'SM',
 
         Division:'Division',
+
+        Area:'Area',
+
+        City:'City',
 
         Pincode:'Pincode'
 
