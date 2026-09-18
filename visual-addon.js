@@ -1,12 +1,12 @@
 /* =========================================================
-   RAJ AGENCIES - visual-addon.js - online42
-   Graph View + India Pincode Map + Month Filter Fix
+   RAJ AGENCIES - visual-addon.js - online43
+   Graph View + India Pincode Map
 
-   - Graph follows selected Analysis View.
-   - Graph follows selected Month.
-   - Graph follows all dashboard filters.
-   - India Map remains available.
-   - Map uses filtered Pincode-wise data.
+   NEW:
+   - All Pincodes option
+   - Click Pincode bubble -> Selected Pincode Details
+   - Popup + permanent details card
+   - Month + all dashboard filters remain applied
 ========================================================= */
 
 (() => {
@@ -77,7 +77,6 @@
   function rupees(value){
 
     return '₹' +
-
       new Intl.NumberFormat(
         'en-IN',
         {
@@ -134,6 +133,21 @@
     }
 
     return indian(value);
+
+  }
+
+
+  function escapeHtml(value){
+
+    const div =
+      document.createElement('div');
+
+    div.textContent =
+      String(
+        value ?? ''
+      );
+
+    return div.innerHTML;
 
   }
 
@@ -224,9 +238,6 @@
 
   /* =====================================================
      GROUP DATA
-
-     IMPORTANT:
-     Selected Month is explicitly passed to RPC.
   ===================================================== */
 
   async function getGroupData(view){
@@ -296,9 +307,7 @@
   async function refreshGraph(){
 
     if(visualBusy){
-
       return;
-
     }
 
     const canvas =
@@ -309,9 +318,7 @@
       ||
       typeof Chart === 'undefined'
     ){
-
       return;
-
     }
 
     visualBusy = true;
@@ -334,12 +341,6 @@
           10
         );
 
-      /*
-        This data now follows selected Month
-        because getGroupData() explicitly sends
-        p_months.
-      */
-
       const rows =
         await getGroupData(
           view
@@ -349,14 +350,11 @@
         [...rows]
           .sort(
             (a,b) =>
-
               metricValue(
                 b,
                 metric
               )
-
               -
-
               metricValue(
                 a,
                 metric
@@ -521,15 +519,10 @@
                     label(context){
 
                       const val =
-
                         context.parsed?.y
-
                         ??
-
                         context.parsed
-
                         ??
-
                         context.raw;
 
                       return (
@@ -611,7 +604,6 @@
 
         $('visualViewName')
           .textContent =
-
           VIEW_NAMES[view]
           ||
           view;
@@ -623,7 +615,6 @@
 
         $('visualGroupCount')
           .textContent =
-
           indian(
             rows.length
           );
@@ -635,7 +626,6 @@
 
         $('visualTopGroup')
           .textContent =
-
           sorted[0]
             ?.label
           ||
@@ -648,7 +638,6 @@
 
         $('visualTopSale')
           .textContent =
-
           rupees(
             sorted[0]
               ?.taxable
@@ -663,7 +652,6 @@
 
         $('visualChartTitle')
           .textContent =
-
           `Top ${
             Math.min(
               topN,
@@ -682,10 +670,6 @@
       }
 
 
-      /*
-        Show selected Month beside graph title.
-      */
-
       if($('visualChartNote')){
 
         const months =
@@ -693,11 +677,8 @@
 
         $('visualChartNote')
           .textContent =
-
           months.length
-
             ? `Selected Month: ${months.join(', ')}`
-
             : 'All selected dashboard data';
 
       }
@@ -713,7 +694,6 @@
 
         $('visualChartNote')
           .textContent =
-
           'Graph error: '
           +
           (
@@ -928,6 +908,368 @@
 
 
   /* =====================================================
+     ADD "ALL PINCODES" OPTION
+  ===================================================== */
+
+  function installAllPincodesOption(){
+
+    const select =
+      $('visualMapLimit');
+
+    if(!select){
+      return;
+    }
+
+    if(
+      select.querySelector(
+        'option[value="all"]'
+      )
+    ){
+      return;
+    }
+
+    const option =
+      document.createElement(
+        'option'
+      );
+
+    option.value =
+      'all';
+
+    option.textContent =
+      'All Pincodes';
+
+    select.insertBefore(
+      option,
+      select.firstChild
+    );
+
+  }
+
+
+  /* =====================================================
+     SELECTED PINCODE DETAILS CARD
+  ===================================================== */
+
+  function ensureMapDetailsCard(){
+
+    const map =
+      $('salesIndiaMap');
+
+    if(!map){
+      return null;
+    }
+
+    let card =
+      $('visualMapDetails');
+
+    if(card){
+      return card;
+    }
+
+    card =
+      document.createElement(
+        'div'
+      );
+
+    card.id =
+      'visualMapDetails';
+
+    card.className =
+      'visual-map-details';
+
+    card.innerHTML = `
+
+      <div class="visual-map-details-head">
+
+        <div>
+
+          <span>
+            Selected Pincode
+          </span>
+
+          <strong id="visualSelectedPin">
+            Click any map point
+          </strong>
+
+        </div>
+
+        <button
+          type="button"
+          id="visualMapDetailsClose"
+          aria-label="Close selected Pincode details"
+        >
+          ×
+        </button>
+
+      </div>
+
+      <div
+        id="visualMapDetailsLocation"
+        class="visual-map-details-location"
+      >
+        Pincode details will appear here.
+      </div>
+
+      <div class="visual-map-details-grid">
+
+        <div class="visual-map-detail-item">
+
+          <span>
+            Taxable Sales
+          </span>
+
+          <strong id="visualSelectedTaxable">
+            -
+          </strong>
+
+        </div>
+
+        <div class="visual-map-detail-item">
+
+          <span>
+            Customers Billed
+          </span>
+
+          <strong id="visualSelectedCustomers">
+            -
+          </strong>
+
+        </div>
+
+        <div class="visual-map-detail-item">
+
+          <span>
+            Quantity
+          </span>
+
+          <strong id="visualSelectedQty">
+            -
+          </strong>
+
+        </div>
+
+        <div class="visual-map-detail-item">
+
+          <span>
+            Products Sold
+          </span>
+
+          <strong id="visualSelectedProducts">
+            -
+          </strong>
+
+        </div>
+
+        <div class="visual-map-detail-item">
+
+          <span>
+            Records
+          </span>
+
+          <strong id="visualSelectedRecords">
+            -
+          </strong>
+
+        </div>
+
+        <div class="visual-map-detail-item">
+
+          <span>
+            Bubble Metric
+          </span>
+
+          <strong id="visualSelectedMetric">
+            -
+          </strong>
+
+        </div>
+
+      </div>
+
+    `;
+
+    map.insertAdjacentElement(
+      'beforebegin',
+      card
+    );
+
+    $('visualMapDetailsClose')
+      ?.addEventListener(
+        'click',
+        () => {
+
+          card.classList.remove(
+            'show'
+          );
+
+        }
+      );
+
+    return card;
+
+  }
+
+
+  function showPincodeDetails(
+    pin,
+    geo,
+    row,
+    metric
+  ){
+
+    const card =
+      ensureMapDetailsCard();
+
+    if(!card){
+      return;
+    }
+
+    const area =
+      String(
+        geo?.area
+        ||
+        ''
+      ).trim();
+
+    const state =
+      String(
+        geo?.state
+        ||
+        ''
+      ).trim();
+
+    const locationParts =
+      [
+        area,
+        state
+      ]
+      .filter(
+        Boolean
+      );
+
+    const customers =
+      row.customersBilled
+      ??
+      row.customersbilled
+      ??
+      0;
+
+    const products =
+      row.productsSold
+      ??
+      row.productssold
+      ??
+      0;
+
+    const records =
+      row.records
+      ??
+      row.recordCount
+      ??
+      row.recordcount
+      ??
+      0;
+
+    if($('visualSelectedPin')){
+
+      $('visualSelectedPin')
+        .textContent =
+        pin;
+
+    }
+
+    if($('visualMapDetailsLocation')){
+
+      $('visualMapDetailsLocation')
+        .textContent =
+        locationParts.length
+          ? locationParts.join(' • ')
+          : 'Location not available';
+
+    }
+
+    if($('visualSelectedTaxable')){
+
+      $('visualSelectedTaxable')
+        .textContent =
+        rupees(
+          row.taxable
+        );
+
+    }
+
+    if($('visualSelectedCustomers')){
+
+      $('visualSelectedCustomers')
+        .textContent =
+        indian(
+          customers
+        );
+
+    }
+
+    if($('visualSelectedQty')){
+
+      $('visualSelectedQty')
+        .textContent =
+        indian(
+          row.qty,
+          2
+        );
+
+    }
+
+    if($('visualSelectedProducts')){
+
+      $('visualSelectedProducts')
+        .textContent =
+        indian(
+          products
+        );
+
+    }
+
+    if($('visualSelectedRecords')){
+
+      $('visualSelectedRecords')
+        .textContent =
+        indian(
+          records
+        );
+
+    }
+
+    if($('visualSelectedMetric')){
+
+      $('visualSelectedMetric')
+        .textContent =
+        (
+          METRIC_NAMES[metric]
+          ||
+          metric
+        )
+        +
+        ': '
+        +
+        metricText(
+          metricValue(
+            row,
+            metric
+          ),
+          metric
+        );
+
+    }
+
+    card.classList.add(
+      'show'
+    );
+
+  }
+
+
+  /* =====================================================
      INDIA MAP
   ===================================================== */
 
@@ -950,7 +1292,9 @@
 
           zoomControl:true,
 
-          minZoom:4
+          minZoom:4,
+
+          preferCanvas:true
 
         }
       )
@@ -992,12 +1336,14 @@
       $('salesIndiaMap');
 
     if(!mapBox){
-
       return;
-
     }
 
     try{
+
+      installAllPincodesOption();
+
+      ensureMapDetailsCard();
 
       ensureMap();
 
@@ -1011,19 +1357,10 @@
 
       }
 
-      /*
-        IMPORTANT:
-
-        Map also uses getGroupData(),
-        therefore selected Month and all
-        dashboard filters are applied.
-      */
-
       const [
         rows,
         lookup
       ] =
-
         await Promise.all(
           [
 
@@ -1042,16 +1379,13 @@
         ||
         'taxable';
 
-      const limit =
-        Number(
-          $('visualMapLimit')
-            ?.value
-          ||
-          50
-        );
+      const limitValue =
+        $('visualMapLimit')
+          ?.value
+        ||
+        '50';
 
-      const sorted =
-
+      const validRows =
         [...rows]
 
           .filter(
@@ -1067,35 +1401,40 @@
 
           .sort(
             (a,b) =>
-
               metricValue(
                 b,
                 metric
               )
-
               -
-
               metricValue(
                 a,
                 metric
               )
-          )
-
-          .slice(
-            0,
-            limit
           );
+
+      const selectedRows =
+        limitValue === 'all'
+
+          ? validRows
+
+          : validRows.slice(
+              0,
+              Number(
+                limitValue
+                ||
+                50
+              )
+            );
 
       mapLayer.clearLayers();
 
       const mapped = [];
 
       const maxValue =
-
         Math.max(
           1,
 
-          ...sorted.map(
+          ...selectedRows.map(
             row =>
               metricValue(
                 row,
@@ -1106,7 +1445,7 @@
 
       for(
         const row
-        of sorted
+        of selectedRows
       ){
 
         const pin =
@@ -1120,9 +1459,7 @@
           );
 
         if(!geo){
-
           continue;
-
         }
 
         const value =
@@ -1132,15 +1469,10 @@
           );
 
         const radius =
-
-          6
-
+          5
           +
-
-          18
-
+          17
           *
-
           Math.sqrt(
             Math.max(
               0,
@@ -1151,7 +1483,6 @@
           );
 
         const circle =
-
           L.circleMarker(
             [
               geo.lat,
@@ -1170,25 +1501,50 @@
             }
           );
 
+
+        const customers =
+          row.customersBilled
+          ??
+          row.customersbilled
+          ??
+          0;
+
+        const products =
+          row.productsSold
+          ??
+          row.productssold
+          ??
+          0;
+
+        const records =
+          row.records
+          ??
+          row.recordCount
+          ??
+          row.recordcount
+          ??
+          0;
+
+
         circle.bindPopup(
           `
             <div class="raj-map-popup">
 
               <strong>
-                ${pin}
+                ${escapeHtml(pin)}
               </strong>
 
               <br>
 
               ${
                 geo.area
-                  ? `${geo.area}<br>`
+                  ? `${escapeHtml(geo.area)}<br>`
                   : ''
               }
 
               ${
                 geo.state
-                  ? `${geo.state}<br>`
+                  ? `${escapeHtml(geo.state)}<br>`
                   : ''
               }
 
@@ -1203,13 +1559,7 @@
 
               Customers Billed:
               <b>
-                ${
-                  indian(
-                    row.customersBilled
-                    ??
-                    row.customersbilled
-                  )
-                }
+                ${indian(customers)}
               </b>
 
               <br>
@@ -1223,18 +1573,35 @@
 
               Products Sold:
               <b>
-                ${
-                  indian(
-                    row.productsSold
-                    ??
-                    row.productssold
-                  )
-                }
+                ${indian(products)}
+              </b>
+
+              <br>
+
+              Records:
+              <b>
+                ${indian(records)}
               </b>
 
             </div>
           `
         );
+
+
+        circle.on(
+          'click',
+          () => {
+
+            showPincodeDetails(
+              pin,
+              geo,
+              row,
+              metric
+            );
+
+          }
+        );
+
 
         circle.addTo(
           mapLayer
@@ -1248,6 +1615,7 @@
         );
 
       }
+
 
       if(mapped.length){
 
@@ -1279,23 +1647,27 @@
 
       }
 
+
       setTimeout(
         () =>
           indiaMap.invalidateSize(),
         100
       );
 
+
       if(status){
 
         const months =
           selectedVisualMonths();
 
+        const pointText =
+          limitValue === 'all'
+            ? 'All Pincodes'
+            : `Top ${limitValue} Pincodes`;
+
         status.textContent =
-
-          `${mapped.length} of ${sorted.length} selected Pincodes mapped • ${rows.length} filtered Pincode groups`
-
+          `${pointText} • ${mapped.length} mapped • ${rows.length} filtered Pincode groups`
           +
-
           (
             months.length
               ? ` • Month: ${months.join(', ')}`
@@ -1315,7 +1687,6 @@
 
         $('visualMapStatus')
           .textContent =
-
           'Map error: '
           +
           (
@@ -1338,7 +1709,6 @@
   async function refreshActiveVisual(){
 
     const mapActive =
-
       $('mapVisualPane')
         ?.classList
         .contains(
@@ -1372,13 +1742,10 @@
         button => {
 
           button.classList.toggle(
-
             'active',
-
             button.dataset.visualMode
             ===
             mode
-
           );
 
         }
@@ -1422,6 +1789,11 @@
   ===================================================== */
 
   function wireVisuals(){
+
+    installAllPincodesOption();
+
+    ensureMapDetailsCard();
+
 
     document
       .querySelectorAll(
@@ -1504,11 +1876,6 @@
       );
 
 
-    /*
-      Normal dashboard filter changes,
-      including Month.
-    */
-
     document.addEventListener(
       'change',
       event => {
@@ -1554,10 +1921,6 @@
       );
 
 
-    /*
-      Multi-select filters including Month.
-    */
-
     document.addEventListener(
       'click',
       event => {
@@ -1578,10 +1941,6 @@
       }
     );
 
-
-    /*
-      First graph load.
-    */
 
     setTimeout(
       refreshGraph,
