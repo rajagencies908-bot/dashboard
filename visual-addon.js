@@ -1,12 +1,18 @@
 /* =========================================================
-   RAJ AGENCIES - visual-addon.js - online43
-   Graph View + India Pincode Map
+   RAJ AGENCIES - visual-addon.js - online44
+   Graph View + Independent Graph Month + India Pincode Map
 
    NEW:
+   - Independent Graph Month selector
+   - All Months / Total option
+   - Months automatically come from dashboard schema
+   - Graph Month does NOT change main dashboard Month
+
+   KEPT:
    - All Pincodes option
-   - Click Pincode bubble -> Selected Pincode Details
-   - Popup + permanent details card
-   - Month + all dashboard filters remain applied
+   - Click Pincode -> Selected Pincode Details
+   - India Map
+   - Main dashboard filters
 ========================================================= */
 
 (() => {
@@ -214,10 +220,34 @@
 
 
   /* =====================================================
-     SELECTED MONTH
+     MONTH DISPLAY NAME
   ===================================================== */
 
-  function selectedVisualMonths(){
+  function visualMonthName(month){
+
+    if(
+      typeof monthNames !== 'undefined'
+      &&
+      monthNames
+      &&
+      monthNames[month]
+    ){
+
+      return monthNames[month];
+
+    }
+
+    return month;
+
+  }
+
+
+  /* =====================================================
+     MAIN DASHBOARD SELECTED MONTH
+     Used by India Map
+  ===================================================== */
+
+  function selectedDashboardMonths(){
 
     if(
       typeof selected !== 'undefined'
@@ -237,22 +267,209 @@
 
 
   /* =====================================================
+     GRAPH MONTH SELECTOR
+  ===================================================== */
+
+  function installGraphMonthSelector(){
+
+    const controls =
+      document.querySelector(
+        '#graphVisualPane .visual-controls'
+      );
+
+    if(!controls){
+      return;
+    }
+
+    let wrapper =
+      $('visualGraphMonthField');
+
+    if(!wrapper){
+
+      wrapper =
+        document.createElement(
+          'div'
+        );
+
+      wrapper.id =
+        'visualGraphMonthField';
+
+      wrapper.className =
+        'field';
+
+      wrapper.innerHTML = `
+        <label>
+          Graph Month
+        </label>
+
+        <select id="visualGraphMonth">
+          <option value="">
+            All Months / Total
+          </option>
+        </select>
+      `;
+
+      controls.appendChild(
+        wrapper
+      );
+
+    }
+
+    populateGraphMonths();
+
+  }
+
+
+  function populateGraphMonths(){
+
+    const select =
+      $('visualGraphMonth');
+
+    if(!select){
+      return;
+    }
+
+    const oldValue =
+      select.value;
+
+    const availableMonths =
+      (
+        typeof months !== 'undefined'
+        &&
+        Array.isArray(months)
+      )
+        ? [...months]
+        : [];
+
+    select.innerHTML =
+      `
+        <option value="">
+          All Months / Total
+        </option>
+      `;
+
+    availableMonths.forEach(
+      month => {
+
+        const option =
+          document.createElement(
+            'option'
+          );
+
+        option.value =
+          month;
+
+        option.textContent =
+          visualMonthName(
+            month
+          );
+
+        select.appendChild(
+          option
+        );
+
+      }
+    );
+
+    if(
+      oldValue
+      &&
+      availableMonths.includes(
+        oldValue
+      )
+    ){
+
+      select.value =
+        oldValue;
+
+    }
+
+  }
+
+
+  function selectedGraphMonths(){
+
+    const value =
+      $('visualGraphMonth')
+        ?.value
+      ||
+      '';
+
+    if(value){
+
+      return [
+        value
+      ];
+
+    }
+
+    /*
+      Blank Graph Month means:
+      All Months / Total.
+
+      It is intentionally independent from
+      main dashboard Month.
+    */
+
+    return [];
+
+  }
+
+
+  function graphMonthText(){
+
+    const selectedMonths =
+      selectedGraphMonths();
+
+    if(!selectedMonths.length){
+
+      return 'All Months / Total';
+
+    }
+
+    return selectedMonths
+      .map(
+        visualMonthName
+      )
+      .join(', ');
+
+  }
+
+
+  /* =====================================================
      GROUP DATA
   ===================================================== */
 
-  async function getGroupData(view){
+  async function getGroupData(
+    view,
+    monthMode = 'dashboard'
+  ){
 
-    const months =
-      selectedVisualMonths();
+    const selectedMonths =
+      monthMode === 'graph'
+        ? selectedGraphMonths()
+        : selectedDashboardMonths();
+
+    const baseArgs =
+      args();
 
     return await rpc(
       'raj_group_summary',
       {
-        ...args(),
+        ...baseArgs,
 
         p_view:view,
 
-        p_months:months
+        /*
+          Override args().p_months here.
+
+          Graph:
+          independent Graph Month.
+
+          Map:
+          normal dashboard Month.
+        */
+        p_months:selectedMonths
       }
     )
     ||
@@ -325,6 +542,8 @@
 
     try{
 
+      populateGraphMonths();
+
       const view =
         currentView
         ||
@@ -341,9 +560,14 @@
           10
         );
 
+      /*
+        IMPORTANT:
+        Graph uses independent Graph Month.
+      */
       const rows =
         await getGroupData(
-          view
+          view,
+          'graph'
         );
 
       const sorted =
@@ -672,14 +896,9 @@
 
       if($('visualChartNote')){
 
-        const months =
-          selectedVisualMonths();
-
         $('visualChartNote')
           .textContent =
-          months.length
-            ? `Selected Month: ${months.join(', ')}`
-            : 'All selected dashboard data';
+          `Graph Month: ${graphMonthText()}`;
 
       }
 
@@ -908,7 +1127,7 @@
 
 
   /* =====================================================
-     ADD "ALL PINCODES" OPTION
+     ALL PINCODES OPTION
   ===================================================== */
 
   function installAllPincodesOption(){
@@ -1357,6 +1576,10 @@
 
       }
 
+      /*
+        India Map intentionally continues
+        to use MAIN DASHBOARD MONTH.
+      */
       const [
         rows,
         lookup
@@ -1365,7 +1588,8 @@
           [
 
             getGroupData(
-              'Pincode'
+              'Pincode',
+              'dashboard'
             ),
 
             loadPincodeLookup()
@@ -1657,8 +1881,8 @@
 
       if(status){
 
-        const months =
-          selectedVisualMonths();
+        const dashboardMonths =
+          selectedDashboardMonths();
 
         const pointText =
           limitValue === 'all'
@@ -1669,9 +1893,9 @@
           `${pointText} • ${mapped.length} mapped • ${rows.length} filtered Pincode groups`
           +
           (
-            months.length
-              ? ` • Month: ${months.join(', ')}`
-              : ''
+            dashboardMonths.length
+              ? ` • Month: ${dashboardMonths.map(visualMonthName).join(', ')}`
+              : ' • All Months / Total'
           );
 
       }
@@ -1794,6 +2018,23 @@
 
     ensureMapDetailsCard();
 
+    installGraphMonthSelector();
+
+
+    /*
+      Schema/months loads asynchronously in script.js,
+      so populate again after startup.
+    */
+    setTimeout(
+      populateGraphMonths,
+      1000
+    );
+
+    setTimeout(
+      populateGraphMonths,
+      2000
+    );
+
 
     document
       .querySelectorAll(
@@ -1830,6 +2071,16 @@
 
       }
     );
+
+
+    /*
+      Independent Graph Month.
+    */
+    $('visualGraphMonth')
+      ?.addEventListener(
+        'change',
+        refreshGraph
+      );
 
 
     [
@@ -1876,6 +2127,16 @@
       );
 
 
+    /*
+      Normal dashboard filters.
+
+      They still affect Graph by SM, Company,
+      Customer, OD, Area etc.
+
+      Main dashboard Month does NOT control
+      Graph Month because Graph has its own
+      independent month selector.
+    */
     document.addEventListener(
       'change',
       event => {
@@ -1944,7 +2205,7 @@
 
     setTimeout(
       refreshGraph,
-      900
+      1100
     );
 
   }
