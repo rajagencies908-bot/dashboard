@@ -1,61 +1,86 @@
 /* =========================================================
-   RAJ AGENCIES - visual-addon.js - online38
-   Graph View + India Pincode Map
+   RAJ AGENCIES - visual-addon.js - online41
+   GRAPH VIEW ONLY + MONTH FILTER FIX
 
-   - Uses the SAME current dashboard filters.
+   IMPORTANT:
+   - India Map removed.
    - Graph follows current Analysis View.
-   - Map always uses Pincode-wise filtered sales.
-   - No month names are hard-coded.
-   - Pincode coordinates are loaded from an MIT-licensed
-     public India pincode latitude/longitude dataset and cached
-     in the browser after the first load.
+   - Graph follows selected Month.
+   - Graph follows all dashboard filters.
+   - Bar / Line / Donut supported.
 ========================================================= */
 
 (() => {
 
   'use strict';
 
-  const PINCODE_COORDS_URL =
-    'https://raw.githubusercontent.com/mrparveensharma/All-India-Pincode-list-with-latitude-and-longitude/refs/heads/master/Minimal-India-Pincode-list-with-latitude-and-longitude.csv';
 
   const VIEW_NAMES = {
+
     Party:'Customer Wise',
+
     MainGrp:'Company Wise',
+
     ItemName:'Product Wise',
+
     SM:'SM Wise',
+
     Division:'Division Wise',
+
     Area:'Area Wise',
+
     City:'City Wise',
+
     Pincode:'Pincode Wise'
+
   };
+
 
   const METRIC_NAMES = {
+
     taxable:'Taxable Sales',
+
     qty:'Quantity',
+
     customers:'Customers Billed',
+
     products:'Products Sold',
+
     records:'Records'
+
   };
 
+
   let salesChart = null;
-  let indiaMap = null;
-  let mapLayer = null;
-  let pinLookup = null;
+
   let visualBusy = false;
 
-  const $ = id => document.getElementById(id);
+
+  const $ = id =>
+    document.getElementById(id);
 
 
-  function number(value){
+
+  /* =====================================================
+     NUMBER HELPERS
+  ===================================================== */
+
+  function num(value){
 
     const n =
-      Number(value || 0);
+      Number(
+        value
+        ||
+        0
+      );
+
 
     return Number.isFinite(n)
       ? n
       : 0;
 
   }
+
 
 
   function indian(
@@ -66,42 +91,54 @@
     return new Intl.NumberFormat(
       'en-IN',
       {
-        maximumFractionDigits:digits
+
+        maximumFractionDigits:
+          digits
+
       }
     ).format(
-      number(value)
+      num(value)
     );
 
   }
 
 
+
   function rupees(value){
 
-    return '₹' +
-
+    return '₹'
+      +
       new Intl.NumberFormat(
         'en-IN',
         {
+
           maximumFractionDigits:0
+
         }
       ).format(
-        number(value)
+        num(value)
       );
 
   }
+
 
 
   function compact(value){
 
     const n =
       Math.abs(
-        number(value)
+        num(value)
       );
 
-    if(n >= 10000000){
+
+    if(
+      n
+      >=
+      10000000
+    ){
 
       return (
-        number(value)
+        num(value)
         /
         10000000
       ).toFixed(1)
@@ -111,10 +148,14 @@
     }
 
 
-    if(n >= 100000){
+    if(
+      n
+      >=
+      100000
+    ){
 
       return (
-        number(value)
+        num(value)
         /
         100000
       ).toFixed(1)
@@ -124,10 +165,14 @@
     }
 
 
-    if(n >= 1000){
+    if(
+      n
+      >=
+      1000
+    ){
 
       return (
-        number(value)
+        num(value)
         /
         1000
       ).toFixed(1)
@@ -137,53 +182,67 @@
     }
 
 
-    return indian(value);
+    return indian(
+      value
+    );
 
   }
 
 
-  function currentMetric(){
 
-    return $('visualMetric')
-      ?.value
-      ||
-      'taxable';
-
-  }
-
+  /* =====================================================
+     NORMAL METRIC VALUE
+  ===================================================== */
 
   function metricValue(
     row,
     metric
   ){
 
-    if(metric === 'customers'){
+    if(
+      metric
+      ===
+      'customers'
+    ){
 
-      return number(
+      return num(
+
         row.customersBilled
+
         ??
+
         row.customersbilled
+
       );
 
     }
 
 
-    if(metric === 'products'){
+    if(
+      metric
+      ===
+      'products'
+    ){
 
-      return number(
+      return num(
+
         row.productsSold
+
         ??
+
         row.productssold
+
       );
 
     }
 
 
-    return number(
+    return num(
       row[metric]
     );
 
   }
+
 
 
   function metricText(
@@ -191,13 +250,20 @@
     metric
   ){
 
-    return metric === 'taxable'
+    return metric
+      ===
+      'taxable'
 
-      ? rupees(value)
+      ? rupees(
+          value
+        )
 
       : indian(
           value,
-          metric === 'qty'
+
+          metric
+            ===
+            'qty'
             ? 2
             : 0
         );
@@ -205,14 +271,73 @@
   }
 
 
+
+  /* =====================================================
+     SELECTED MONTHS
+  ===================================================== */
+
+  function selectedVisualMonths(){
+
+    if(
+      typeof selected
+      !==
+      'undefined'
+
+      &&
+
+      Array.isArray(
+        selected.month
+      )
+    ){
+
+      return [
+        ...selected.month
+      ];
+
+    }
+
+
+    return [];
+
+  }
+
+
+
+  /* =====================================================
+     GROUP DATA
+  ===================================================== */
+
   async function getGroupData(view){
 
+    const months =
+      selectedVisualMonths();
+
+
     return await rpc(
+
       'raj_group_summary',
+
       {
-        p_view:view,
-        ...args()
+
+        ...args(),
+
+        p_view:
+          view,
+
+        /*
+          IMPORTANT:
+
+          Month is explicitly passed again here.
+
+          This prevents Visual Analysis from
+          accidentally using all-period totals.
+        */
+
+        p_months:
+          months
+
       }
+
     )
     ||
     [];
@@ -220,67 +345,322 @@
   }
 
 
+
+  /* =====================================================
+     SELECTED MONTH METRIC
+  ===================================================== */
+
+  function selectedMonthMetric(
+    row,
+    metric
+  ){
+
+    const months =
+      selectedVisualMonths();
+
+
+    /*
+      No month selected:
+      use normal aggregate value.
+    */
+
+    if(
+      !months.length
+    ){
+
+      return metricValue(
+        row,
+        metric
+      );
+
+    }
+
+
+    /*
+      Try to read month-specific values.
+
+      Example:
+
+      AugustTaxable
+      AugustQty
+      AugustCustomersBilled
+    */
+
+    const monthValues =
+
+      months.map(
+
+        month => {
+
+          const key =
+            String(
+              month
+              ||
+              ''
+            )
+            .toLowerCase();
+
+
+          let candidates = [];
+
+
+          if(
+            metric
+            ===
+            'taxable'
+          ){
+
+            candidates = [
+
+              month
+                +
+                'Taxable',
+
+              month
+                +
+                'taxable',
+
+              key
+                +
+                'Taxable',
+
+              key
+                +
+                'taxable'
+
+            ];
+
+          }
+
+
+          else if(
+            metric
+            ===
+            'qty'
+          ){
+
+            candidates = [
+
+              month
+                +
+                'Qty',
+
+              month
+                +
+                'qty',
+
+              key
+                +
+                'Qty',
+
+              key
+                +
+                'qty'
+
+            ];
+
+          }
+
+
+          else if(
+            metric
+            ===
+            'customers'
+          ){
+
+            candidates = [
+
+              month
+                +
+                'CustomersBilled',
+
+              month
+                +
+                'customersBilled',
+
+              month
+                +
+                'customersbilled',
+
+              key
+                +
+                'CustomersBilled',
+
+              key
+                +
+                'customersBilled',
+
+              key
+                +
+                'customersbilled'
+
+            ];
+
+          }
+
+
+          for(
+            const candidate
+            of candidates
+          ){
+
+            if(
+              Object
+                .prototype
+                .hasOwnProperty
+                .call(
+                  row,
+                  candidate
+                )
+            ){
+
+              return num(
+                row[candidate]
+              );
+
+            }
+
+          }
+
+
+          return null;
+
+        }
+
+      );
+
+
+
+    /*
+      If month-specific fields exist,
+      add selected months together.
+    */
+
+    if(
+
+      monthValues.length
+
+      &&
+
+      monthValues.every(
+        value =>
+          value
+          !==
+          null
+      )
+
+    ){
+
+      return monthValues.reduce(
+
+        (
+          total,
+          value
+        ) =>
+          total
+          +
+          value,
+
+        0
+
+      );
+
+    }
+
+
+
+    /*
+      Fallback:
+
+      raj_group_summary already received
+      p_months above.
+
+      Therefore its aggregate value should
+      already represent selected months.
+    */
+
+    return metricValue(
+      row,
+      metric
+    );
+
+  }
+
+
+
+  /* =====================================================
+     CHART COLORS
+  ===================================================== */
+
   function palette(count){
 
     const base = [
 
       '#6757f5',
+
       '#7c63f4',
+
       '#9168ef',
+
       '#a66de9',
+
       '#bb72df',
 
       '#4f86ef',
+
       '#36a2eb',
+
       '#32b9a5',
+
       '#45bf75',
+
       '#f0a23a',
 
       '#ef6f61',
+
       '#e65c8a',
+
       '#bd67d5',
+
       '#8c72df',
+
       '#6578d8'
 
     ];
 
 
     return Array.from(
+
       {
-        length:count
+        length:
+          count
       },
-      (_,i) =>
+
+      (
+        _,
+        i
+      ) =>
+
         base[
           i
           %
           base.length
         ]
+
     );
 
   }
 
 
+
   /* =====================================================
-     GRAPH
+     REFRESH GRAPH
   ===================================================== */
 
   async function refreshGraph(){
 
-    if(visualBusy){
-
-      return;
-
-    }
-
-
-    const canvas =
-      $('salesVisualChart');
-
-
     if(
-      !canvas
-      ||
-      typeof Chart === 'undefined'
+      visualBusy
     ){
 
       return;
@@ -288,10 +668,52 @@
     }
 
 
-    visualBusy = true;
+    const canvas =
+      $(
+        'salesVisualChart'
+      );
+
+
+    if(
+
+      !canvas
+
+      ||
+
+      typeof Chart
+      ===
+      'undefined'
+
+    ){
+
+      return;
+
+    }
+
+
+    visualBusy =
+      true;
+
+
+
+    if(
+      $('visualChartNote')
+    ){
+
+      $('visualChartNote')
+        .textContent =
+        'Loading graph...';
+
+    }
+
 
 
     try{
+
+
+      /* ---------------------------------------------
+         CURRENT ANALYSIS VIEW
+      --------------------------------------------- */
 
       const view =
         currentView
@@ -299,148 +721,289 @@
         'Party';
 
 
-      const metric =
-        currentMetric();
 
+      /* ---------------------------------------------
+         METRIC
+      --------------------------------------------- */
+
+      const metric =
+
+        $('visualMetric')
+          ?.value
+
+        ||
+
+        'taxable';
+
+
+
+      /* ---------------------------------------------
+         TOP COUNT
+      --------------------------------------------- */
 
       const topN =
+
         Number(
+
           $('visualTopN')
             ?.value
+
           ||
+
           10
+
         );
 
 
+
+      /* ---------------------------------------------
+         GET FILTERED + MONTH FILTERED DATA
+      --------------------------------------------- */
+
       const rows =
+
         await getGroupData(
           view
         );
 
 
+
+      /* ---------------------------------------------
+         SORT USING SELECTED MONTH VALUE
+      --------------------------------------------- */
+
       const sorted =
-        [...rows]
-          .sort(
-            (a,b) =>
 
-              metricValue(
-                b,
-                metric
-              )
+        [
+          ...rows
+        ]
+        .sort(
 
-              -
+          (
+            a,
+            b
+          ) =>
 
-              metricValue(
-                a,
-                metric
-              )
-          );
+            selectedMonthMetric(
+              b,
+              metric
+            )
 
+            -
+
+            selectedMonthMetric(
+              a,
+              metric
+            )
+
+        );
+
+
+
+      /* ---------------------------------------------
+         TOP ROWS
+      --------------------------------------------- */
 
       const topRows =
+
         sorted.slice(
           0,
           topN
         );
 
 
+
+      /* ---------------------------------------------
+         LABELS
+      --------------------------------------------- */
+
       const labels =
+
         topRows.map(
+
           row =>
+
             String(
               row.label
               ??
               ''
             )
+
         );
 
 
+
+      /* ---------------------------------------------
+         VALUES
+
+         IMPORTANT:
+         selectedMonthMetric() is used here.
+      --------------------------------------------- */
+
       const values =
+
         topRows.map(
+
           row =>
-            metricValue(
+
+            selectedMonthMetric(
               row,
               metric
             )
+
         );
 
 
+
+      /* ---------------------------------------------
+         CHART TYPE
+      --------------------------------------------- */
+
       const chartType =
+
         $('visualChartType')
           ?.value
+
         ||
+
         'bar';
 
 
+
       const colors =
+
         palette(
           topRows.length
         );
 
 
-      if(salesChart){
+
+      /* ---------------------------------------------
+         DESTROY OLD CHART
+      --------------------------------------------- */
+
+      if(
+        salesChart
+      ){
 
         salesChart.destroy();
 
-        salesChart = null;
+        salesChart =
+          null;
 
       }
 
 
+
+      /* ---------------------------------------------
+         DATASET
+      --------------------------------------------- */
+
       const dataset = {
 
         label:
-          METRIC_NAMES[metric]
+
+          METRIC_NAMES[
+            metric
+          ]
+
           ||
+
           metric,
+
 
         data:
           values,
 
-        borderWidth:2,
+
+        borderWidth:
+          2,
+
 
         borderRadius:
-          chartType === 'bar'
+
+          chartType
+          ===
+          'bar'
+
             ? 8
+
             : 0,
+
 
         tension:
-          chartType === 'line'
-            ? 0.28
+
+          chartType
+          ===
+          'line'
+
+            ? .28
+
             : 0,
 
-        fill:false
+
+        fill:
+          false
 
       };
 
 
-      if(chartType === 'doughnut'){
+
+      /* ---------------------------------------------
+         DONUT
+      --------------------------------------------- */
+
+      if(
+        chartType
+        ===
+        'doughnut'
+      ){
 
         dataset.backgroundColor =
           colors;
+
 
         dataset.borderColor =
           '#ffffff';
 
       }
 
-      else if(chartType === 'line'){
+
+
+      /* ---------------------------------------------
+         LINE
+      --------------------------------------------- */
+
+      else if(
+        chartType
+        ===
+        'line'
+      ){
 
         dataset.borderColor =
           '#6757f5';
 
+
         dataset.backgroundColor =
           '#6757f5';
+
 
         dataset.pointBackgroundColor =
           colors;
 
       }
 
+
+
+      /* ---------------------------------------------
+         BAR
+      --------------------------------------------- */
+
       else{
 
         dataset.backgroundColor =
           colors;
+
 
         dataset.borderColor =
           colors;
@@ -448,9 +1011,17 @@
       }
 
 
+
+      /* =================================================
+         CREATE CHART
+      ================================================= */
+
       salesChart =
+
         new Chart(
+
           canvas,
+
           {
 
             type:
@@ -459,7 +1030,9 @@
 
             data:{
 
-              labels,
+              labels:
+                labels,
+
 
               datasets:[
                 dataset
@@ -470,32 +1043,47 @@
 
             options:{
 
-              responsive:true,
+              responsive:
+                true,
 
-              maintainAspectRatio:false,
+
+              maintainAspectRatio:
+                false,
 
 
               animation:{
-                duration:350
+
+                duration:
+                  350
+
               },
 
 
               interaction:{
-                mode:'nearest',
-                intersect:false
+
+                mode:
+                  'nearest',
+
+                intersect:
+                  false
+
               },
 
 
               plugins:{
 
+
                 legend:{
 
                   display:
+
                     chartType
                     ===
                     'doughnut',
 
-                  position:'bottom'
+
+                  position:
+                    'bottom'
 
                 },
 
@@ -504,30 +1092,45 @@
 
                   callbacks:{
 
-                    label(context){
 
-                      const val =
+                    label(
+                      context
+                    ){
 
-                        context.parsed?.y
+                      const value =
+
+                        context
+                          .parsed
+                          ?.y
 
                         ??
 
-                        context.parsed
+                        context
+                          .parsed
 
                         ??
 
-                        context.raw;
+                        context
+                          .raw;
 
 
                       return (
-                        METRIC_NAMES[metric]
+
+                        METRIC_NAMES[
+                          metric
+                        ]
+
                         +
+
                         ': '
+
                         +
+
                         metricText(
-                          val,
+                          value,
                           metric
                         )
+
                       );
 
                     }
@@ -549,16 +1152,28 @@
 
                   : {
 
+
                       x:{
 
                         ticks:{
-                          autoSkip:false,
-                          maxRotation:45,
-                          minRotation:0
+
+                          autoSkip:
+                            false,
+
+                          maxRotation:
+                            45,
+
+                          minRotation:
+                            0
+
                         },
 
+
                         grid:{
-                          display:false
+
+                          display:
+                            false
+
                         }
 
                       },
@@ -566,11 +1181,15 @@
 
                       y:{
 
-                        beginAtZero:true,
+                        beginAtZero:
+                          true,
+
 
                         ticks:{
 
-                          callback(value){
+                          callback(
+                            value
+                          ){
 
                             return metric
                               ===
@@ -578,9 +1197,13 @@
 
                               ? '₹'
                                 +
-                                compact(value)
+                                compact(
+                                  value
+                                )
 
-                              : compact(value);
+                              : compact(
+                                  value
+                                );
 
                           }
 
@@ -593,22 +1216,41 @@
             }
 
           }
+
         );
 
 
-      if($('visualViewName')){
+
+      /* =================================================
+         KPI - ANALYSIS VIEW
+      ================================================= */
+
+      if(
+        $('visualViewName')
+      ){
 
         $('visualViewName')
           .textContent =
 
-          VIEW_NAMES[view]
+          VIEW_NAMES[
+            view
+          ]
+
           ||
+
           view;
 
       }
 
 
-      if($('visualGroupCount')){
+
+      /* =================================================
+         KPI - GROUP COUNT
+      ================================================= */
+
+      if(
+        $('visualGroupCount')
+      ){
 
         $('visualGroupCount')
           .textContent =
@@ -620,35 +1262,67 @@
       }
 
 
-      if($('visualTopGroup')){
+
+      /* =================================================
+         KPI - TOP GROUP
+      ================================================= */
+
+      if(
+        $('visualTopGroup')
+      ){
 
         $('visualTopGroup')
           .textContent =
 
           sorted[0]
             ?.label
+
           ||
+
           '-';
 
       }
 
 
-      if($('visualTopSale')){
+
+      /* =================================================
+         KPI - TOP TAXABLE SALE
+
+         IMPORTANT:
+         Selected month taxable is used.
+      ================================================= */
+
+      if(
+        $('visualTopSale')
+      ){
 
         $('visualTopSale')
           .textContent =
 
           rupees(
+
             sorted[0]
-              ?.taxable
-            ||
-            0
+
+              ? selectedMonthMetric(
+                  sorted[0],
+                  'taxable'
+                )
+
+              : 0
+
           );
 
       }
 
 
-      if($('visualChartTitle')){
+
+      /* =================================================
+         GRAPH TITLE
+      ================================================= */
+
+      if(
+        $('visualChartTitle')
+      ){
 
         $('visualChartTitle')
           .textContent =
@@ -659,11 +1333,15 @@
               rows.length
             )
           } ${
-            VIEW_NAMES[view]
+            VIEW_NAMES[
+              view
+            ]
             ||
             view
           } by ${
-            METRIC_NAMES[metric]
+            METRIC_NAMES[
+              metric
+            ]
             ||
             metric
           }`;
@@ -671,16 +1349,37 @@
       }
 
 
-      if($('visualChartNote')){
+
+      /* =================================================
+         SELECTED MONTH DISPLAY
+      ================================================= */
+
+      if(
+        $('visualChartNote')
+      ){
+
+        const months =
+          selectedVisualMonths();
+
 
         $('visualChartNote')
           .textContent =
-          'Uses current dashboard filters';
+
+          months.length
+
+            ? `Selected Month: ${months.join(', ')}`
+
+            : 'All selected dashboard data';
 
       }
 
 
-    }catch(error){
+    }
+
+    catch(
+      error
+    ){
+
 
       console.error(
         'Visual graph error:',
@@ -688,645 +1387,17 @@
       );
 
 
-      if($('visualChartNote')){
+      if(
+        $('visualChartNote')
+      ){
 
         $('visualChartNote')
           .textContent =
 
           'Graph error: '
-          +
-          (
-            error.message
-            ||
-            error
-          );
-
-      }
-
-
-    }finally{
-
-      visualBusy = false;
-
-    }
-
-  }
-
-
-  /* =====================================================
-     PINCODE CSV
-  ===================================================== */
-
-  function parseCSVLine(line){
-
-    const values = [];
-
-    let value = '';
-
-    let quoted = false;
-
-
-    for(
-      let i = 0;
-      i < line.length;
-      i++
-    ){
-
-      const ch =
-        line[i];
-
-
-      if(ch === '"'){
-
-        if(
-          quoted
-          &&
-          line[i + 1] === '"'
-        ){
-
-          value += '"';
-
-          i++;
-
-        }else{
-
-          quoted =
-            !quoted;
-
-        }
-
-      }
-
-      else if(
-        ch === ','
-        &&
-        !quoted
-      ){
-
-        values.push(
-          value
-        );
-
-        value = '';
-
-      }
-
-      else{
-
-        value += ch;
-
-      }
-
-    }
-
-
-    values.push(
-      value
-    );
-
-
-    return values;
-
-  }
-
-
-  async function loadPincodeLookup(){
-
-    if(pinLookup){
-
-      return pinLookup;
-
-    }
-
-
-    const status =
-      $('visualMapStatus');
-
-
-    if(status){
-
-      status.textContent =
-        'Loading India Pincode locations...';
-
-    }
-
-
-    const response =
-      await fetch(
-        PINCODE_COORDS_URL,
-        {
-          cache:'force-cache'
-        }
-      );
-
-
-    if(!response.ok){
-
-      throw new Error(
-        'Pincode location file could not be loaded.'
-      );
-
-    }
-
-
-    const text =
-      await response.text();
-
-
-    const lines =
-      text
-        .split(
-          /\r?\n/
-        )
-        .filter(
-          Boolean
-        );
-
-
-    const lookup =
-      new Map();
-
-
-    for(
-      let i = 1;
-      i < lines.length;
-      i++
-    ){
-
-      const cols =
-        parseCSVLine(
-          lines[i]
-        );
-
-
-      const pin =
-        String(
-          cols[1]
-          ||
-          ''
-        ).trim();
-
-
-      const area =
-        String(
-          cols[2]
-          ||
-          ''
-        ).trim();
-
-
-      const state =
-        String(
-          cols[3]
-          ||
-          ''
-        ).trim();
-
-
-      const lat =
-        Number(
-          cols[4]
-        );
-
-
-      const lng =
-        Number(
-          cols[5]
-        );
-
-
-      if(
-        /^\d{6}$/.test(pin)
-        &&
-        Number.isFinite(lat)
-        &&
-        Number.isFinite(lng)
-      ){
-
-        lookup.set(
-          pin,
-          {
-            lat,
-            lng,
-            area,
-            state
-          }
-        );
-
-      }
-
-    }
-
-
-    pinLookup =
-      lookup;
-
-
-    return lookup;
-
-  }
-
-
-  /* =====================================================
-     INDIA MAP
-  ===================================================== */
-
-  function ensureMap(){
-
-    if(
-      indiaMap
-      ||
-      typeof L === 'undefined'
-    ){
-
-      return;
-
-    }
-
-
-    indiaMap =
-      L.map(
-        'salesIndiaMap',
-        {
-
-          zoomControl:true,
-
-          minZoom:4
-
-        }
-      )
-      .setView(
-        [
-          22.8,
-          79.0
-        ],
-        5
-      );
-
-
-    L.tileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      {
-
-        maxZoom:18,
-
-        attribution:
-          '&copy; OpenStreetMap contributors'
-
-      }
-    )
-    .addTo(
-      indiaMap
-    );
-
-
-    mapLayer =
-      L.layerGroup()
-        .addTo(
-          indiaMap
-        );
-
-  }
-
-
-  async function refreshMap(){
-
-    const mapBox =
-      $('salesIndiaMap');
-
-
-    if(!mapBox){
-
-      return;
-
-    }
-
-
-    try{
-
-      ensureMap();
-
-
-      const status =
-        $('visualMapStatus');
-
-
-      if(status){
-
-        status.textContent =
-          'Loading filtered Pincode sales...';
-
-      }
-
-
-      const [
-        rows,
-        lookup
-      ] =
-
-        await Promise.all(
-          [
-
-            getGroupData(
-              'Pincode'
-            ),
-
-            loadPincodeLookup()
-
-          ]
-        );
-
-
-      const metric =
-        $('visualMapMetric')
-          ?.value
-        ||
-        'taxable';
-
-
-      const limit =
-        Number(
-          $('visualMapLimit')
-            ?.value
-          ||
-          50
-        );
-
-
-      const sorted =
-
-        [...rows]
-
-          .filter(
-            row =>
-              /^\d{6}$/.test(
-                String(
-                  row.label
-                  ||
-                  ''
-                ).trim()
-              )
-          )
-
-          .sort(
-            (a,b) =>
-
-              metricValue(
-                b,
-                metric
-              )
-
-              -
-
-              metricValue(
-                a,
-                metric
-              )
-          )
-
-          .slice(
-            0,
-            limit
-          );
-
-
-      mapLayer.clearLayers();
-
-
-      const mapped = [];
-
-
-      const maxValue =
-
-        Math.max(
-          1,
-
-          ...sorted.map(
-            row =>
-              metricValue(
-                row,
-                metric
-              )
-          )
-        );
-
-
-      for(
-        const row
-        of sorted
-      ){
-
-        const pin =
-          String(
-            row.label
-          ).trim();
-
-
-        const geo =
-          lookup.get(
-            pin
-          );
-
-
-        if(!geo){
-
-          continue;
-
-        }
-
-
-        const value =
-          metricValue(
-            row,
-            metric
-          );
-
-
-        const radius =
-
-          6
 
           +
 
-          18
-
-          *
-
-          Math.sqrt(
-            Math.max(
-              0,
-              value
-            )
-            /
-            maxValue
-          );
-
-
-        const circle =
-
-          L.circleMarker(
-            [
-              geo.lat,
-              geo.lng
-            ],
-            {
-
-              radius,
-
-              weight:2,
-
-              opacity:.9,
-
-              fillOpacity:.65
-
-            }
-          );
-
-
-        circle.bindPopup(
-          `
-            <div class="raj-map-popup">
-
-              <strong>
-                ${pin}
-              </strong>
-
-              <br>
-
-              ${
-                geo.area
-                  ? `${geo.area}<br>`
-                  : ''
-              }
-
-              ${
-                geo.state
-                  ? `${geo.state}<br>`
-                  : ''
-              }
-
-              <hr>
-
-              Taxable Sales:
-              <b>
-                ${rupees(row.taxable)}
-              </b>
-
-              <br>
-
-              Customers Billed:
-              <b>
-                ${
-                  indian(
-                    row.customersBilled
-                    ??
-                    row.customersbilled
-                  )
-                }
-              </b>
-
-              <br>
-
-              Quantity:
-              <b>
-                ${indian(row.qty,2)}
-              </b>
-
-              <br>
-
-              Products Sold:
-              <b>
-                ${
-                  indian(
-                    row.productsSold
-                    ??
-                    row.productssold
-                  )
-                }
-              </b>
-
-            </div>
-          `
-        );
-
-
-        circle.addTo(
-          mapLayer
-        );
-
-
-        mapped.push(
-          [
-            geo.lat,
-            geo.lng
-          ]
-        );
-
-      }
-
-
-      if(mapped.length){
-
-        indiaMap.fitBounds(
-          L.latLngBounds(
-            mapped
-          ),
-          {
-
-            padding:[
-              30,
-              30
-            ],
-
-            maxZoom:9
-
-          }
-        );
-
-      }else{
-
-        indiaMap.setView(
-          [
-            22.8,
-            79.0
-          ],
-          5
-        );
-
-      }
-
-
-      setTimeout(
-        () =>
-          indiaMap.invalidateSize(),
-        100
-      );
-
-
-      if(status){
-
-        status.textContent =
-
-          `${mapped.length} of ${sorted.length} selected Pincodes mapped • ${rows.length} filtered Pincode groups`;
-
-      }
-
-
-    }catch(error){
-
-      console.error(
-        'India map error:',
-        error
-      );
-
-
-      if($('visualMapStatus')){
-
-        $('visualMapStatus')
-          .textContent =
-
-          'Map error: '
-          +
           (
             error.message
             ||
@@ -1337,97 +1408,15 @@
 
     }
 
-  }
+    finally{
 
-
-  /* =====================================================
-     ACTIVE VIEW REFRESH
-  ===================================================== */
-
-  async function refreshActiveVisual(){
-
-    const mapActive =
-
-      $('mapVisualPane')
-        ?.classList
-        .contains(
-          'active'
-        );
-
-
-    if(mapActive){
-
-      await refreshMap();
-
-    }else{
-
-      await refreshGraph();
+      visualBusy =
+        false;
 
     }
 
   }
 
-
-  /* =====================================================
-     GRAPH / MAP TAB
-  ===================================================== */
-
-  function switchVisual(mode){
-
-    document
-      .querySelectorAll(
-        '.visual-mode-btn'
-      )
-      .forEach(
-        button => {
-
-          button.classList.toggle(
-
-            'active',
-
-            button.dataset.visualMode
-            ===
-            mode
-
-          );
-
-        }
-      );
-
-
-    $('graphVisualPane')
-      ?.classList
-      .toggle(
-        'active',
-        mode === 'graph'
-      );
-
-
-    $('mapVisualPane')
-      ?.classList
-      .toggle(
-        'active',
-        mode === 'map'
-      );
-
-
-    if(mode === 'map'){
-
-      setTimeout(
-        refreshMap,
-        50
-      );
-
-    }else{
-
-      setTimeout(
-        refreshGraph,
-        20
-      );
-
-    }
-
-  }
 
 
   /* =====================================================
@@ -1436,24 +1425,6 @@
 
   function wireVisuals(){
 
-    document
-      .querySelectorAll(
-        '.visual-mode-btn'
-      )
-      .forEach(
-        button => {
-
-          button.addEventListener(
-            'click',
-            () =>
-              switchVisual(
-                button.dataset.visualMode
-              )
-          );
-
-        }
-      );
-
 
     [
       'visualChartType',
@@ -1461,6 +1432,7 @@
       'visualMetric'
     ]
     .forEach(
+
       id => {
 
         $(id)
@@ -1470,60 +1442,62 @@
           );
 
       }
+
     );
 
 
-    [
-      'visualMapLimit',
-      'visualMapMetric'
-    ]
-    .forEach(
-      id => {
 
-        $(id)
-          ?.addEventListener(
-            'change',
-            refreshMap
-          );
-
-      }
-    );
-
+    /* Refresh button */
 
     $('visualRefresh')
       ?.addEventListener(
         'click',
-        refreshActiveVisual
+        refreshGraph
       );
 
+
+
+    /* Analysis View change */
 
     document
       .querySelectorAll(
         '#viewTabs button'
       )
       .forEach(
+
         button => {
 
           button.addEventListener(
+
             'click',
+
             () =>
+
               setTimeout(
-                refreshActiveVisual,
-                150
+                refreshGraph,
+                180
               )
+
           );
 
         }
+
       );
 
 
+
     /*
-      Main dashboard filters change.
+      Any normal dashboard filter change.
+
+      This includes Month.
     */
 
     document.addEventListener(
+
       'change',
+
       event => {
+
 
         if(
           event.target.closest(
@@ -1537,43 +1511,65 @@
 
 
         setTimeout(
-          refreshActiveVisual,
-          350
+          refreshGraph,
+          450
         );
 
       }
+
     );
 
 
+
+    /* Global Search */
+
     $('search')
       ?.addEventListener(
+
         'input',
+
         () =>
+
           setTimeout(
-            refreshActiveVisual,
-            700
+            refreshGraph,
+            750
           )
+
       );
 
+
+
+    /* Clear Filters */
 
     $('clearFilters')
       ?.addEventListener(
+
         'click',
+
         () =>
+
           setTimeout(
-            refreshActiveVisual,
-            500
+            refreshGraph,
+            550
           )
+
       );
 
 
+
     /*
-      Multi-select filters.
+      Multi-select dropdown changes.
+
+      Month is a multi-select,
+      so this is important.
     */
 
     document.addEventListener(
+
       'click',
+
       event => {
+
 
         if(
           event.target.closest(
@@ -1582,19 +1578,19 @@
         ){
 
           setTimeout(
-            refreshActiveVisual,
-            500
+            refreshGraph,
+            550
           );
 
         }
 
       }
+
     );
 
 
-    /*
-      First graph load.
-    */
+
+    /* First graph load */
 
     setTimeout(
       refreshGraph,
@@ -1602,6 +1598,7 @@
     );
 
   }
+
 
 
   /* =====================================================
@@ -1619,10 +1616,13 @@
       wireVisuals
     );
 
-  }else{
+  }
+
+  else{
 
     wireVisuals();
 
   }
+
 
 })();
