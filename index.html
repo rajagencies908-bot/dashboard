@@ -182,8 +182,21 @@
 
   <link
     rel="stylesheet"
-    href="style.css?v=online37"
+    href="style.css?v=online38"
   >
+
+  <link
+    rel="stylesheet"
+    href="visual-style.css?v=online38"
+  >
+
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    crossorigin=""
+  >
+
 
 </head>
 
@@ -915,6 +928,139 @@
 
 
 
+
+  <!-- ======================================================
+       VISUAL ANALYSIS - GRAPH + INDIA PINCODE MAP
+       ====================================================== -->
+  <section class="panel" id="visualAnalysisPanel">
+
+    <div class="panel-head">
+      <div>
+        <h3>Visual Analysis</h3>
+        <p>
+          Same dashboard filters apply automatically. Graph follows the selected Analysis View.
+          India Map plots filtered Pincode-wise Taxable Sales.
+        </p>
+      </div>
+
+      <button type="button" id="visualRefresh" class="clear-btn">
+        Refresh Visuals
+      </button>
+    </div>
+
+    <div class="visual-mode-tabs">
+      <button type="button" class="visual-mode-btn active" data-visual-mode="graph">
+        📊 Graph View
+      </button>
+      <button type="button" class="visual-mode-btn" data-visual-mode="map">
+        🗺️ India Map
+      </button>
+    </div>
+
+    <div id="graphVisualPane" class="visual-pane active">
+
+      <div class="visual-controls">
+        <div class="field">
+          <label>Chart Type</label>
+          <select id="visualChartType">
+            <option value="bar">Bar Chart</option>
+            <option value="line">Line Chart</option>
+            <option value="doughnut">Donut Chart</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Top</label>
+          <select id="visualTopN">
+            <option value="10" selected>Top 10</option>
+            <option value="20">Top 20</option>
+            <option value="50">Top 50</option>
+            <option value="100">Top 100</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Metric</label>
+          <select id="visualMetric">
+            <option value="taxable" selected>Taxable Sales</option>
+            <option value="qty">Quantity</option>
+            <option value="customers">Customers Billed</option>
+            <option value="products">Products Sold</option>
+            <option value="records">Records</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="visual-kpis">
+        <article class="visual-kpi">
+          <span>Analysis</span>
+          <strong id="visualViewName">Customer Wise</strong>
+        </article>
+        <article class="visual-kpi">
+          <span>Groups</span>
+          <strong id="visualGroupCount">0</strong>
+        </article>
+        <article class="visual-kpi">
+          <span>Top Group</span>
+          <strong id="visualTopGroup">-</strong>
+        </article>
+        <article class="visual-kpi">
+          <span>Top Taxable Sale</span>
+          <strong id="visualTopSale">₹0</strong>
+        </article>
+      </div>
+
+      <div class="visual-chart-card">
+        <div class="visual-card-title">
+          <strong id="visualChartTitle">Top groups by Taxable Sales</strong>
+          <span id="visualChartNote">Uses current dashboard filters</span>
+        </div>
+        <div class="visual-chart-box">
+          <canvas id="salesVisualChart"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <div id="mapVisualPane" class="visual-pane">
+
+      <div class="visual-controls">
+        <div class="field">
+          <label>Map Points</label>
+          <select id="visualMapLimit">
+            <option value="25">Top 25 Pincodes</option>
+            <option value="50" selected>Top 50 Pincodes</option>
+            <option value="100">Top 100 Pincodes</option>
+            <option value="250">Top 250 Pincodes</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Bubble Size</label>
+          <select id="visualMapMetric">
+            <option value="taxable" selected>Taxable Sales</option>
+            <option value="customers">Customers Billed</option>
+            <option value="qty">Quantity</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="visualMapStatus" class="visual-map-status">
+        Open India Map to load filtered Pincode sales.
+      </div>
+
+      <div id="salesIndiaMap"></div>
+
+      <div class="visual-map-foot">
+        Circle size represents the selected metric. Click a circle for Pincode, location,
+        Taxable Sales, Customers Billed and Quantity.
+      </div>
+
+    </div>
+
+  </section>
+
+
   <!-- ======================================================
        CUSTOMER BUDGET
        ====================================================== -->
@@ -1117,6 +1263,13 @@
 
 
 
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script
+  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  crossorigin=""
+></script>
+
 <!-- ========================================================
      SUPABASE
      ======================================================== -->
@@ -1132,7 +1285,7 @@
 
 
 <script
-  src="script.js?v=online37"
+  src="script.js?v=online38"
 ></script>
 
 
@@ -1152,6 +1305,11 @@
 
 <script
   src="ui-fix-addon.js?v=online25"
+></script>
+
+
+<script
+  src="visual-addon.js?v=online38"
 ></script>
 
 
