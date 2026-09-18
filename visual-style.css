@@ -1,0 +1,518 @@
+/* =========================================================
+   RAJ AGENCIES
+   VISUAL ANALYSIS STYLE
+   online38
+========================================================= */
+
+
+/* =====================================================
+   GRAPH / MAP BUTTONS
+===================================================== */
+
+.visual-mode-tabs{
+
+  display:flex;
+
+  gap:8px;
+
+  flex-wrap:wrap;
+
+  margin:
+    4px
+    0
+    16px;
+
+  padding:5px;
+
+  border-radius:14px;
+
+  background:
+    rgba(
+      245,
+      246,
+      255,
+      .72
+    );
+
+}
+
+
+.visual-mode-btn{
+
+  border:
+    1px solid
+    rgba(
+      119,
+      107,
+      190,
+      .13
+    );
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      .78
+    );
+
+  border-radius:999px;
+
+  padding:
+    10px
+    16px;
+
+  font-weight:850;
+
+  font-size:11px;
+
+  color:#666f82;
+
+  cursor:pointer;
+
+}
+
+
+.visual-mode-btn.active{
+
+  color:#fff;
+
+  border-color:
+    transparent;
+
+  background:
+    linear-gradient(
+      135deg,
+      #5f52ed,
+      #9160f2
+    );
+
+  box-shadow:
+    0
+    7px
+    17px
+    rgba(
+      102,
+      87,
+      245,
+      .23
+    );
+
+}
+
+
+/* =====================================================
+   VISUAL PANES
+===================================================== */
+
+.visual-pane{
+
+  display:none;
+
+}
+
+
+.visual-pane.active{
+
+  display:block;
+
+}
+
+
+/* =====================================================
+   CONTROLS
+===================================================== */
+
+.visual-controls{
+
+  display:grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(
+        160px,
+        220px
+      )
+    );
+
+  gap:12px;
+
+  margin-bottom:14px;
+
+}
+
+
+/* =====================================================
+   VISUAL KPI CARDS
+===================================================== */
+
+.visual-kpis{
+
+  display:grid;
+
+  grid-template-columns:
+    repeat(
+      4,
+      1fr
+    );
+
+  gap:12px;
+
+  margin-bottom:14px;
+
+}
+
+
+.visual-kpi{
+
+  min-height:94px;
+
+  padding:15px;
+
+  border:
+    1px solid
+    rgba(
+      112,
+      97,
+      210,
+      .11
+    );
+
+  border-radius:16px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(
+        255,
+        255,
+        255,
+        .90
+      ),
+      rgba(
+        244,
+        242,
+        255,
+        .70
+      )
+    );
+
+  box-shadow:
+    0
+    8px
+    22px
+    rgba(
+      57,
+      45,
+      130,
+      .06
+    );
+
+}
+
+
+.visual-kpi span{
+
+  display:block;
+
+  margin-bottom:7px;
+
+  color:#7d8495;
+
+  font-size:10px;
+
+  font-weight:750;
+
+}
+
+
+.visual-kpi strong{
+
+  display:block;
+
+  color:#1b2541;
+
+  font-size:18px;
+
+  line-height:1.3;
+
+  overflow:hidden;
+
+  text-overflow:ellipsis;
+
+  white-space:nowrap;
+
+}
+
+
+/* =====================================================
+   CHART CARD
+===================================================== */
+
+.visual-chart-card{
+
+  border:
+    1px solid
+    rgba(
+      112,
+      97,
+      210,
+      .12
+    );
+
+  border-radius:17px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      .76
+    );
+
+  padding:15px;
+
+  overflow:hidden;
+
+}
+
+
+.visual-card-title{
+
+  display:flex;
+
+  align-items:center;
+
+  justify-content:
+    space-between;
+
+  gap:15px;
+
+  margin-bottom:12px;
+
+}
+
+
+.visual-card-title strong{
+
+  color:#25304c;
+
+  font-size:14px;
+
+}
+
+
+.visual-card-title span{
+
+  color:#8a91a3;
+
+  font-size:10px;
+
+}
+
+
+/* =====================================================
+   CHART
+===================================================== */
+
+.visual-chart-box{
+
+  position:relative;
+
+  width:100%;
+
+  height:430px;
+
+}
+
+
+/* =====================================================
+   INDIA MAP
+===================================================== */
+
+#salesIndiaMap{
+
+  width:100%;
+
+  height:560px;
+
+  border:
+    1px solid
+    rgba(
+      112,
+      97,
+      210,
+      .13
+    );
+
+  border-radius:17px;
+
+  overflow:hidden;
+
+  background:#eef3f8;
+
+  z-index:1;
+
+}
+
+
+/* =====================================================
+   MAP STATUS
+===================================================== */
+
+.visual-map-status{
+
+  margin-bottom:10px;
+
+  padding:
+    10px
+    13px;
+
+  border-radius:11px;
+
+  color:#5548b7;
+
+  background:
+    rgba(
+      238,
+      236,
+      255,
+      .78
+    );
+
+  border:
+    1px solid
+    rgba(
+      102,
+      87,
+      245,
+      .11
+    );
+
+  font-size:11px;
+
+  font-weight:750;
+
+}
+
+
+/* =====================================================
+   MAP FOOTER
+===================================================== */
+
+.visual-map-foot{
+
+  margin-top:9px;
+
+  color:#81889a;
+
+  font-size:10px;
+
+}
+
+
+/* =====================================================
+   MAP POPUP
+===================================================== */
+
+.raj-map-popup{
+
+  min-width:190px;
+
+  line-height:1.6;
+
+  font-size:12px;
+
+}
+
+
+.raj-map-popup hr{
+
+  border:0;
+
+  border-top:
+    1px solid
+    #e5e7eb;
+
+  margin:
+    6px
+    0;
+
+}
+
+
+/* =====================================================
+   TABLET
+===================================================== */
+
+@media(
+  max-width:1000px
+){
+
+  .visual-kpis{
+
+    grid-template-columns:
+      repeat(
+        2,
+        1fr
+      );
+
+  }
+
+
+  .visual-controls{
+
+    grid-template-columns:
+      repeat(
+        2,
+        1fr
+      );
+
+  }
+
+}
+
+
+/* =====================================================
+   MOBILE
+===================================================== */
+
+@media(
+  max-width:760px
+){
+
+  .visual-controls,
+  .visual-kpis{
+
+    grid-template-columns:
+      1fr;
+
+  }
+
+
+  .visual-chart-box{
+
+    height:360px;
+
+  }
+
+
+  #salesIndiaMap{
+
+    height:480px;
+
+  }
+
+
+  .visual-card-title{
+
+    align-items:
+      flex-start;
+
+    flex-direction:
+      column;
+
+  }
+
+}
