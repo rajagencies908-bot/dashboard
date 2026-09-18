@@ -1,18 +1,18 @@
 /* =========================================================
-   RAJ AGENCIES - visual-addon.js - online44
-   Graph View + Independent Graph Month + India Pincode Map
+   RAJ AGENCIES - visual-addon.js - online45
 
-   NEW:
-   - Independent Graph Month selector
-   - All Months / Total option
-   - Months automatically come from dashboard schema
-   - Graph Month does NOT change main dashboard Month
+   GRAPH
+   - Month-wise separate bars
+   - All Months = every month separate dataset
+   - Single Graph Month = selected month only
+   - Follows Analysis View
+   - Follows all normal dashboard filters
 
-   KEPT:
-   - All Pincodes option
-   - Click Pincode -> Selected Pincode Details
-   - India Map
-   - Main dashboard filters
+   INDIA MAP
+   - Kept unchanged
+   - All Pincodes
+   - Click Pincode details
+   - Uses main dashboard Month filter
 ========================================================= */
 
 (() => {
@@ -41,20 +41,38 @@
     records:'Records'
   };
 
+  const MONTH_COLORS = [
+    '#6757f5',
+    '#3b82f6',
+    '#14b8a6',
+    '#22c55e',
+    '#f59e0b',
+    '#ef4444',
+    '#ec4899',
+    '#8b5cf6',
+    '#06b6d4',
+    '#84cc16',
+    '#f97316',
+    '#6366f1'
+  ];
+
   let salesChart = null;
   let indiaMap = null;
   let mapLayer = null;
   let pinLookup = null;
-  let visualBusy = false;
+  let graphRequestId = 0;
 
   const $ = id =>
     document.getElementById(id);
 
 
+  /* =====================================================
+     BASIC HELPERS
+  ===================================================== */
+
   function number(value){
 
-    const n =
-      Number(value || 0);
+    const n = Number(value || 0);
 
     return Number.isFinite(n)
       ? n
@@ -63,10 +81,7 @@
   }
 
 
-  function indian(
-    value,
-    digits = 0
-  ){
+  function indian(value, digits = 0){
 
     return new Intl.NumberFormat(
       'en-IN',
@@ -105,36 +120,24 @@
     if(n >= 10000000){
 
       return (
-        number(value)
-        /
-        10000000
-      ).toFixed(1)
-      +
-      ' Cr';
+        number(value) / 10000000
+      ).toFixed(1) + ' Cr';
 
     }
 
     if(n >= 100000){
 
       return (
-        number(value)
-        /
-        100000
-      ).toFixed(1)
-      +
-      ' L';
+        number(value) / 100000
+      ).toFixed(1) + ' L';
 
     }
 
     if(n >= 1000){
 
       return (
-        number(value)
-        /
-        1000
-      ).toFixed(1)
-      +
-      ' K';
+        number(value) / 1000
+      ).toFixed(1) + ' K';
 
     }
 
@@ -149,29 +152,33 @@
       document.createElement('div');
 
     div.textContent =
-      String(
-        value ?? ''
-      );
+      String(value ?? '');
 
     return div.innerHTML;
 
   }
 
 
-  function currentMetric(){
+  function visualMonthName(month){
 
-    return $('visualMetric')
-      ?.value
-      ||
-      'taxable';
+    if(
+      typeof monthNames !== 'undefined'
+      &&
+      monthNames
+      &&
+      monthNames[month]
+    ){
+
+      return monthNames[month];
+
+    }
+
+    return month;
 
   }
 
 
-  function metricValue(
-    row,
-    metric
-  ){
+  function metricValue(row, metric){
 
     if(metric === 'customers'){
 
@@ -200,52 +207,44 @@
   }
 
 
-  function metricText(
-    value,
-    metric
-  ){
+  function metricText(value, metric){
 
-    return metric === 'taxable'
+    if(metric === 'taxable'){
 
-      ? rupees(value)
-
-      : indian(
-          value,
-          metric === 'qty'
-            ? 2
-            : 0
-        );
-
-  }
-
-
-  /* =====================================================
-     MONTH DISPLAY NAME
-  ===================================================== */
-
-  function visualMonthName(month){
-
-    if(
-      typeof monthNames !== 'undefined'
-      &&
-      monthNames
-      &&
-      monthNames[month]
-    ){
-
-      return monthNames[month];
+      return rupees(value);
 
     }
 
-    return month;
+    return indian(
+      value,
+      metric === 'qty'
+        ? 2
+        : 0
+    );
 
   }
 
 
   /* =====================================================
-     MAIN DASHBOARD SELECTED MONTH
-     Used by India Map
+     MONTHS
   ===================================================== */
+
+  function availableMonths(){
+
+    if(
+      typeof months !== 'undefined'
+      &&
+      Array.isArray(months)
+    ){
+
+      return [...months];
+
+    }
+
+    return [];
+
+  }
+
 
   function selectedDashboardMonths(){
 
@@ -255,9 +254,7 @@
       Array.isArray(selected.month)
     ){
 
-      return [
-        ...selected.month
-      ];
+      return [...selected.month];
 
     }
 
@@ -265,10 +262,6 @@
 
   }
 
-
-  /* =====================================================
-     GRAPH MONTH SELECTOR
-  ===================================================== */
 
   function installGraphMonthSelector(){
 
@@ -281,15 +274,10 @@
       return;
     }
 
-    let wrapper =
-      $('visualGraphMonthField');
+    if(!$('visualGraphMonthField')){
 
-    if(!wrapper){
-
-      wrapper =
-        document.createElement(
-          'div'
-        );
+      const wrapper =
+        document.createElement('div');
 
       wrapper.id =
         'visualGraphMonthField';
@@ -298,13 +286,11 @@
         'field';
 
       wrapper.innerHTML = `
-        <label>
-          Graph Month
-        </label>
+        <label>Graph Month</label>
 
         <select id="visualGraphMonth">
           <option value="">
-            All Months / Total
+            All Months - Separate Bars
           </option>
         </select>
       `;
@@ -312,6 +298,12 @@
       controls.appendChild(
         wrapper
       );
+
+      $('visualGraphMonth')
+        ?.addEventListener(
+          'change',
+          refreshGraph
+        );
 
     }
 
@@ -332,51 +324,36 @@
     const oldValue =
       select.value;
 
-    const availableMonths =
-      (
-        typeof months !== 'undefined'
-        &&
-        Array.isArray(months)
-      )
-        ? [...months]
-        : [];
+    const monthList =
+      availableMonths();
 
-    select.innerHTML =
-      `
-        <option value="">
-          All Months / Total
-        </option>
-      `;
+    select.innerHTML = `
+      <option value="">
+        All Months - Separate Bars
+      </option>
+    `;
 
-    availableMonths.forEach(
-      month => {
+    monthList.forEach(month => {
 
-        const option =
-          document.createElement(
-            'option'
-          );
-
-        option.value =
-          month;
-
-        option.textContent =
-          visualMonthName(
-            month
-          );
-
-        select.appendChild(
-          option
+      const option =
+        document.createElement(
+          'option'
         );
 
-      }
-    );
+      option.value =
+        month;
+
+      option.textContent =
+        visualMonthName(month);
+
+      select.appendChild(option);
+
+    });
 
     if(
       oldValue
       &&
-      availableMonths.includes(
-        oldValue
-      )
+      monthList.includes(oldValue)
     ){
 
       select.value =
@@ -387,132 +364,73 @@
   }
 
 
-  function selectedGraphMonths(){
+  function graphMonths(){
 
-    const value =
+    const chosen =
       $('visualGraphMonth')
         ?.value
       ||
       '';
 
-    if(value){
+    if(chosen){
 
-      return [
-        value
-      ];
+      return [chosen];
 
     }
 
-    /*
-      Blank Graph Month means:
-      All Months / Total.
-
-      It is intentionally independent from
-      main dashboard Month.
-    */
-
-    return [];
-
-  }
-
-
-  function graphMonthText(){
-
-    const selectedMonths =
-      selectedGraphMonths();
-
-    if(!selectedMonths.length){
-
-      return 'All Months / Total';
-
-    }
-
-    return selectedMonths
-      .map(
-        visualMonthName
-      )
-      .join(', ');
+    return availableMonths();
 
   }
 
 
   /* =====================================================
-     GROUP DATA
+     RPC GROUP DATA
   ===================================================== */
 
-  async function getGroupData(
+  async function groupDataForMonths(
     view,
-    monthMode = 'dashboard'
+    monthList
   ){
 
-    const selectedMonths =
-      monthMode === 'graph'
-        ? selectedGraphMonths()
-        : selectedDashboardMonths();
+    const calls =
+      monthList.map(async month => {
 
-    const baseArgs =
-      args();
+        const rows =
+          await rpc(
+            'raj_group_summary',
+            {
+              ...args(),
+              p_view:view,
+              p_months:[month]
+            }
+          )
+          ||
+          [];
 
-    return await rpc(
-      'raj_group_summary',
-      {
-        ...baseArgs,
+        return {
+          month,
+          rows
+        };
 
-        p_view:view,
+      });
 
-        /*
-          Override args().p_months here.
-
-          Graph:
-          independent Graph Month.
-
-          Map:
-          normal dashboard Month.
-        */
-        p_months:selectedMonths
-      }
-    )
-    ||
-    [];
+    return await Promise.all(calls);
 
   }
 
 
-  function palette(count){
+  async function mapGroupData(view){
 
-    const base = [
-
-      '#6757f5',
-      '#7c63f4',
-      '#9168ef',
-      '#a66de9',
-      '#bb72df',
-
-      '#4f86ef',
-      '#36a2eb',
-      '#32b9a5',
-      '#45bf75',
-      '#f0a23a',
-
-      '#ef6f61',
-      '#e65c8a',
-      '#bd67d5',
-      '#8c72df',
-      '#6578d8'
-
-    ];
-
-    return Array.from(
+    return await rpc(
+      'raj_group_summary',
       {
-        length:count
-      },
-      (_,i) =>
-        base[
-          i
-          %
-          base.length
-        ]
-    );
+        ...args(),
+        p_view:view,
+        p_months:selectedDashboardMonths()
+      }
+    )
+    ||
+    [];
 
   }
 
@@ -522,10 +440,6 @@
   ===================================================== */
 
   async function refreshGraph(){
-
-    if(visualBusy){
-      return;
-    }
 
     const canvas =
       $('salesVisualChart');
@@ -538,19 +452,23 @@
       return;
     }
 
-    visualBusy = true;
+    const requestId =
+      ++graphRequestId;
 
     try{
 
       populateGraphMonths();
 
       const view =
-        currentView
-        ||
-        'Party';
+        typeof currentView !== 'undefined'
+          ? currentView
+          : 'Party';
 
       const metric =
-        currentMetric();
+        $('visualMetric')
+          ?.value
+        ||
+        'taxable';
 
       const topN =
         Number(
@@ -560,55 +478,222 @@
           10
         );
 
+      const selectedMonths =
+        graphMonths();
+
+      if(!selectedMonths.length){
+
+        if($('visualChartNote')){
+
+          $('visualChartNote')
+            .textContent =
+            'No months available';
+
+        }
+
+        return;
+
+      }
+
+
+      if($('visualChartNote')){
+
+        $('visualChartNote')
+          .textContent =
+          'Loading month-wise graph...';
+
+      }
+
+
       /*
         IMPORTANT:
-        Graph uses independent Graph Month.
+        Separate RPC call for every month.
+        This matches Analysis View month-wise logic.
       */
-      const rows =
-        await getGroupData(
+      const monthResults =
+        await groupDataForMonths(
           view,
-          'graph'
+          selectedMonths
         );
 
-      const sorted =
-        [...rows]
-          .sort(
-            (a,b) =>
-              metricValue(
-                b,
-                metric
-              )
-              -
-              metricValue(
-                a,
-                metric
-              )
-          );
 
-      const topRows =
-        sorted.slice(
-          0,
-          topN
-        );
+      if(requestId !== graphRequestId){
+        return;
+      }
 
-      const labels =
-        topRows.map(
-          row =>
+
+      /*
+        Build one combined list of group names.
+      */
+      const allLabels =
+        new Set();
+
+      monthResults.forEach(result => {
+
+        result.rows.forEach(row => {
+
+          const label =
             String(
               row.label
               ??
               ''
-            )
+            ).trim();
+
+          if(label){
+
+            allLabels.add(label);
+
+          }
+
+        });
+
+      });
+
+
+      /*
+        Build month -> label -> row map.
+      */
+      const monthMaps =
+        new Map();
+
+      monthResults.forEach(result => {
+
+        const rowMap =
+          new Map();
+
+        result.rows.forEach(row => {
+
+          rowMap.set(
+            String(
+              row.label
+              ??
+              ''
+            ).trim(),
+            row
+          );
+
+        });
+
+        monthMaps.set(
+          result.month,
+          rowMap
         );
 
-      const values =
-        topRows.map(
-          row =>
-            metricValue(
-              row,
-              metric
-            )
+      });
+
+
+      /*
+        Rank groups using sum of selected months
+        for currently selected metric.
+      */
+      const rankedGroups =
+        [...allLabels]
+          .map(label => {
+
+            let total = 0;
+
+            selectedMonths.forEach(month => {
+
+              const row =
+                monthMaps
+                  .get(month)
+                  ?.get(label);
+
+              if(row){
+
+                total +=
+                  metricValue(
+                    row,
+                    metric
+                  );
+
+              }
+
+            });
+
+            return {
+              label,
+              total
+            };
+
+          })
+          .sort(
+            (a,b) =>
+              b.total - a.total
+          )
+          .slice(
+            0,
+            topN
+          );
+
+
+      const labels =
+        rankedGroups.map(
+          item => item.label
         );
+
+
+      /*
+        One dataset = one month.
+        Therefore every month gets its own bar.
+      */
+      const datasets =
+        selectedMonths.map(
+          (month,index) => {
+
+            const rowMap =
+              monthMaps.get(month);
+
+            const data =
+              labels.map(label => {
+
+                const row =
+                  rowMap?.get(label);
+
+                return row
+                  ? metricValue(
+                      row,
+                      metric
+                    )
+                  : 0;
+
+              });
+
+            const color =
+              MONTH_COLORS[
+                index
+                %
+                MONTH_COLORS.length
+              ];
+
+            return {
+
+              label:
+                visualMonthName(month),
+
+              data,
+
+              backgroundColor:color,
+
+              borderColor:color,
+
+              borderWidth:1.5,
+
+              borderRadius:6,
+
+              tension:.28,
+
+              fill:false,
+
+              pointRadius:4,
+
+              pointHoverRadius:6
+
+            };
+
+          }
+        );
+
 
       const chartType =
         $('visualChartType')
@@ -616,10 +701,6 @@
         ||
         'bar';
 
-      const colors =
-        palette(
-          topRows.length
-        );
 
       if(salesChart){
 
@@ -629,83 +710,17 @@
 
       }
 
-      const dataset = {
-
-        label:
-          METRIC_NAMES[metric]
-          ||
-          metric,
-
-        data:
-          values,
-
-        borderWidth:2,
-
-        borderRadius:
-          chartType === 'bar'
-            ? 8
-            : 0,
-
-        tension:
-          chartType === 'line'
-            ? 0.28
-            : 0,
-
-        fill:false
-
-      };
-
-
-      if(chartType === 'doughnut'){
-
-        dataset.backgroundColor =
-          colors;
-
-        dataset.borderColor =
-          '#ffffff';
-
-      }
-
-      else if(chartType === 'line'){
-
-        dataset.borderColor =
-          '#6757f5';
-
-        dataset.backgroundColor =
-          '#6757f5';
-
-        dataset.pointBackgroundColor =
-          colors;
-
-      }
-
-      else{
-
-        dataset.backgroundColor =
-          colors;
-
-        dataset.borderColor =
-          colors;
-
-      }
-
 
       salesChart =
         new Chart(
           canvas,
           {
 
-            type:
-              chartType,
+            type:chartType,
 
             data:{
-
               labels,
-
-              datasets:[
-                dataset
-              ]
-
+              datasets
             },
 
             options:{
@@ -715,7 +730,7 @@
               maintainAspectRatio:false,
 
               animation:{
-                duration:350
+                duration:300
               },
 
               interaction:{
@@ -727,12 +742,15 @@
 
                 legend:{
 
-                  display:
-                    chartType
-                    ===
-                    'doughnut',
+                  display:true,
 
-                  position:'bottom'
+                  position:'top',
+
+                  labels:{
+                    usePointStyle:true,
+                    boxWidth:9,
+                    padding:16
+                  }
 
                 },
 
@@ -742,20 +760,13 @@
 
                     label(context){
 
-                      const val =
-                        context.parsed?.y
-                        ??
-                        context.parsed
-                        ??
-                        context.raw;
-
                       return (
-                        METRIC_NAMES[metric]
+                        context.dataset.label
                         +
                         ': '
                         +
                         metricText(
-                          val,
+                          context.raw,
                           metric
                         )
                       );
@@ -770,9 +781,7 @@
 
               scales:
 
-                chartType
-                ===
-                'doughnut'
+                chartType === 'doughnut'
 
                   ? {}
 
@@ -780,19 +789,23 @@
 
                       x:{
 
+                        stacked:false,
+
+                        grid:{
+                          display:false
+                        },
+
                         ticks:{
                           autoSkip:false,
                           maxRotation:45,
                           minRotation:0
-                        },
-
-                        grid:{
-                          display:false
                         }
 
                       },
 
                       y:{
+
+                        stacked:false,
 
                         beginAtZero:true,
 
@@ -800,15 +813,15 @@
 
                           callback(value){
 
-                            return metric
-                              ===
-                              'taxable'
+                            if(metric === 'taxable'){
 
-                              ? '₹'
+                              return '₹'
                                 +
-                                compact(value)
+                                compact(value);
 
-                              : compact(value);
+                            }
+
+                            return compact(value);
 
                           }
 
@@ -823,6 +836,10 @@
           }
         );
 
+
+      /*
+        KPI DATA
+      */
 
       if($('visualViewName')){
 
@@ -840,17 +857,23 @@
         $('visualGroupCount')
           .textContent =
           indian(
-            rows.length
+            allLabels.size
           );
 
       }
+
+
+      const topGroup =
+        rankedGroups[0]
+        ||
+        null;
 
 
       if($('visualTopGroup')){
 
         $('visualTopGroup')
           .textContent =
-          sorted[0]
+          topGroup
             ?.label
           ||
           '-';
@@ -858,15 +881,57 @@
       }
 
 
+      /*
+        Top Taxable Sale should use Taxable
+        across selected graph months.
+      */
+      let topTaxableGroup = null;
+      let topTaxableValue = -1;
+
+      [...allLabels].forEach(label => {
+
+        let totalTaxable = 0;
+
+        selectedMonths.forEach(month => {
+
+          const row =
+            monthMaps
+              .get(month)
+              ?.get(label);
+
+          if(row){
+
+            totalTaxable +=
+              number(
+                row.taxable
+              );
+
+          }
+
+        });
+
+        if(totalTaxable > topTaxableValue){
+
+          topTaxableValue =
+            totalTaxable;
+
+          topTaxableGroup =
+            label;
+
+        }
+
+      });
+
+
       if($('visualTopSale')){
 
         $('visualTopSale')
           .textContent =
           rupees(
-            sorted[0]
-              ?.taxable
-            ||
-            0
+            Math.max(
+              0,
+              topTaxableValue
+            )
           );
 
       }
@@ -876,20 +941,11 @@
 
         $('visualChartTitle')
           .textContent =
-          `Top ${
-            Math.min(
-              topN,
-              rows.length
-            )
-          } ${
-            VIEW_NAMES[view]
-            ||
-            view
-          } by ${
-            METRIC_NAMES[metric]
-            ||
-            metric
-          }`;
+          selectedMonths.length > 1
+
+            ? `Top ${Math.min(topN,labels.length)} ${VIEW_NAMES[view] || view} - Month Wise ${METRIC_NAMES[metric] || metric}`
+
+            : `Top ${Math.min(topN,labels.length)} ${VIEW_NAMES[view] || view} - ${visualMonthName(selectedMonths[0])} ${METRIC_NAMES[metric] || metric}`;
 
       }
 
@@ -898,9 +954,14 @@
 
         $('visualChartNote')
           .textContent =
-          `Graph Month: ${graphMonthText()}`;
+          selectedMonths.length > 1
+
+            ? `Separate Bars: ${selectedMonths.map(visualMonthName).join(', ')}`
+
+            : `Graph Month: ${visualMonthName(selectedMonths[0])}`;
 
       }
+
 
     }catch(error){
 
@@ -923,10 +984,6 @@
 
       }
 
-    }finally{
-
-      visualBusy = false;
-
     }
 
   }
@@ -941,7 +998,6 @@
     const values = [];
 
     let value = '';
-
     let quoted = false;
 
     for(
@@ -962,7 +1018,6 @@
         ){
 
           value += '"';
-
           i++;
 
         }else{
@@ -980,9 +1035,7 @@
         !quoted
       ){
 
-        values.push(
-          value
-        );
+        values.push(value);
 
         value = '';
 
@@ -996,9 +1049,7 @@
 
     }
 
-    values.push(
-      value
-    );
+    values.push(value);
 
     return values;
 
@@ -1013,12 +1064,10 @@
 
     }
 
-    const status =
-      $('visualMapStatus');
+    if($('visualMapStatus')){
 
-    if(status){
-
-      status.textContent =
+      $('visualMapStatus')
+        .textContent =
         'Loading India Pincode locations...';
 
     }
@@ -1044,12 +1093,8 @@
 
     const lines =
       text
-        .split(
-          /\r?\n/
-        )
-        .filter(
-          Boolean
-        );
+        .split(/\r?\n/)
+        .filter(Boolean);
 
     const lookup =
       new Map();
@@ -1087,14 +1132,10 @@
         ).trim();
 
       const lat =
-        Number(
-          cols[4]
-        );
+        Number(cols[4]);
 
       const lng =
-        Number(
-          cols[5]
-        );
+        Number(cols[5]);
 
       if(
         /^\d{6}$/.test(pin)
@@ -1127,7 +1168,7 @@
 
 
   /* =====================================================
-     ALL PINCODES OPTION
+     ALL PINCODES
   ===================================================== */
 
   function installAllPincodesOption(){
@@ -1167,7 +1208,7 @@
 
 
   /* =====================================================
-     SELECTED PINCODE DETAILS CARD
+     PINCODE DETAILS CARD
   ===================================================== */
 
   function ensureMapDetailsCard(){
@@ -1216,12 +1257,13 @@
         <button
           type="button"
           id="visualMapDetailsClose"
-          aria-label="Close selected Pincode details"
+          aria-label="Close"
         >
           ×
         </button>
 
       </div>
+
 
       <div
         id="visualMapDetailsLocation"
@@ -1230,78 +1272,37 @@
         Pincode details will appear here.
       </div>
 
+
       <div class="visual-map-details-grid">
 
         <div class="visual-map-detail-item">
-
-          <span>
-            Taxable Sales
-          </span>
-
-          <strong id="visualSelectedTaxable">
-            -
-          </strong>
-
+          <span>Taxable Sales</span>
+          <strong id="visualSelectedTaxable">-</strong>
         </div>
 
         <div class="visual-map-detail-item">
-
-          <span>
-            Customers Billed
-          </span>
-
-          <strong id="visualSelectedCustomers">
-            -
-          </strong>
-
+          <span>Customers Billed</span>
+          <strong id="visualSelectedCustomers">-</strong>
         </div>
 
         <div class="visual-map-detail-item">
-
-          <span>
-            Quantity
-          </span>
-
-          <strong id="visualSelectedQty">
-            -
-          </strong>
-
+          <span>Quantity</span>
+          <strong id="visualSelectedQty">-</strong>
         </div>
 
         <div class="visual-map-detail-item">
-
-          <span>
-            Products Sold
-          </span>
-
-          <strong id="visualSelectedProducts">
-            -
-          </strong>
-
+          <span>Products Sold</span>
+          <strong id="visualSelectedProducts">-</strong>
         </div>
 
         <div class="visual-map-detail-item">
-
-          <span>
-            Records
-          </span>
-
-          <strong id="visualSelectedRecords">
-            -
-          </strong>
-
+          <span>Records</span>
+          <strong id="visualSelectedRecords">-</strong>
         </div>
 
         <div class="visual-map-detail-item">
-
-          <span>
-            Bubble Metric
-          </span>
-
-          <strong id="visualSelectedMetric">
-            -
-          </strong>
-
+          <span>Bubble Metric</span>
+          <strong id="visualSelectedMetric">-</strong>
         </div>
 
       </div>
@@ -1344,28 +1345,14 @@
       return;
     }
 
-    const area =
-      String(
-        geo?.area
-        ||
-        ''
-      ).trim();
-
-    const state =
-      String(
-        geo?.state
-        ||
-        ''
-      ).trim();
-
-    const locationParts =
+    const location =
       [
-        area,
-        state
+        geo?.area,
+        geo?.state
       ]
-      .filter(
-        Boolean
-      );
+      .filter(Boolean)
+      .join(' • ');
+
 
     const customers =
       row.customersBilled
@@ -1390,6 +1377,7 @@
       ??
       0;
 
+
     if($('visualSelectedPin')){
 
       $('visualSelectedPin')
@@ -1398,66 +1386,62 @@
 
     }
 
+
     if($('visualMapDetailsLocation')){
 
       $('visualMapDetailsLocation')
         .textContent =
-        locationParts.length
-          ? locationParts.join(' • ')
-          : 'Location not available';
+        location
+        ||
+        'Location not available';
 
     }
+
 
     if($('visualSelectedTaxable')){
 
       $('visualSelectedTaxable')
         .textContent =
-        rupees(
-          row.taxable
-        );
+        rupees(row.taxable);
 
     }
+
 
     if($('visualSelectedCustomers')){
 
       $('visualSelectedCustomers')
         .textContent =
-        indian(
-          customers
-        );
+        indian(customers);
 
     }
+
 
     if($('visualSelectedQty')){
 
       $('visualSelectedQty')
         .textContent =
-        indian(
-          row.qty,
-          2
-        );
+        indian(row.qty,2);
 
     }
+
 
     if($('visualSelectedProducts')){
 
       $('visualSelectedProducts')
         .textContent =
-        indian(
-          products
-        );
+        indian(products);
 
     }
+
 
     if($('visualSelectedRecords')){
 
       $('visualSelectedRecords')
         .textContent =
-        indian(
-          records
-        );
+        indian(records);
 
     }
+
 
     if($('visualSelectedMetric')){
 
@@ -1481,6 +1465,7 @@
 
     }
 
+
     card.classList.add(
       'show'
     );
@@ -1499,62 +1484,45 @@
       ||
       typeof L === 'undefined'
     ){
-
       return;
-
     }
 
     indiaMap =
       L.map(
         'salesIndiaMap',
         {
-
           zoomControl:true,
-
           minZoom:4,
-
           preferCanvas:true
-
         }
       )
       .setView(
-        [
-          22.8,
-          79.0
-        ],
+        [22.8,79.0],
         5
       );
+
 
     L.tileLayer(
       'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       {
-
         maxZoom:18,
-
         attribution:
           '&copy; OpenStreetMap contributors'
-
       }
     )
-    .addTo(
-      indiaMap
-    );
+    .addTo(indiaMap);
+
 
     mapLayer =
       L.layerGroup()
-        .addTo(
-          indiaMap
-        );
+        .addTo(indiaMap);
 
   }
 
 
   async function refreshMap(){
 
-    const mapBox =
-      $('salesIndiaMap');
-
-    if(!mapBox){
+    if(!$('salesIndiaMap')){
       return;
     }
 
@@ -1566,36 +1534,29 @@
 
       ensureMap();
 
-      const status =
-        $('visualMapStatus');
 
-      if(status){
+      if($('visualMapStatus')){
 
-        status.textContent =
+        $('visualMapStatus')
+          .textContent =
           'Loading filtered Pincode sales...';
 
       }
 
-      /*
-        India Map intentionally continues
-        to use MAIN DASHBOARD MONTH.
-      */
+
       const [
         rows,
         lookup
       ] =
         await Promise.all(
           [
-
-            getGroupData(
-              'Pincode',
-              'dashboard'
+            mapGroupData(
+              'Pincode'
             ),
-
             loadPincodeLookup()
-
           ]
         );
+
 
       const metric =
         $('visualMapMetric')
@@ -1603,38 +1564,36 @@
         ||
         'taxable';
 
+
       const limitValue =
         $('visualMapLimit')
           ?.value
         ||
         '50';
 
+
       const validRows =
         [...rows]
 
-          .filter(
-            row =>
-              /^\d{6}$/.test(
-                String(
-                  row.label
-                  ||
-                  ''
-                ).trim()
-              )
-          )
+          .filter(row => {
+
+            return /^\d{6}$/.test(
+              String(
+                row.label
+                ||
+                ''
+              ).trim()
+            );
+
+          })
 
           .sort(
             (a,b) =>
-              metricValue(
-                b,
-                metric
-              )
+              metricValue(b,metric)
               -
-              metricValue(
-                a,
-                metric
-              )
+              metricValue(a,metric)
           );
+
 
       const selectedRows =
         limitValue === 'all'
@@ -1643,21 +1602,19 @@
 
           : validRows.slice(
               0,
-              Number(
-                limitValue
-                ||
-                50
-              )
+              Number(limitValue || 50)
             );
+
 
       mapLayer.clearLayers();
 
+
       const mapped = [];
+
 
       const maxValue =
         Math.max(
           1,
-
           ...selectedRows.map(
             row =>
               metricValue(
@@ -1666,6 +1623,7 @@
               )
           )
         );
+
 
       for(
         const row
@@ -1677,14 +1635,15 @@
             row.label
           ).trim();
 
+
         const geo =
-          lookup.get(
-            pin
-          );
+          lookup.get(pin);
+
 
         if(!geo){
           continue;
         }
+
 
         const value =
           metricValue(
@@ -1692,37 +1651,16 @@
             metric
           );
 
+
         const radius =
           5
           +
           17
           *
           Math.sqrt(
-            Math.max(
-              0,
-              value
-            )
+            Math.max(0,value)
             /
             maxValue
-          );
-
-        const circle =
-          L.circleMarker(
-            [
-              geo.lat,
-              geo.lng
-            ],
-            {
-
-              radius,
-
-              weight:2,
-
-              opacity:.9,
-
-              fillOpacity:.65
-
-            }
           );
 
 
@@ -1733,12 +1671,14 @@
           ??
           0;
 
+
         const products =
           row.productsSold
           ??
           row.productssold
           ??
           0;
+
 
         const records =
           row.records
@@ -1748,6 +1688,21 @@
           row.recordcount
           ??
           0;
+
+
+        const circle =
+          L.circleMarker(
+            [
+              geo.lat,
+              geo.lng
+            ],
+            {
+              radius,
+              weight:2,
+              opacity:.9,
+              fillOpacity:.65
+            }
+          );
 
 
         circle.bindPopup(
@@ -1762,13 +1717,13 @@
 
               ${
                 geo.area
-                  ? `${escapeHtml(geo.area)}<br>`
+                  ? escapeHtml(geo.area) + '<br>'
                   : ''
               }
 
               ${
                 geo.state
-                  ? `${escapeHtml(geo.state)}<br>`
+                  ? escapeHtml(geo.state) + '<br>'
                   : ''
               }
 
@@ -1831,6 +1786,7 @@
           mapLayer
         );
 
+
         mapped.push(
           [
             geo.lat,
@@ -1848,24 +1804,15 @@
             mapped
           ),
           {
-
-            padding:[
-              30,
-              30
-            ],
-
+            padding:[30,30],
             maxZoom:9
-
           }
         );
 
       }else{
 
         indiaMap.setView(
-          [
-            22.8,
-            79.0
-          ],
+          [22.8,79.0],
           5
         );
 
@@ -1879,22 +1826,34 @@
       );
 
 
-      if(status){
+      if($('visualMapStatus')){
 
         const dashboardMonths =
           selectedDashboardMonths();
+
 
         const pointText =
           limitValue === 'all'
             ? 'All Pincodes'
             : `Top ${limitValue} Pincodes`;
 
-        status.textContent =
+
+        $('visualMapStatus')
+          .textContent =
+
           `${pointText} • ${mapped.length} mapped • ${rows.length} filtered Pincode groups`
+
           +
+
           (
             dashboardMonths.length
-              ? ` • Month: ${dashboardMonths.map(visualMonthName).join(', ')}`
+
+              ? ` • Month: ${
+                  dashboardMonths
+                    .map(visualMonthName)
+                    .join(', ')
+                }`
+
               : ' • All Months / Total'
           );
 
@@ -1906,6 +1865,7 @@
         'India map error:',
         error
       );
+
 
       if($('visualMapStatus')){
 
@@ -1927,7 +1887,7 @@
 
 
   /* =====================================================
-     ACTIVE VIEW REFRESH
+     ACTIVE VISUAL
   ===================================================== */
 
   async function refreshActiveVisual(){
@@ -1935,9 +1895,8 @@
     const mapActive =
       $('mapVisualPane')
         ?.classList
-        .contains(
-          'active'
-        );
+        .contains('active');
+
 
     if(mapActive){
 
@@ -1962,18 +1921,17 @@
       .querySelectorAll(
         '.visual-mode-btn'
       )
-      .forEach(
-        button => {
+      .forEach(button => {
 
-          button.classList.toggle(
-            'active',
-            button.dataset.visualMode
-            ===
-            mode
-          );
+        button.classList.toggle(
+          'active',
+          button.dataset.visualMode
+          ===
+          mode
+        );
 
-        }
-      );
+      });
+
 
     $('graphVisualPane')
       ?.classList
@@ -1982,12 +1940,14 @@
         mode === 'graph'
       );
 
+
     $('mapVisualPane')
       ?.classList
       .toggle(
         'active',
         mode === 'map'
       );
+
 
     if(mode === 'map'){
 
@@ -2000,7 +1960,7 @@
 
       setTimeout(
         refreshGraph,
-        20
+        50
       );
 
     }
@@ -2022,17 +1982,17 @@
 
 
     /*
-      Schema/months loads asynchronously in script.js,
-      so populate again after startup.
+      script.js gets schema/months asynchronously,
+      therefore populate again after startup.
     */
     setTimeout(
       populateGraphMonths,
-      1000
+      800
     );
 
     setTimeout(
       populateGraphMonths,
-      2000
+      1600
     );
 
 
@@ -2040,19 +2000,20 @@
       .querySelectorAll(
         '.visual-mode-btn'
       )
-      .forEach(
-        button => {
+      .forEach(button => {
 
-          button.addEventListener(
-            'click',
-            () =>
-              switchVisual(
-                button.dataset.visualMode
-              )
-          );
+        button.addEventListener(
+          'click',
+          () => {
 
-        }
-      );
+            switchVisual(
+              button.dataset.visualMode
+            );
+
+          }
+        );
+
+      });
 
 
     [
@@ -2060,44 +2021,30 @@
       'visualTopN',
       'visualMetric'
     ]
-    .forEach(
-      id => {
+    .forEach(id => {
 
-        $(id)
-          ?.addEventListener(
-            'change',
-            refreshGraph
-          );
+      $(id)
+        ?.addEventListener(
+          'change',
+          refreshGraph
+        );
 
-      }
-    );
-
-
-    /*
-      Independent Graph Month.
-    */
-    $('visualGraphMonth')
-      ?.addEventListener(
-        'change',
-        refreshGraph
-      );
+    });
 
 
     [
       'visualMapLimit',
       'visualMapMetric'
     ]
-    .forEach(
-      id => {
+    .forEach(id => {
 
-        $(id)
-          ?.addEventListener(
-            'change',
-            refreshMap
-          );
+      $(id)
+        ?.addEventListener(
+          'change',
+          refreshMap
+        );
 
-      }
-    );
+    });
 
 
     $('visualRefresh')
@@ -2111,31 +2058,25 @@
       .querySelectorAll(
         '#viewTabs button'
       )
-      .forEach(
-        button => {
+      .forEach(button => {
 
-          button.addEventListener(
-            'click',
-            () =>
-              setTimeout(
-                refreshActiveVisual,
-                150
-              )
-          );
+        button.addEventListener(
+          'click',
+          () => {
 
-        }
-      );
+            setTimeout(
+              refreshActiveVisual,
+              150
+            );
+
+          }
+        );
+
+      });
 
 
     /*
-      Normal dashboard filters.
-
-      They still affect Graph by SM, Company,
-      Customer, OD, Area etc.
-
-      Main dashboard Month does NOT control
-      Graph Month because Graph has its own
-      independent month selector.
+      Main dashboard filter changes.
     */
     document.addEventListener(
       'change',
@@ -2146,9 +2087,7 @@
             '#visualAnalysisPanel'
           )
         ){
-
           return;
-
         }
 
         setTimeout(
@@ -2163,22 +2102,28 @@
     $('search')
       ?.addEventListener(
         'input',
-        () =>
+        () => {
+
           setTimeout(
             refreshActiveVisual,
             700
-          )
+          );
+
+        }
       );
 
 
     $('clearFilters')
       ?.addEventListener(
         'click',
-        () =>
+        () => {
+
           setTimeout(
             refreshActiveVisual,
             500
-          )
+          );
+
+        }
       );
 
 
@@ -2205,7 +2150,7 @@
 
     setTimeout(
       refreshGraph,
-      1100
+      1200
     );
 
   }
