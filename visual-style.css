@@ -1,7 +1,10 @@
 /* =========================================================
    RAJ AGENCIES
    VISUAL ANALYSIS STYLE
-   online38
+   online43
+
+   Graph + India Map
+   All Pincodes + Selected Pincode Details
 ========================================================= */
 
 
@@ -328,6 +331,254 @@
 
 
 /* =====================================================
+   SELECTED PINCODE DETAILS
+===================================================== */
+
+.visual-map-details{
+
+  display:none;
+
+  margin-bottom:12px;
+
+  padding:15px;
+
+  border:
+    1px solid
+    rgba(
+      102,
+      87,
+      245,
+      .16
+    );
+
+  border-radius:16px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(
+        255,
+        255,
+        255,
+        .96
+      ),
+      rgba(
+        241,
+        239,
+        255,
+        .88
+      )
+    );
+
+  box-shadow:
+    0
+    10px
+    26px
+    rgba(
+      69,
+      55,
+      150,
+      .08
+    );
+
+}
+
+
+.visual-map-details.show{
+
+  display:block;
+
+}
+
+
+.visual-map-details-head{
+
+  display:flex;
+
+  align-items:flex-start;
+
+  justify-content:
+    space-between;
+
+  gap:12px;
+
+  margin-bottom:7px;
+
+}
+
+
+.visual-map-details-head span{
+
+  display:block;
+
+  margin-bottom:3px;
+
+  color:#7c8498;
+
+  font-size:10px;
+
+  font-weight:800;
+
+  text-transform:uppercase;
+
+  letter-spacing:.4px;
+
+}
+
+
+.visual-map-details-head strong{
+
+  display:block;
+
+  color:#312e81;
+
+  font-size:20px;
+
+  font-weight:950;
+
+}
+
+
+#visualMapDetailsClose{
+
+  width:31px;
+
+  height:31px;
+
+  flex:
+    0
+    0
+    31px;
+
+  border:
+    1px solid
+    rgba(
+      100,
+      90,
+      180,
+      .15
+    );
+
+  border-radius:50%;
+
+  color:#6b6684;
+
+  background:#fff;
+
+  cursor:pointer;
+
+  font-size:20px;
+
+  line-height:1;
+
+}
+
+
+#visualMapDetailsClose:hover{
+
+  color:#fff;
+
+  background:#6757f5;
+
+}
+
+
+.visual-map-details-location{
+
+  margin-bottom:12px;
+
+  color:#687086;
+
+  font-size:11px;
+
+  font-weight:750;
+
+}
+
+
+.visual-map-details-grid{
+
+  display:grid;
+
+  grid-template-columns:
+    repeat(
+      6,
+      minmax(
+        110px,
+        1fr
+      )
+    );
+
+  gap:9px;
+
+}
+
+
+.visual-map-detail-item{
+
+  min-width:0;
+
+  padding:
+    10px
+    11px;
+
+  border:
+    1px solid
+    rgba(
+      112,
+      97,
+      210,
+      .10
+    );
+
+  border-radius:11px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      .78
+    );
+
+}
+
+
+.visual-map-detail-item span{
+
+  display:block;
+
+  margin-bottom:5px;
+
+  color:#858ca0;
+
+  font-size:9px;
+
+  font-weight:800;
+
+}
+
+
+.visual-map-detail-item strong{
+
+  display:block;
+
+  overflow:hidden;
+
+  color:#25304c;
+
+  font-size:13px;
+
+  font-weight:900;
+
+  text-overflow:ellipsis;
+
+  white-space:nowrap;
+
+}
+
+
+/* =====================================================
    INDIA MAP
 ===================================================== */
 
@@ -427,6 +678,15 @@
 }
 
 
+.raj-map-popup strong{
+
+  color:#312e81;
+
+  font-size:15px;
+
+}
+
+
 .raj-map-popup hr{
 
   border:0;
@@ -445,6 +705,23 @@
 /* =====================================================
    TABLET
 ===================================================== */
+
+@media(
+  max-width:1100px
+){
+
+  .visual-map-details-grid{
+
+    grid-template-columns:
+      repeat(
+        3,
+        1fr
+      );
+
+  }
+
+}
+
 
 @media(
   max-width:1000px
@@ -512,6 +789,38 @@
 
     flex-direction:
       column;
+
+  }
+
+
+  .visual-map-details-grid{
+
+    grid-template-columns:
+      repeat(
+        2,
+        1fr
+      );
+
+  }
+
+}
+
+
+@media(
+  max-width:480px
+){
+
+  .visual-map-details-grid{
+
+    grid-template-columns:
+      1fr;
+
+  }
+
+
+  .visual-map-details-head strong{
+
+    font-size:18px;
 
   }
 
