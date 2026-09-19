@@ -1,5 +1,5 @@
 /* =========================================================
-   RAJ AGENCIES - visual-addon.js - online46
+   RAJ AGENCIES - visual-addon.js - online47
 
    GRAPH VIEW
    ---------------------------------------------------------
@@ -92,7 +92,18 @@
 
   let graphMode = 'normal';
 
+  /*
+     online47 FIX:
+     Empty array can now mean the user intentionally
+     selected NO months.
+
+     graphMonthsInitialized tells us whether initial
+     month selection has already happened.
+  */
+  let graphMonthsInitialized = false;
   let selectedGraphMonths = [];
+
+  let graphMonthSchemaKey = '';
 
 
   const $ = id =>
@@ -325,6 +336,299 @@
 
 
   /* =====================================================
+     ONLINE47 MONTH DROPDOWN STYLE
+     Kept inside this JS so visual-style.css does not
+     need to be changed for this update.
+  ===================================================== */
+
+  function installGraphMonthStyles() {
+
+    if ($('visualGraphMonthOnline47Style')) {
+      return;
+    }
+
+    const style =
+      document.createElement('style');
+
+    style.id =
+      'visualGraphMonthOnline47Style';
+
+    style.textContent = `
+
+      #visualGraphMonthsField {
+        position: relative !important;
+        min-width: 220px;
+      }
+
+      #visualGraphMonthsButton {
+        width: 100% !important;
+        min-height: 48px !important;
+        padding: 0 14px !important;
+        border: 1px solid rgba(125, 117, 170, .22) !important;
+        border-radius: 14px !important;
+        background: rgba(255, 255, 255, .96) !important;
+        color: #1f2937 !important;
+        text-align: left !important;
+        cursor: pointer !important;
+        font: inherit !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 10px !important;
+        box-sizing: border-box !important;
+        box-shadow:
+          0 2px 8px rgba(31, 41, 55, .04) !important;
+      }
+
+      #visualGraphMonthsButton:hover {
+        border-color: rgba(103, 87, 245, .42) !important;
+      }
+
+      #visualGraphMonthsButton:focus {
+        outline: none !important;
+        border-color: #6757f5 !important;
+        box-shadow:
+          0 0 0 3px rgba(103, 87, 245, .12) !important;
+      }
+
+      #visualGraphMonthsText {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex: 1;
+        min-width: 0;
+      }
+
+      .visual-month-arrow {
+        flex: 0 0 auto;
+        font-size: 16px;
+        color: #6b7280;
+        transition: transform .18s ease;
+      }
+
+      #visualGraphMonthsButton[aria-expanded="true"]
+      .visual-month-arrow {
+        transform: rotate(180deg);
+      }
+
+      #visualGraphMonthsMenu {
+        display: none;
+        position: absolute !important;
+        top: calc(100% + 8px) !important;
+        left: 0 !important;
+        width: 310px !important;
+        max-width: calc(100vw - 24px) !important;
+        z-index: 999999 !important;
+        padding: 12px !important;
+        box-sizing: border-box !important;
+        border:
+          1px solid rgba(117, 108, 170, .20) !important;
+        border-radius: 16px !important;
+        background:
+          rgba(255, 255, 255, .99) !important;
+        box-shadow:
+          0 18px 45px rgba(44, 36, 90, .18) !important;
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+      }
+
+      #visualGraphMonthsMenu.open {
+        display: block !important;
+      }
+
+      .visual-month-search-wrap {
+        margin-bottom: 10px;
+      }
+
+      #visualGraphMonthsSearch {
+        display: block !important;
+        width: 100% !important;
+        height: 44px !important;
+        min-height: 44px !important;
+        box-sizing: border-box !important;
+        padding: 0 13px !important;
+        margin: 0 !important;
+        border:
+          1px solid #dedfea !important;
+        border-radius: 12px !important;
+        background: #ffffff !important;
+        color: #252938 !important;
+        font: inherit !important;
+        font-size: 14px !important;
+        box-shadow: none !important;
+      }
+
+      #visualGraphMonthsSearch::placeholder {
+        color: #9ca3af !important;
+      }
+
+      #visualGraphMonthsSearch:focus {
+        outline: none !important;
+        border-color: #6757f5 !important;
+        box-shadow:
+          0 0 0 3px rgba(103, 87, 245, .11) !important;
+      }
+
+      .visual-month-actions {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
+        padding-bottom: 10px !important;
+        margin-bottom: 6px !important;
+        border-bottom:
+          1px solid rgba(125, 117, 170, .14) !important;
+      }
+
+      #visualGraphMonthsAll,
+      #visualGraphMonthsNone {
+        width: 100% !important;
+        min-height: 38px !important;
+        margin: 0 !important;
+        padding: 7px 10px !important;
+        border-radius: 10px !important;
+        cursor: pointer !important;
+        font: inherit !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        line-height: 1.2 !important;
+        box-shadow: none !important;
+        transform: none !important;
+      }
+
+      #visualGraphMonthsAll {
+        border: 1px solid #6757f5 !important;
+        background: #6757f5 !important;
+        color: #ffffff !important;
+      }
+
+      #visualGraphMonthsAll:hover {
+        filter: brightness(.97);
+      }
+
+      #visualGraphMonthsNone {
+        border: 1px solid #dedfea !important;
+        background: #ffffff !important;
+        color: #4b5563 !important;
+      }
+
+      #visualGraphMonthsNone:hover {
+        border-color: #bbb7dc !important;
+        background: #faf9ff !important;
+      }
+
+      #visualGraphMonthsOptions {
+        max-height: 300px !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        padding: 3px 2px !important;
+        scrollbar-width: thin;
+      }
+
+      #visualGraphMonthsOptions
+      .visual-month-option {
+        display: flex !important;
+        align-items: center !important;
+        gap: 11px !important;
+        min-height: 42px !important;
+        margin: 0 !important;
+        padding: 7px 9px !important;
+        box-sizing: border-box !important;
+        border-radius: 10px !important;
+        cursor: pointer !important;
+        user-select: none !important;
+        color: #343746 !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        line-height: 1.25 !important;
+      }
+
+      #visualGraphMonthsOptions
+      .visual-month-option:hover {
+        background: #f6f5ff !important;
+      }
+
+      #visualGraphMonthsOptions
+      .visual-month-option.hidden {
+        display: none !important;
+      }
+
+      /*
+         Strongly scoped reset.
+         Existing dashboard checkbox CSS must not turn
+         these month checkboxes into large blue boxes.
+      */
+      #visualGraphMonthsMenu
+      input.visual-month-check[type="checkbox"] {
+        appearance: checkbox !important;
+        -webkit-appearance: checkbox !important;
+        width: 16px !important;
+        height: 16px !important;
+        min-width: 16px !important;
+        max-width: 16px !important;
+        min-height: 16px !important;
+        max-height: 16px !important;
+        flex: 0 0 16px !important;
+        display: inline-block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: initial !important;
+        border-radius: 3px !important;
+        background: initial !important;
+        box-shadow: none !important;
+        transform: none !important;
+        opacity: 1 !important;
+        position: static !important;
+        cursor: pointer !important;
+        vertical-align: middle !important;
+      }
+
+      #visualGraphMonthsMenu
+      input.visual-month-check[type="checkbox"]::before,
+      #visualGraphMonthsMenu
+      input.visual-month-check[type="checkbox"]::after {
+        content: none !important;
+        display: none !important;
+      }
+
+      .visual-month-label {
+        display: block;
+        flex: 1;
+        min-width: 0;
+      }
+
+      .visual-month-empty-search {
+        display: none;
+        padding: 18px 10px;
+        text-align: center;
+        color: #8b8fa3;
+        font-size: 13px;
+      }
+
+      .visual-month-empty-search.show {
+        display: block;
+      }
+
+      @media (max-width: 520px) {
+
+        #visualGraphMonthsMenu {
+          width: min(
+            310px,
+            calc(100vw - 28px)
+          ) !important;
+        }
+
+      }
+
+    `;
+
+    document.head.appendChild(
+      style
+    );
+
+  }
+
+
+  /* =====================================================
      VISUAL GRAPH CONTROLS
   ===================================================== */
 
@@ -339,10 +643,11 @@
       return;
     }
 
+    installGraphMonthStyles();
 
     /*
-      Remove old single Graph Month control
-      from online44 / online45.
+       Remove old single Graph Month control
+       from online44 / online45.
     */
     $('visualGraphMonthField')
       ?.remove();
@@ -396,78 +701,48 @@
       monthField.style.display =
         'none';
 
-      monthField.style.position =
-        'relative';
-
       monthField.innerHTML = `
         <label>Graph Months</label>
 
         <button
           type="button"
           id="visualGraphMonthsButton"
-          style="
-            width:100%;
-            min-height:48px;
-            padding:0 14px;
-            border:1px solid #dfe3ef;
-            border-radius:14px;
-            background:#fff;
-            color:#1f2937;
-            text-align:left;
-            cursor:pointer;
-            font:inherit;
-            display:flex;
-            align-items:center;
-            justify-content:space-between;
-            gap:10px;
-          "
+          aria-haspopup="true"
+          aria-expanded="false"
         >
           <span id="visualGraphMonthsText">
             Select Months
           </span>
 
-          <span>⌄</span>
+          <span
+            class="visual-month-arrow"
+            aria-hidden="true"
+          >
+            ⌄
+          </span>
         </button>
 
         <div
           id="visualGraphMonthsMenu"
-          style="
-            display:none;
-            position:absolute;
-            top:calc(100% + 6px);
-            left:0;
-            width:280px;
-            max-width:90vw;
-            z-index:99999;
-            padding:10px;
-            border:1px solid #dedff0;
-            border-radius:14px;
-            background:#fff;
-            box-shadow:0 14px 35px rgba(44,36,90,.18);
-          "
         >
 
-          <div
-            style="
-              display:flex;
-              gap:7px;
-              margin-bottom:8px;
-            "
-          >
+          <div class="visual-month-search-wrap">
+
+            <input
+              type="text"
+              id="visualGraphMonthsSearch"
+              placeholder="Search month..."
+              autocomplete="off"
+              spellcheck="false"
+            >
+
+          </div>
+
+          <div class="visual-month-actions">
 
             <button
               type="button"
               id="visualGraphMonthsAll"
-              style="
-                flex:1;
-                padding:8px;
-                border:0;
-                border-radius:9px;
-                background:#6757f5;
-                color:#fff;
-                cursor:pointer;
-                font-weight:700;
-              "
             >
               Select All
             </button>
@@ -475,16 +750,6 @@
             <button
               type="button"
               id="visualGraphMonthsNone"
-              style="
-                flex:1;
-                padding:8px;
-                border:1px solid #dedff0;
-                border-radius:9px;
-                background:#fff;
-                color:#4b5563;
-                cursor:pointer;
-                font-weight:700;
-              "
             >
               Unselect All
             </button>
@@ -493,11 +758,14 @@
 
           <div
             id="visualGraphMonthsOptions"
-            style="
-              max-height:260px;
-              overflow:auto;
-            "
           ></div>
+
+          <div
+            id="visualGraphMonthsEmptySearch"
+            class="visual-month-empty-search"
+          >
+            No month found
+          </div>
 
         </div>
       `;
@@ -516,31 +784,32 @@
   }
 
 
-  function populateMonthMultiSelect() {
-
-    const box =
-      $('visualGraphMonthsOptions');
-
-    if (!box) {
-      return;
-    }
+  /*
+     Synchronise month state without treating an
+     intentionally empty selection as "not initialized".
+  */
+  function syncGraphMonthState() {
 
     const list =
       availableMonths();
 
-
-    /*
-      First time:
-      Select all months.
-      This selection matters only after
-      user chooses Month Wise View.
-    */
-    if (!selectedGraphMonths.length) {
+    if (
+      !graphMonthsInitialized
+      &&
+      list.length
+    ) {
 
       selectedGraphMonths =
         [...list];
 
-    } else {
+      graphMonthsInitialized =
+        true;
+
+    }
+
+    else if (
+      graphMonthsInitialized
+    ) {
 
       selectedGraphMonths =
         selectedGraphMonths.filter(
@@ -550,55 +819,102 @@
 
     }
 
+    return list;
 
-    box.innerHTML = '';
+  }
 
 
-    list.forEach(month => {
+  function populateMonthMultiSelect(
+    force = false
+  ) {
 
-      const row =
-        document.createElement('label');
+    const box =
+      $('visualGraphMonthsOptions');
 
-      row.style.display =
-        'flex';
+    if (!box) {
+      return;
+    }
 
-      row.style.alignItems =
-        'center';
+    const list =
+      syncGraphMonthState();
 
-      row.style.gap =
-        '9px';
+    const schemaKey =
+      list.join('|');
 
-      row.style.padding =
-        '9px 8px';
+    /*
+       Do not rebuild DOM on every graph refresh.
+       Rebuild only when schema/month list changes.
+    */
+    if (
+      force
+      ||
+      graphMonthSchemaKey !== schemaKey
+      ||
+      !box.children.length
+    ) {
 
-      row.style.borderRadius =
-        '9px';
+      graphMonthSchemaKey =
+        schemaKey;
 
-      row.style.cursor =
-        'pointer';
+      box.innerHTML = '';
 
-      row.innerHTML = `
-        <input
-          type="checkbox"
-          value="${escapeHtml(month)}"
-          ${
-            selectedGraphMonths.includes(month)
-              ? 'checked'
-              : ''
-          }
-        >
+      list.forEach(month => {
 
-        <span>
-          ${escapeHtml(visualMonthName(month))}
-        </span>
-      `;
+        const row =
+          document.createElement('label');
 
-      box.appendChild(row);
+        row.className =
+          'visual-month-option';
 
-    });
+        row.dataset.monthSearch =
+          String(
+            visualMonthName(month)
+          ).toLowerCase();
 
+        row.innerHTML = `
+          <input
+            class="visual-month-check"
+            type="checkbox"
+            value="${escapeHtml(month)}"
+            ${
+              selectedGraphMonths.includes(month)
+                ? 'checked'
+                : ''
+            }
+          >
+
+          <span class="visual-month-label">
+            ${escapeHtml(visualMonthName(month))}
+          </span>
+        `;
+
+        box.appendChild(
+          row
+        );
+
+      });
+
+    }
+
+    /*
+       When DOM is not rebuilt, just sync checkbox states.
+    */
+    box
+      .querySelectorAll(
+        'input.visual-month-check[type="checkbox"]'
+      )
+      .forEach(input => {
+
+        input.checked =
+          selectedGraphMonths.includes(
+            input.value
+          );
+
+      });
 
     updateMonthButtonText();
+
+    filterGraphMonthOptions();
 
   }
 
@@ -648,6 +964,78 @@
   }
 
 
+  function filterGraphMonthOptions() {
+
+    const search =
+      $('visualGraphMonthsSearch');
+
+    const box =
+      $('visualGraphMonthsOptions');
+
+    const empty =
+      $('visualGraphMonthsEmptySearch');
+
+    if (!box) {
+      return;
+    }
+
+    const query =
+      String(
+        search?.value
+        ??
+        ''
+      )
+        .trim()
+        .toLowerCase();
+
+    let visibleCount = 0;
+
+    box
+      .querySelectorAll(
+        '.visual-month-option'
+      )
+      .forEach(row => {
+
+        const haystack =
+          String(
+            row.dataset.monthSearch
+            ??
+            row.textContent
+            ??
+            ''
+          )
+            .toLowerCase();
+
+        const show =
+          !query
+          ||
+          haystack.includes(query);
+
+        row.classList.toggle(
+          'hidden',
+          !show
+        );
+
+        if (show) {
+          visibleCount++;
+        }
+
+      });
+
+    if (empty) {
+
+      empty.classList.toggle(
+        'show',
+        Boolean(query)
+        &&
+        visibleCount === 0
+      );
+
+    }
+
+  }
+
+
   function updateGraphModeUI() {
 
     const monthField =
@@ -673,15 +1061,86 @@
   }
 
 
+  function openGraphMonthMenu() {
+
+    const menu =
+      $('visualGraphMonthsMenu');
+
+    const button =
+      $('visualGraphMonthsButton');
+
+    if (!menu) {
+      return;
+    }
+
+    populateMonthMultiSelect();
+
+    menu.classList.add(
+      'open'
+    );
+
+    button?.setAttribute(
+      'aria-expanded',
+      'true'
+    );
+
+    setTimeout(
+      () => {
+
+        $('visualGraphMonthsSearch')
+          ?.focus();
+
+      },
+      20
+    );
+
+  }
+
+
   function closeGraphMonthMenu() {
 
     const menu =
       $('visualGraphMonthsMenu');
 
+    const button =
+      $('visualGraphMonthsButton');
+
     if (menu) {
 
-      menu.style.display =
-        'none';
+      menu.classList.remove(
+        'open'
+      );
+
+    }
+
+    button?.setAttribute(
+      'aria-expanded',
+      'false'
+    );
+
+  }
+
+
+  function toggleGraphMonthMenu() {
+
+    const menu =
+      $('visualGraphMonthsMenu');
+
+    if (!menu) {
+      return;
+    }
+
+    if (
+      menu.classList.contains(
+        'open'
+      )
+    ) {
+
+      closeGraphMonthMenu();
+
+    } else {
+
+      openGraphMonthMenu();
 
     }
 
@@ -695,9 +1154,9 @@
   async function normalGroupData(view) {
 
     /*
-      NORMAL VIEW:
-      Exactly the normal dashboard logic.
-      args() already contains dashboard Month.
+       NORMAL VIEW:
+       Exactly the normal dashboard logic.
+       args() already contains dashboard Month.
     */
     return await rpc(
       'raj_group_summary',
@@ -729,8 +1188,8 @@
                 p_view: view,
 
                 /*
-                  Override main dashboard Month
-                  ONLY in Month Wise View.
+                   Override main dashboard Month
+                   ONLY in Month Wise View.
                 */
                 p_months: [month]
               }
@@ -757,8 +1216,8 @@
   async function mapGroupData(view) {
 
     /*
-      INDIA MAP:
-      Always uses normal dashboard filters/month.
+       INDIA MAP:
+       Always uses normal dashboard filters/month.
     */
     return await rpc(
       'raj_group_summary',
@@ -1165,7 +1624,7 @@
 
 
     /*
-      Rank Top groups by selected months total.
+       Rank Top groups by selected months total.
     */
     const rankedGroups =
       [...allLabels]
@@ -1220,9 +1679,9 @@
 
 
     /*
-      Each selected Month is a separate dataset.
-      Example:
-      April + August = two bars per group.
+       Each selected Month is a separate dataset.
+       Example:
+       April + August = two bars per group.
     */
     const datasets =
       chosenMonths.map(
@@ -1317,7 +1776,10 @@
   }
 
 
-  function updateMonthWiseKpis(
+
+
+
+   function updateMonthWiseKpis(
     view,
     metric,
     topN,
@@ -1666,7 +2128,14 @@
 
     try {
 
+      /*
+         online47:
+         This now synchronises checkbox state without
+         turning an intentional empty selection back
+         into Select All.
+      */
       populateMonthMultiSelect();
+
 
       const view =
         typeof currentView !== 'undefined'
@@ -2331,7 +2800,9 @@
   }
 
 
-  /* =====================================================
+
+
+   /* =====================================================
      INDIA MAP
   ===================================================== */
 
@@ -2868,7 +3339,13 @@
 
 
   /* =====================================================
-     WIRE GRAPH MODE + MONTH MULTI SELECT
+     GRAPH MODE + MONTH MULTI SELECT
+     online47:
+     - Search month
+     - Select All
+     - Real Unselect All
+     - Small checkbox
+     - Empty selection remains empty
   ===================================================== */
 
   function wireGraphChoiceControls() {
@@ -2903,42 +3380,68 @@
         'click',
         event => {
 
+          event.preventDefault();
+
           event.stopPropagation();
 
-
-          const menu =
-            $('visualGraphMonthsMenu');
-
-
-          if (!menu) {
-            return;
-          }
-
-
-          menu.style.display =
-            menu.style.display === 'block'
-              ? 'none'
-              : 'block';
+          toggleGraphMonthMenu();
 
         }
       );
 
 
-    $('visualGraphMonthsAll')
+    /*
+       Search only hides/shows month rows.
+       It does NOT change selected months.
+    */
+    $('visualGraphMonthsSearch')
+      ?.addEventListener(
+        'input',
+        event => {
+
+          event.stopPropagation();
+
+          filterGraphMonthOptions();
+
+        }
+      );
+
+
+    $('visualGraphMonthsSearch')
       ?.addEventListener(
         'click',
         event => {
 
           event.stopPropagation();
 
+        }
+      );
+
+
+    /*
+       SELECT ALL
+    */
+    $('visualGraphMonthsAll')
+      ?.addEventListener(
+        'click',
+        event => {
+
+          event.preventDefault();
+
+          event.stopPropagation();
+
+
+          graphMonthsInitialized =
+            true;
+
 
           selectedGraphMonths =
-            availableMonths();
+            [...availableMonths()];
 
 
           document
             .querySelectorAll(
-              '#visualGraphMonthsOptions input[type="checkbox"]'
+              '#visualGraphMonthsOptions input.visual-month-check[type="checkbox"]'
             )
             .forEach(
               input => {
@@ -2958,12 +3461,29 @@
       );
 
 
+    /*
+       UNSELECT ALL - online47 FIX
+
+       Important:
+       graphMonthsInitialized remains TRUE.
+
+       Therefore [] means:
+       "The user intentionally selected no months."
+
+       refreshGraph() will NOT auto-select all again.
+    */
     $('visualGraphMonthsNone')
       ?.addEventListener(
         'click',
         event => {
 
+          event.preventDefault();
+
           event.stopPropagation();
+
+
+          graphMonthsInitialized =
+            true;
 
 
           selectedGraphMonths =
@@ -2972,7 +3492,7 @@
 
           document
             .querySelectorAll(
-              '#visualGraphMonthsOptions input[type="checkbox"]'
+              '#visualGraphMonthsOptions input.visual-month-check[type="checkbox"]'
             )
             .forEach(
               input => {
@@ -2992,6 +3512,9 @@
       );
 
 
+    /*
+       Individual month checkbox.
+    */
     $('visualGraphMonthsOptions')
       ?.addEventListener(
         'change',
@@ -3003,13 +3526,17 @@
 
           if (
             !input.matches(
-              'input[type="checkbox"]'
+              'input.visual-month-check[type="checkbox"]'
             )
           ) {
 
             return;
 
           }
+
+
+          graphMonthsInitialized =
+            true;
 
 
           const month =
@@ -3042,7 +3569,7 @@
 
 
           /*
-            Keep database/schema month order.
+             Keep database/schema month order.
           */
           const order =
             availableMonths();
@@ -3063,10 +3590,29 @@
         }
       );
 
+
+    /*
+       Prevent clicks inside menu from reaching
+       the document outside-click handler.
+    */
+    $('visualGraphMonthsMenu')
+      ?.addEventListener(
+        'click',
+        event => {
+
+          event.stopPropagation();
+
+        }
+      );
+
   }
 
 
-  /* =====================================================
+
+
+
+
+   /* =====================================================
      MAIN EVENTS
   ===================================================== */
 
@@ -3082,13 +3628,19 @@
 
 
     /*
-      Schema/months can finish loading after this addon.
-      Refresh month options after startup.
+       Schema/months can finish loading after this addon.
+       Refresh month options after startup.
+
+       online47:
+       graphMonthsInitialized prevents an intentional
+       empty selection from becoming Select All again.
     */
     setTimeout(
       () => {
 
-        populateMonthMultiSelect();
+        populateMonthMultiSelect(
+          true
+        );
 
       },
       800
@@ -3098,7 +3650,9 @@
     setTimeout(
       () => {
 
-        populateMonthMultiSelect();
+        populateMonthMultiSelect(
+          true
+        );
 
       },
       1600
@@ -3193,12 +3747,16 @@
 
 
     /*
-      Main dashboard filters.
+       Main dashboard filters.
     */
     document.addEventListener(
       'change',
       event => {
 
+        /*
+           Do not treat Graph Month controls as
+           main-dashboard filter changes.
+        */
         if (
           event.target.closest(
             '#visualAnalysisPanel'
@@ -3252,8 +3810,8 @@
       event => {
 
         /*
-          Close Graph Months dropdown
-          when clicking outside.
+           Close Graph Months dropdown
+           when clicking outside.
         */
         if (
           !event.target.closest(
@@ -3267,7 +3825,7 @@
 
 
         /*
-          Existing dashboard multi filters.
+           Existing dashboard multi filters.
         */
         if (
           event.target.closest(
@@ -3287,7 +3845,26 @@
 
 
     /*
-      Default must ALWAYS remain Normal View.
+       Escape key closes Graph Months dropdown.
+    */
+    document.addEventListener(
+      'keydown',
+      event => {
+
+        if (
+          event.key === 'Escape'
+        ) {
+
+          closeGraphMonthMenu();
+
+        }
+
+      }
+    );
+
+
+    /*
+       Default must ALWAYS remain Normal View.
     */
     graphMode =
       'normal';
