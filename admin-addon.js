@@ -1,7 +1,7 @@
 /* ============================================================
    RAJ AGENCIES
    ADMIN USER MANAGEMENT ADDON
-   Version: online20-fixed
+   Version: online21-delete-user
 
    Features:
    - Reliable Admin detection
@@ -18,6 +18,7 @@
    - Device Lock ON / OFF
    - Change Password
    - Reset Device
+   - Delete User
    - Login Logs
    ============================================================ */
 
@@ -121,20 +122,6 @@
         JSON.parse(raw);
 
 
-      /*
-        Support both:
-        {
-          role:"Admin"
-        }
-
-        and possible:
-        {
-          user:{
-            role:"Admin"
-          }
-        }
-      */
-
       if(
         parsed
         &&
@@ -180,10 +167,6 @@
 
   function isAdminUser(){
 
-    /*
-      1. First check saved authenticated user.
-    */
-
     const user =
       getStoredUser();
 
@@ -209,13 +192,6 @@
     }
 
 
-    /*
-      2. Check visible user role created by auth-addon.js.
-         Screenshot currently shows:
-         Asif
-         Admin
-    */
-
     const roleNode =
       document.querySelector(
         '.raj-user-role'
@@ -232,12 +208,6 @@
       return true;
     }
 
-
-    /*
-      3. Check access badge.
-         Example:
-         Logged in as Asif • Admin • Full Company Access
-    */
 
     const accessBadge =
       el('rajAccessBadge');
@@ -263,11 +233,6 @@
 
     }
 
-
-    /*
-      4. Extra fallback:
-         inspect visible user area text.
-    */
 
     const userArea =
       el('rajUserArea');
@@ -435,6 +400,8 @@
 
       throw new Error(
         data.message
+        ||
+        data.error
         ||
         'Operation failed.'
       );
@@ -649,7 +616,11 @@
       }
 
 
-      .raj-admin-header p{
+
+
+
+
+            .raj-admin-header p{
 
         margin:0;
 
@@ -1302,6 +1273,11 @@
       }
 
 
+
+
+            }
+
+
       /* ===============================================
          TABLE
          =============================================== */
@@ -1799,10 +1775,6 @@
       );
 
 
-      /*
-        Put Admin Panel before user card.
-      */
-
       userArea.insertBefore(
         button,
         userArea.firstChild
@@ -1813,12 +1785,6 @@
 
     }
 
-
-    /*
-      Fallback:
-      if #rajUserArea is temporarily unavailable,
-      put button near Supabase Online badge.
-    */
 
     const topbar =
       document.querySelector(
@@ -1894,11 +1860,6 @@
 
       <div class="raj-admin-shell">
 
-
-        <!-- ============================================
-             HEADER
-             ============================================ -->
-
         <div class="raj-admin-header">
 
           <div>
@@ -1924,10 +1885,6 @@
 
         </div>
 
-
-        <!-- ============================================
-             TOOLBAR
-             ============================================ -->
 
         <div class="raj-admin-toolbar">
 
@@ -1967,11 +1924,6 @@
 
         <div class="raj-admin-content">
 
-
-          <!-- ============================================
-               USER SECTION
-               ============================================ -->
-
           <section
             id="rajUsersSection"
             class="raj-admin-section active"
@@ -1995,10 +1947,6 @@
 
             </div>
 
-
-            <!-- ==========================================
-                 USER FORM
-                 ========================================== -->
 
             <div
               id="rajUserForm"
@@ -2099,7 +2047,6 @@
 
               <div class="raj-admin-checks">
 
-
                 <label class="raj-admin-check">
 
                   <input
@@ -2137,13 +2084,8 @@
 
                 </label>
 
-
               </div>
 
-
-              <!-- ========================================
-                   SM ACCESS
-                   ======================================== -->
 
               <div
                 id="rajSmBox"
@@ -2161,10 +2103,6 @@
 
               </div>
 
-
-              <!-- ========================================
-                   OD ACCESS
-                   ======================================== -->
 
               <div
                 id="rajOdBox"
@@ -2204,7 +2142,6 @@
 
               </div>
 
-
             </div>
 
 
@@ -2228,45 +2165,25 @@
 
                   <tr>
 
-                    <th>
-                      Name
-                    </th>
+                    <th>Name</th>
 
-                    <th>
-                      Mobile
-                    </th>
+                    <th>Mobile</th>
 
-                    <th>
-                      Role
-                    </th>
+                    <th>Role</th>
 
-                    <th>
-                      SM Access
-                    </th>
+                    <th>SM Access</th>
 
-                    <th>
-                      OD Access
-                    </th>
+                    <th>OD Access</th>
 
-                    <th>
-                      Status
-                    </th>
+                    <th>Status</th>
 
-                    <th>
-                      Device Lock
-                    </th>
+                    <th>Device Lock</th>
 
-                    <th>
-                      Device
-                    </th>
+                    <th>Device</th>
 
-                    <th>
-                      Last Login
-                    </th>
+                    <th>Last Login</th>
 
-                    <th>
-                      Actions
-                    </th>
+                    <th>Actions</th>
 
                   </tr>
 
@@ -2281,13 +2198,8 @@
 
             </div>
 
-
           </section>
 
-
-          <!-- ============================================
-               LOGIN LOGS
-               ============================================ -->
 
           <section
             id="rajLogsSection"
@@ -2370,9 +2282,64 @@
 
             </div>
 
-
           </section>
 
+        </div>
+
+      </div>
+
+
+      <div
+        id="rajPasswordOverlay"
+      >
+
+        <div class="raj-password-box">
+
+          <h3>
+            Change Password
+          </h3>
+
+
+          <p
+            id="rajPasswordUser"
+          ></p>
+
+
+          <div class="raj-admin-field">
+
+            <label>
+              New Password
+            </label>
+
+            <input
+              type="password"
+              id="rajNewPassword"
+              placeholder="Minimum 6 characters"
+            >
+
+          </div>
+
+
+          <div class="raj-admin-form-actions">
+
+            <button
+              type="button"
+              id="rajPasswordSave"
+              class="raj-admin-primary"
+            >
+              Change Password
+            </button>
+
+
+            <button
+              type="button"
+              id="rajPasswordCancel"
+              class="raj-admin-secondary"
+            >
+              Cancel
+            </button>
+
+          </div>
 
         </div>
 
@@ -2386,150 +2353,21 @@
     );
 
 
-    /* ======================================================
-       PASSWORD POPUP
-       ====================================================== */
-
-    const passwordOverlay =
-      document.createElement(
-        'div'
-      );
-
-
-    passwordOverlay.id =
-      'rajPasswordOverlay';
-
-
-    passwordOverlay.innerHTML = `
-
-      <div class="raj-password-box">
-
-        <h3>
-          Change Password
-        </h3>
-
-
-        <p id="rajPasswordUser">
-          User
-        </p>
-
-
-        <div class="raj-admin-field">
-
-          <label>
-            New Password
-          </label>
-
-          <input
-            type="password"
-            id="rajNewPassword"
-            placeholder="Minimum 6 characters"
-          >
-
-        </div>
-
-
-        <div class="raj-admin-form-actions">
-
-          <button
-            type="button"
-            id="rajPasswordSave"
-            class="raj-admin-primary"
-          >
-            Change Password
-          </button>
-
-
-          <button
-            type="button"
-            id="rajPasswordCancel"
-            class="raj-admin-secondary"
-          >
-            Cancel
-          </button>
-
-        </div>
-
-      </div>
-
-    `;
-
-
-    document.body.appendChild(
-      passwordOverlay
-    );
-
-
-    bindEvents();
+    wireAdminPanel();
 
   }
 
 
   /* =========================================================
-     BIND EVENTS
+     PANEL EVENTS
      ========================================================= */
 
-  function bindEvents(){
+  function wireAdminPanel(){
 
     el('rajAdminClose')
       ?.addEventListener(
         'click',
         closeAdminPanel
-      );
-
-
-    el('rajAdminOverlay')
-      ?.addEventListener(
-        'click',
-        event => {
-
-          if(
-            event.target.id ===
-            'rajAdminOverlay'
-          ){
-
-            closeAdminPanel();
-
-          }
-
-        }
-      );
-
-
-    document
-      .querySelectorAll(
-        '.raj-admin-tab'
-      )
-      .forEach(
-        button => {
-
-          button.addEventListener(
-            'click',
-            () => {
-
-              switchTab(
-                button.dataset.tab
-              );
-
-            }
-          );
-
-        }
-      );
-
-
-    el('rajAdminRefresh')
-      ?.addEventListener(
-        'click',
-        async () => {
-
-          await loadAdminData();
-
-          showMessage(
-            'Admin data refreshed.'
-          );
-
-        }
       );
 
 
@@ -2561,30 +2399,10 @@
       );
 
 
-    el('rajAdminMobile')
-      ?.addEventListener(
-        'input',
-        event => {
-
-          event.target.value =
-            event.target.value
-              .replace(
-                /\D/g,
-                ''
-              )
-              .slice(
-                0,
-                10
-              );
-
-        }
-      );
-
-
-    el('rajRefreshLogs')
+    el('rajPasswordSave')
       ?.addEventListener(
         'click',
-        loadLoginLogs
+        changePassword
       );
 
 
@@ -2595,34 +2413,70 @@
       );
 
 
-    el('rajPasswordSave')
+    el('rajRefreshLogs')
       ?.addEventListener(
         'click',
-        changePassword
+        loadLoginLogs
+      );
+
+
+    el('rajAdminRefresh')
+      ?.addEventListener(
+        'click',
+        async () => {
+
+          await loadUsers();
+
+          if(
+            el('rajLogsSection')
+              ?.classList
+              .contains('active')
+          ){
+
+            await loadLoginLogs();
+
+          }
+
+        }
+      );
+
+
+    document
+      .querySelectorAll(
+        '.raj-admin-tab'
+      )
+      .forEach(
+        button => {
+
+          button.addEventListener(
+            'click',
+            () => {
+
+              switchAdminTab(
+                button.dataset.tab
+              );
+
+            }
+          );
+
+        }
       );
 
   }
 
 
   /* =========================================================
-     OPEN ADMIN PANEL
+     OPEN / CLOSE PANEL
      ========================================================= */
 
   async function openAdminPanel(){
 
-    /*
-      Backend will also verify Admin session.
-      This check is only UI convenience.
-    */
-
     if(
-      !getSessionToken()
-      ||
-      !getDeviceId()
+      !isAdminUser()
     ){
 
       alert(
-        'Login session not found. Please login again.'
+        'Admin access required.'
       );
 
       return;
@@ -2630,24 +2484,12 @@
     }
 
 
-    createAdminPanel();
-
-
     el('rajAdminOverlay')
       ?.classList
       .add('open');
 
 
-    document.body.style.overflow =
-      'hidden';
-
-
-    switchTab(
-      'users'
-    );
-
-
-    await loadAdminData();
+    await loadUsers();
 
   }
 
@@ -2658,21 +2500,14 @@
       ?.classList
       .remove('open');
 
-
-    document.body.style.overflow =
-      '';
-
-
     closeUserForm();
+
+    closePasswordPopup();
 
   }
 
 
-  /* =========================================================
-     TABS
-     ========================================================= */
-
-  function switchTab(tab){
+  function switchAdminTab(tab){
 
     document
       .querySelectorAll(
@@ -2718,179 +2553,6 @@
 
 
   /* =========================================================
-     LOAD ALL ADMIN DATA
-     ========================================================= */
-
-  async function loadAdminData(){
-
-    try{
-
-      await Promise.all([
-        loadAccessOptions(),
-        loadUsers()
-      ]);
-
-
-    }catch(error){
-
-      console.error(
-        'Admin load error:',
-        error
-      );
-
-    }
-
-  }
-
-
-  /* =========================================================
-     ACCESS OPTIONS
-     ========================================================= */
-
-  async function loadAccessOptions(){
-
-    try{
-
-      const data =
-        await adminRpc(
-          'raj_admin_access_options',
-          adminAuthParams()
-        );
-
-
-      smOptions =
-        Array.isArray(
-          data?.sm_options
-        )
-          ? data.sm_options
-          : [];
-
-
-      odOptions =
-        Array.isArray(
-          data?.od_options
-        )
-          ? data.od_options
-          : [];
-
-
-      renderAccessOptions();
-
-
-    }catch(error){
-
-      console.error(
-        'Access option error:',
-        error
-      );
-
-
-      showMessage(
-        error.message
-        ||
-        'Unable to load SM / OD access options.',
-        'error'
-      );
-
-
-      throw error;
-
-    }
-
-  }
-
-
-  function renderAccessOptions(){
-
-    const smList =
-      el('rajSmList');
-
-
-    const odList =
-      el('rajOdList');
-
-
-    if(smList){
-
-      if(
-        smOptions.length === 0
-      ){
-
-        smList.innerHTML =
-          '<div>No SM codes found.</div>';
-
-      }else{
-
-        smList.innerHTML =
-          smOptions
-            .map(
-              code => `
-
-                <label class="raj-access-option">
-
-                  <input
-                    type="checkbox"
-                    class="raj-sm-check"
-                    value="${escapeHtml(code)}"
-                  >
-
-                  <span>
-                    ${escapeHtml(code)}
-                  </span>
-
-                </label>
-
-              `
-            )
-            .join('');
-
-      }
-
-    }
-
-
-    if(odList){
-
-      if(
-        odOptions.length === 0
-      ){
-
-        odList.innerHTML =
-          '<div>No OD codes found.</div>';
-
-      }else{
-
-        odList.innerHTML =
-          odOptions
-            .map(
-              code => `
-
-                <label class="raj-access-option">
-
-                  <input
-                    type="checkbox"
-                    class="raj-od-check"
-                    value="${escapeHtml(code)}"
-                  >
-
-                  <span>
-                    ${escapeHtml(code)}
-                  </span>
-
-                </label>
-
-              `
-            )
-            .join('');
-
-      }
-
-    }
-
-  }
-
-
-  /* =========================================================
      LOAD USERS
      ========================================================= */
 
@@ -2898,7 +2560,6 @@
 
     const loading =
       el('rajUsersLoading');
-
 
     const table =
       el('rajUsersTableWrap');
@@ -2908,7 +2569,6 @@
 
       loading.style.display =
         'block';
-
 
       loading.textContent =
         'Loading users...';
@@ -2940,6 +2600,24 @@
           ? data.users
           : [];
 
+
+      smOptions =
+        Array.isArray(
+          data?.sm_options
+        )
+          ? data.sm_options
+          : [];
+
+
+      odOptions =
+        Array.isArray(
+          data?.od_options
+        )
+          ? data.od_options
+          : [];
+
+
+      renderAccessOptions();
 
       renderUsers();
 
@@ -2977,16 +2655,72 @@
 
       }
 
+    }
 
-      showMessage(
-        error.message
-        ||
-        'Unable to load users.',
-        'error'
-      );
+  }
 
 
-      throw error;
+  /* =========================================================
+     ACCESS OPTIONS
+     ========================================================= */
+
+  function renderAccessOptions(){
+
+    const smList =
+      el('rajSmList');
+
+    const odList =
+      el('rajOdList');
+
+
+    if(smList){
+
+      smList.innerHTML =
+        smOptions
+          .map(
+            code => `
+
+              <label class="raj-access-option">
+
+                <input
+                  type="checkbox"
+                  class="raj-sm-check"
+                  value="${escapeHtml(code)}"
+                >
+
+                ${escapeHtml(code)}
+
+              </label>
+
+            `
+          )
+          .join('');
+
+    }
+
+
+    if(odList){
+
+      odList.innerHTML =
+        odOptions
+          .map(
+            code => `
+
+              <label class="raj-access-option">
+
+                <input
+                  type="checkbox"
+                  class="raj-od-check"
+                  value="${escapeHtml(code)}"
+                >
+
+                ${escapeHtml(code)}
+
+              </label>
+
+            `
+          )
+          .join('');
 
     }
 
@@ -2994,7 +2728,7 @@
 
 
   /* =========================================================
-     CODE BADGES
+     BADGES
      ========================================================= */
 
   function renderCodes(values){
@@ -3004,18 +2738,19 @@
       ||
       values.length === 0
     ){
-
       return '-';
-
     }
 
 
     return values
       .map(
-        value =>
-          `<span class="raj-admin-code">${
-            escapeHtml(value)
-          }</span>`
+        value => `
+
+          <span class="raj-admin-code">
+            ${escapeHtml(value)}
+          </span>
+
+        `
       )
       .join('');
 
@@ -3023,7 +2758,7 @@
 
 
   /* =========================================================
-     USER TABLE
+     RENDER USERS
      ========================================================= */
 
   function renderUsers(){
@@ -3038,6 +2773,8 @@
 
 
     if(
+      !Array.isArray(adminUsers)
+      ||
       adminUsers.length === 0
     ){
 
@@ -3056,7 +2793,6 @@
 
       `;
 
-
       return;
 
     }
@@ -3065,174 +2801,180 @@
     body.innerHTML =
       adminUsers
         .map(
-          user => {
+          user => `
 
-            const active =
-              user.active === true;
+            <tr>
 
+              <td>
 
-            const locked =
-              user.device_locked === true;
-
-
-            const deviceEnabled =
-              user.device_lock_enabled
-              !== false;
-
-
-            return `
-
-              <tr>
-
-
-                <td>
-
-                  <div class="raj-admin-user-name">
-                    ${escapeHtml(
-                      user.name || '-'
-                    )}
-                  </div>
-
-                </td>
-
-
-                <td>
+                <div class="raj-admin-user-name">
                   ${escapeHtml(
-                    user.mobile || '-'
+                    user.name || '-'
                   )}
-                </td>
+                </div>
+
+              </td>
 
 
-                <td>
-                  ${escapeHtml(
-                    user.role || '-'
-                  )}
-                </td>
+              <td>
+                ${escapeHtml(
+                  user.mobile || '-'
+                )}
+              </td>
 
 
-                <td>
-                  ${renderCodes(
-                    user.sm_access
-                  )}
-                </td>
+              <td>
+                ${escapeHtml(
+                  user.role || '-'
+                )}
+              </td>
 
 
-                <td>
-                  ${renderCodes(
-                    user.od_access
-                  )}
-                </td>
+              <td>
+                ${renderCodes(
+                  user.sm_access
+                )}
+              </td>
 
 
-                <td>
-
-                  <span
-                    class="raj-status ${
-                      active
-                        ? 'active'
-                        : 'inactive'
-                    }"
-                  >
-                    ${
-                      active
-                        ? 'Active'
-                        : 'Inactive'
-                    }
-                  </span>
-
-                </td>
+              <td>
+                ${renderCodes(
+                  user.od_access
+                )}
+              </td>
 
 
-                <td>
+              <td>
+
+                <span
+                  class="raj-status ${
+                    user.active === true
+                      ? 'active'
+                      : 'inactive'
+                  }"
+                >
 
                   ${
-                    deviceEnabled
-                      ? 'Enabled'
-                      : 'Disabled'
+                    user.active === true
+                      ? 'Active'
+                      : 'Inactive'
                   }
 
-                </td>
+                </span>
+
+              </td>
 
 
-                <td>
+              <td>
 
-                  <span
-                    class="raj-status ${
-                      locked
-                        ? 'locked'
-                        : 'available'
-                    }"
+                ${
+                  user.device_lock_enabled
+                  !== false
+
+                    ? `
+                      <span class="raj-status locked">
+                        ON
+                      </span>
+                    `
+
+                    : `
+                      <span class="raj-status available">
+                        OFF
+                      </span>
+                    `
+                }
+
+              </td>
+
+
+              <td>
+
+                ${
+                  user.device_id
+
+                    ? escapeHtml(
+                        user.device_id
+                      )
+
+                    : `
+                      <span class="raj-status available">
+                        Available
+                      </span>
+                    `
+                }
+
+              </td>
+
+
+              <td>
+                ${escapeHtml(
+                  formatDate(
+                    user.last_login_at
+                  )
+                )}
+              </td>
+
+
+              <td>
+
+                <div class="raj-admin-actions">
+
+
+                  <button
+                    type="button"
+                    class="raj-admin-secondary"
+                    data-action="edit"
+                    data-user-id="${escapeHtml(
+                      user.id
+                    )}"
                   >
-                    ${
-                      locked
-                        ? 'Locked'
-                        : 'Available'
-                    }
-                  </span>
-
-                </td>
+                    Edit
+                  </button>
 
 
-                <td>
-                  ${escapeHtml(
-                    formatDate(
-                      user.last_login_at
-                    )
-                  )}
-                </td>
+                  <button
+                    type="button"
+                    class="raj-admin-warning"
+                    data-action="password"
+                    data-user-id="${escapeHtml(
+                      user.id
+                    )}"
+                  >
+                    Password
+                  </button>
 
 
-                <td>
-
-                  <div class="raj-admin-actions">
-
-
-                    <button
-                      type="button"
-                      class="raj-admin-secondary"
-                      data-action="edit"
-                      data-user-id="${escapeHtml(
-                        user.id
-                      )}"
-                    >
-                      Edit
-                    </button>
+                  <button
+                    type="button"
+                    class="raj-admin-danger"
+                    data-action="reset"
+                    data-user-id="${escapeHtml(
+                      user.id
+                    )}"
+                  >
+                    Reset Device
+                  </button>
 
 
-                    <button
-                      type="button"
-                      class="raj-admin-warning"
-                      data-action="password"
-                      data-user-id="${escapeHtml(
-                        user.id
-                      )}"
-                    >
-                      Password
-                    </button>
+                  <button
+                    type="button"
+                    class="raj-admin-danger"
+                    data-action="delete"
+                    data-user-id="${escapeHtml(
+                      user.id
+                    )}"
+                  >
+                    🗑 Delete
+                  </button>
 
 
-                    <button
-                      type="button"
-                      class="raj-admin-danger"
-                      data-action="reset"
-                      data-user-id="${escapeHtml(
-                        user.id
-                      )}"
-                    >
-                      Reset Device
-                    </button>
+                </div>
 
+              </td>
 
-                  </div>
+            </tr>
 
-                </td>
-
-
-              </tr>
-
-            `;
-
-          }
+          `
         )
         .join('');
 
@@ -3300,6 +3042,17 @@
 
               }
 
+
+              if(
+                action === 'delete'
+              ){
+
+                deleteUser(
+                  user
+                );
+
+              }
+
             }
           );
 
@@ -3309,13 +3062,15 @@
   }
 
 
-  /* =========================================================
+
+
+
+
+   /* =========================================================
      CHECKBOX HELPERS
      ========================================================= */
 
-  function getCheckedValues(
-    selector
-  ){
+  function getCheckedValues(selector){
 
     return Array
       .from(
@@ -3368,6 +3123,60 @@
 
 
   /* =========================================================
+     LOAD ACCESS OPTIONS
+     ========================================================= */
+
+  async function loadAccessOptions(){
+
+    try{
+
+      const data =
+        await adminRpc(
+          'raj_admin_access_options',
+          adminAuthParams()
+        );
+
+
+      smOptions =
+        Array.isArray(
+          data?.sm_options
+        )
+          ? data.sm_options
+          : [];
+
+
+      odOptions =
+        Array.isArray(
+          data?.od_options
+        )
+          ? data.od_options
+          : [];
+
+
+      renderAccessOptions();
+
+
+    }catch(error){
+
+      console.error(
+        'Access option error:',
+        error
+      );
+
+
+      showMessage(
+        error.message
+        ||
+        'Unable to load SM / OD access options.',
+        'error'
+      );
+
+    }
+
+  }
+
+
+  /* =========================================================
      ADD USER
      ========================================================= */
 
@@ -3377,45 +3186,91 @@
       null;
 
 
-    el('rajUserFormTitle')
-      .textContent =
-      'Add New User';
+    if(
+      el('rajUserFormTitle')
+    ){
+
+      el('rajUserFormTitle')
+        .textContent =
+        'Add New User';
+
+    }
 
 
-    el('rajAdminName').value =
-      '';
+    if(
+      el('rajAdminName')
+    ){
+
+      el('rajAdminName').value =
+        '';
+
+    }
 
 
-    el('rajAdminMobile').value =
-      '';
+    if(
+      el('rajAdminMobile')
+    ){
+
+      el('rajAdminMobile').value =
+        '';
+
+    }
 
 
-    el('rajAdminRole').value =
-      'SM';
+    if(
+      el('rajAdminRole')
+    ){
+
+      el('rajAdminRole').value =
+        'SM';
+
+    }
 
 
     /*
-      Default password as previously decided.
+       Default initial password.
     */
+    if(
+      el('rajAdminPassword')
+    ){
 
-    el('rajAdminPassword').value =
-      '123456';
+      el('rajAdminPassword').value =
+        '123456';
 
+      el('rajAdminPassword').placeholder =
+        'Minimum 6 characters';
 
-    el('rajAdminPassword').placeholder =
-      'Minimum 6 characters';
-
-
-    el('rajAdminActive').checked =
-      true;
-
-
-    el('rajAdminDeviceLock').checked =
-      true;
+    }
 
 
-    el('rajAdminFullView').checked =
-      false;
+    if(
+      el('rajAdminActive')
+    ){
+
+      el('rajAdminActive').checked =
+        true;
+
+    }
+
+
+    if(
+      el('rajAdminDeviceLock')
+    ){
+
+      el('rajAdminDeviceLock').checked =
+        true;
+
+    }
+
+
+    if(
+      el('rajAdminFullView')
+    ){
+
+      el('rajAdminFullView').checked =
+        false;
+
+    }
 
 
     setCheckedValues(
@@ -3454,45 +3309,92 @@
       user;
 
 
-    el('rajUserFormTitle')
-      .textContent =
-      'Edit User - ' +
-      String(
-        user.name || ''
-      );
+    if(
+      el('rajUserFormTitle')
+    ){
+
+      el('rajUserFormTitle')
+        .textContent =
+        'Edit User - ' +
+        String(
+          user.name || ''
+        );
+
+    }
 
 
-    el('rajAdminName').value =
-      user.name || '';
+    if(
+      el('rajAdminName')
+    ){
+
+      el('rajAdminName').value =
+        user.name || '';
+
+    }
 
 
-    el('rajAdminMobile').value =
-      user.mobile || '';
+    if(
+      el('rajAdminMobile')
+    ){
+
+      el('rajAdminMobile').value =
+        user.mobile || '';
+
+    }
 
 
-    el('rajAdminRole').value =
-      user.role || 'SM';
+    if(
+      el('rajAdminRole')
+    ){
+
+      el('rajAdminRole').value =
+        user.role || 'SM';
+
+    }
 
 
-    el('rajAdminPassword').value =
-      '';
+    if(
+      el('rajAdminPassword')
+    ){
+
+      el('rajAdminPassword').value =
+        '';
+
+      el('rajAdminPassword').placeholder =
+        'Leave blank to keep current password';
+
+    }
 
 
-    el('rajAdminPassword').placeholder =
-      'Leave blank to keep current password';
+    if(
+      el('rajAdminActive')
+    ){
+
+      el('rajAdminActive').checked =
+        user.active === true;
+
+    }
 
 
-    el('rajAdminActive').checked =
-      user.active === true;
+    if(
+      el('rajAdminDeviceLock')
+    ){
+
+      el('rajAdminDeviceLock').checked =
+        user.device_lock_enabled
+        !== false;
+
+    }
 
 
-    el('rajAdminDeviceLock').checked =
-      user.device_lock_enabled
-      !== false;
+    if(
+      el('rajAdminFullView')
+    ){
 
+      el('rajAdminFullView').checked =
+        user.full_view === true;
 
-    el('rajAdminFullView').checked =
-      user.full_view === true;
+    }
 
 
     setCheckedValues(
@@ -3548,7 +3450,8 @@
     const role =
       el('rajAdminRole')
         ?.value
-      || 'SM';
+      ||
+      'SM';
 
 
     const smBox =
@@ -3589,6 +3492,8 @@
 
     if(
       role === 'Admin'
+      &&
+      el('rajAdminFullView')
     ){
 
       el('rajAdminFullView')
@@ -3631,13 +3536,15 @@
     const role =
       el('rajAdminRole')
         ?.value
-      || 'SM';
+      ||
+      'SM';
 
 
     const password =
       el('rajAdminPassword')
         ?.value
-      || '';
+      ||
+      '';
 
 
     if(!name){
@@ -3690,7 +3597,6 @@
 
       button.disabled =
         true;
-
 
       button.textContent =
         'Saving...';
@@ -3811,11 +3717,176 @@
         button.disabled =
           false;
 
-
         button.textContent =
           'Save User';
 
       }
+
+    }
+
+  }
+
+
+  /* =========================================================
+     DELETE USER - online21
+     ========================================================= */
+
+  async function deleteUser(user){
+
+    if(
+      !user
+      ||
+      !user.id
+    ){
+
+      showMessage(
+        'User information not found.',
+        'error'
+      );
+
+      return;
+
+    }
+
+
+    /*
+       First confirmation.
+    */
+    const confirmed =
+      window.confirm(
+        'DELETE USER?\n\n' +
+        String(
+          user.name || ''
+        ) +
+        ' (' +
+        String(
+          user.mobile || ''
+        ) +
+        ')\n\n' +
+        'This will permanently delete:\n' +
+        '• User account\n' +
+        '• SM access\n' +
+        '• OD access\n' +
+        '• Active device session\n\n' +
+        'Login Logs will be kept.\n\n' +
+        'Are you sure?'
+      );
+
+
+    if(!confirmed){
+      return;
+    }
+
+
+    /*
+       Second confirmation protects against
+       accidental deletion.
+    */
+    const confirmedAgain =
+      window.confirm(
+        'FINAL CONFIRMATION\n\n' +
+        'Permanently delete ' +
+        String(
+          user.name || ''
+        ) +
+        '?\n\n' +
+        'This action cannot be undone.'
+      );
+
+
+    if(!confirmedAgain){
+      return;
+    }
+
+
+    try{
+
+      showMessage(
+        'Deleting ' +
+        String(
+          user.name || 'user'
+        ) +
+        '...'
+      );
+
+
+      /*
+         IMPORTANT:
+         raj_admin_delete_user SQL created in Supabase
+         accepts session token + user id.
+
+         Admin authorization is checked again
+         inside the database function.
+      */
+      const data =
+        await adminRpc(
+          'raj_admin_delete_user',
+          {
+
+            p_admin_session_token:
+              getSessionToken(),
+
+            p_user_id:
+              user.id
+
+          }
+        );
+
+
+      showMessage(
+        data?.message
+        ||
+        (
+          String(
+            user.name || 'User'
+          )
+          +
+          ' deleted successfully.'
+        )
+      );
+
+
+      /*
+         If deleted user was currently open
+         in Edit form, close the form.
+      */
+      if(
+        editingUser
+        &&
+        String(
+          editingUser.id
+        )
+        ===
+        String(
+          user.id
+        )
+      ){
+
+        closeUserForm();
+
+      }
+
+
+      /*
+         Refresh table immediately.
+      */
+      await loadUsers();
+
+
+    }catch(error){
+
+      console.error(
+        'Delete user error:',
+        error
+      );
+
+
+      showMessage(
+        error.message
+        ||
+        'Unable to delete user.',
+        'error'
+      );
 
     }
 
@@ -3831,9 +3902,13 @@
     const confirmed =
       window.confirm(
         'Reset device for ' +
-        user.name +
+        String(
+          user.name || ''
+        ) +
         ' (' +
-        user.mobile +
+        String(
+          user.mobile || ''
+        ) +
         ')?\n\n' +
         'Current active session will also be closed.'
       );
@@ -3894,29 +3969,39 @@
      PASSWORD POPUP
      ========================================================= */
 
-  function openPasswordPopup(
-    user
-  ){
+  function openPasswordPopup(user){
 
     passwordUser =
       user;
 
 
-    el('rajPasswordUser')
-      .textContent =
-      String(
-        user.name || ''
-      )
-      +
-      ' • '
-      +
-      String(
-        user.mobile || ''
-      );
+    if(
+      el('rajPasswordUser')
+    ){
+
+      el('rajPasswordUser')
+        .textContent =
+        String(
+          user.name || ''
+        )
+        +
+        ' • '
+        +
+        String(
+          user.mobile || ''
+        );
+
+    }
 
 
-    el('rajNewPassword').value =
-      '';
+    if(
+      el('rajNewPassword')
+    ){
+
+      el('rajNewPassword').value =
+        '';
+
+    }
 
 
     el('rajPasswordOverlay')
@@ -3943,8 +4028,14 @@
       null;
 
 
-    el('rajNewPassword').value =
-      '';
+    if(
+      el('rajNewPassword')
+    ){
+
+      el('rajNewPassword').value =
+        '';
+
+    }
 
 
     el('rajPasswordOverlay')
@@ -3970,7 +4061,8 @@
     const newPassword =
       el('rajNewPassword')
         ?.value
-      || '';
+      ||
+      '';
 
 
     if(
@@ -3994,7 +4086,6 @@
 
       button.disabled =
         true;
-
 
       button.textContent =
         'Changing...';
@@ -4060,7 +4151,6 @@
         button.disabled =
           false;
 
-
         button.textContent =
           'Change Password';
 
@@ -4089,7 +4179,6 @@
 
       loading.style.display =
         'block';
-
 
       loading.textContent =
         'Loading login logs...';
@@ -4251,7 +4340,6 @@
 
             <tr>
 
-
               <td>
                 ${escapeHtml(
                   formatDate(
@@ -4315,7 +4403,6 @@
                 )}
               </td>
 
-
             </tr>
 
           `
@@ -4326,15 +4413,77 @@
 
 
   /* =========================================================
+     MOBILE NUMBER INPUT
+     ========================================================= */
+
+  function wireMobileInput(){
+
+    el('rajAdminMobile')
+      ?.addEventListener(
+        'input',
+        event => {
+
+          event.target.value =
+            event.target.value
+              .replace(
+                /\D/g,
+                ''
+              )
+              .slice(
+                0,
+                10
+              );
+
+        }
+      );
+
+  }
+
+
+  /* =========================================================
+     ADMIN REFRESH
+     ========================================================= */
+
+  function wireRefreshButton(){
+
+    el('rajAdminRefresh')
+      ?.addEventListener(
+        'click',
+        async () => {
+
+          try{
+
+            await Promise.all([
+              loadAccessOptions(),
+              loadUsers()
+            ]);
+
+
+            showMessage(
+              'Admin data refreshed.'
+            );
+
+
+          }catch(error){
+
+            console.error(
+              'Admin refresh error:',
+              error
+            );
+
+          }
+
+        }
+      );
+
+  }
+
+
+  /* =========================================================
      KEEP ADMIN BUTTON AVAILABLE
      ========================================================= */
 
   function maintainAdminButton(){
-
-    /*
-      This continuously checks after auth-addon.js
-      finishes rendering logged-in user.
-    */
 
     if(
       isAdminUser()
@@ -4343,10 +4492,6 @@
       createAdminButton();
 
     }else{
-
-      /*
-        Do not show Admin Panel to normal users.
-      */
 
       const existing =
         el('rajAdminButton');
@@ -4359,6 +4504,82 @@
       }
 
     }
+
+  }
+
+
+  /* =========================================================
+     EXTRA PANEL EVENTS
+     ========================================================= */
+
+  function wireExtraAdminEvents(){
+
+    wireMobileInput();
+
+    wireRefreshButton();
+
+
+    /*
+       Clicking dark background closes panel.
+    */
+    el('rajAdminOverlay')
+      ?.addEventListener(
+        'click',
+        event => {
+
+          if(
+            event.target.id ===
+            'rajAdminOverlay'
+          ){
+
+            closeAdminPanel();
+
+          }
+
+        }
+      );
+
+
+    /*
+       Escape closes password popup first,
+       otherwise Admin panel.
+    */
+    document.addEventListener(
+      'keydown',
+      event => {
+
+        if(
+          event.key !== 'Escape'
+        ){
+          return;
+        }
+
+
+        if(
+          el('rajPasswordOverlay')
+            ?.classList
+            .contains('open')
+        ){
+
+          closePasswordPopup();
+
+          return;
+
+        }
+
+
+        if(
+          el('rajAdminOverlay')
+            ?.classList
+            .contains('open')
+        ){
+
+          closeAdminPanel();
+
+        }
+
+      }
+    );
 
   }
 
@@ -4426,13 +4647,40 @@
     createAdminPanel();
 
 
+    wireExtraAdminEvents();
+
+
     /*
-      Auth addon loads before Admin addon.
-      But login/session validation is asynchronous.
-
-      Therefore check repeatedly.
+       Load access options in background so
+       Add/Edit form has SM and OD choices.
     */
+    if(
+      getSessionToken()
+      &&
+      getDeviceId()
+      &&
+      isAdminUser()
+    ){
 
+      loadAccessOptions()
+        .catch(
+          error => {
+
+            console.warn(
+              'Initial access option load:',
+              error
+            );
+
+          }
+        );
+
+    }
+
+
+    /*
+       auth-addon.js validates login asynchronously,
+       therefore check Admin button repeatedly.
+    */
     maintainAdminButton();
 
 
@@ -4459,11 +4707,6 @@
       3000
     );
 
-
-    /*
-      Keep checking because login can happen
-      without complete page reload.
-    */
 
     setInterval(
       maintainAdminButton,
