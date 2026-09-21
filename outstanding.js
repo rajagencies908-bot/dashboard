@@ -13,20 +13,12 @@ const sb = createClient(
   RAJ_CONFIG.supabasePublishableKey
 );
 
-/* =========================================================
-   SETTINGS
-========================================================= */
-
 const TOKEN = 'raj_dashboard_session_token';
 const DEVICE = 'raj_dashboard_device_id';
 const USER = 'raj_dashboard_user';
 
 const RPC_PAGE_SIZE = 1000;
 const DETAIL_PAGE_SIZE = 50;
-
-/* =========================================================
-   STATE
-========================================================= */
 
 let rows = [];
 let uploads = [];
@@ -87,10 +79,6 @@ const bucketDefs = [
   ['PDC', 'pdc']
 ];
 
-/* =========================================================
-   BASIC HELPERS
-========================================================= */
-
 const $ = selector =>
   document.querySelector(selector);
 
@@ -139,10 +127,7 @@ function esc(value) {
 ========================================================= */
 
 function toast(message, stay = false) {
-  console.log(
-    '[Outstanding]',
-    message
-  );
+  console.log('[Outstanding]', message);
 
   const element = $('#toast');
 
@@ -156,12 +141,9 @@ function toast(message, stay = false) {
   clearTimeout(toast.timer);
 
   if (!stay) {
-    toast.timer = setTimeout(
-      () => {
-        element.style.display = 'none';
-      },
-      3500
-    );
+    toast.timer = setTimeout(() => {
+      element.style.display = 'none';
+    }, 3500);
   }
 }
 
@@ -173,10 +155,7 @@ function showFatal(error) {
 
   toast(
     'Dashboard error: ' +
-    (
-      error?.message ||
-      String(error)
-    ),
+      (error?.message || String(error)),
     true
   );
 }
@@ -197,10 +176,7 @@ function authArgs(extra = {}) {
   };
 }
 
-async function rpc(
-  functionName,
-  args = {}
-) {
+async function rpc(functionName, args = {}) {
   const { data, error } =
     await sb.rpc(
       functionName,
@@ -217,14 +193,9 @@ async function rpc(
 }
 
 async function guard() {
-  toast(
-    'Checking session...',
-    true
-  );
+  toast('Checking session...', true);
 
-  if (
-    !localStorage.getItem(TOKEN)
-  ) {
+  if (!localStorage.getItem(TOKEN)) {
     location.href = 'index.html';
     return false;
   }
@@ -242,10 +213,7 @@ async function guard() {
     );
   }
 
-  if (
-    !data ||
-    data.success !== true
-  ) {
+  if (!data || data.success !== true) {
     location.href = 'index.html';
     return false;
   }
@@ -254,7 +222,7 @@ async function guard() {
 }
 
 /* =========================================================
-   LOAD ALL OUTSTANDING ROWS
+   LOAD ALL ROWS - PAGINATION
 ========================================================= */
 
 async function getAllOutstandingRows(
@@ -262,7 +230,6 @@ async function getAllOutstandingRows(
   statusPrefix = 'Loading'
 ) {
   const allRows = [];
-
   let offset = 0;
 
   while (true) {
@@ -283,19 +250,9 @@ async function getAllOutstandingRows(
         })
       );
 
-    /*
-      If paginated RPC does not exist,
-      try old RPC automatically.
-    */
-
     if (paged.error) {
 
       if (offset === 0) {
-
-        console.warn(
-          '[Outstanding] Trying legacy RPC:',
-          paged.error.message
-        );
 
         const legacy =
           await sb.rpc(
@@ -312,9 +269,7 @@ async function getAllOutstandingRows(
           );
         }
 
-        return Array.isArray(
-          legacy.data
-        )
+        return Array.isArray(legacy.data)
           ? legacy.data
           : [];
       }
@@ -332,15 +287,11 @@ async function getAllOutstandingRows(
 
     allRows.push(...page);
 
-    if (
-      page.length <
-      RPC_PAGE_SIZE
-    ) {
+    if (page.length < RPC_PAGE_SIZE) {
       break;
     }
 
-    offset +=
-      RPC_PAGE_SIZE;
+    offset += RPC_PAGE_SIZE;
 
     if (offset > 100000) {
       throw new Error(
@@ -360,7 +311,7 @@ async function getAllOutstandingRows(
 /* =========================================================
    AGEING CALCULATION
 
-   CSV columns are cumulative:
+   Source columns are cumulative.
 
    0-15    = Balance - 15 - PDC
    16-30   = 15 - 30
@@ -374,7 +325,6 @@ async function getAllOutstandingRows(
 ========================================================= */
 
 function bucket(row) {
-
   return {
 
     days_15:
@@ -456,37 +406,29 @@ function rowMatchesSelections(
   row,
   ignoreKey = null
 ) {
+  return filterMap.every(([key]) => {
 
-  return filterMap.every(
-    ([key]) => {
-
-      if (key === ignoreKey) {
-        return true;
-      }
-
-      const selected =
-        filterSelections[key];
-
-      if (!selected.size) {
-        return true;
-      }
-
-      const value =
-        String(
-          row[key] ?? ''
-        ).trim();
-
-      return selected.has(value);
+    if (key === ignoreKey) {
+      return true;
     }
-  );
+
+    const selected =
+      filterSelections[key];
+
+    if (!selected.size) {
+      return true;
+    }
+
+    const value =
+      String(row[key] ?? '').trim();
+
+    return selected.has(value);
+  });
 }
 
-function filtered(
-  sourceData = rows
-) {
+function filtered(sourceData = rows) {
   return sourceData.filter(
-    row =>
-      rowMatchesSelections(row)
+    row => rowMatchesSelections(row)
   );
 }
 
@@ -494,10 +436,8 @@ function availableValues(
   key,
   sourceData = rows
 ) {
-
   return [
     ...new Set(
-
       sourceData
         .filter(
           row =>
@@ -513,7 +453,6 @@ function availableValues(
             ).trim()
         )
         .filter(Boolean)
-
     )
   ].sort(
     (a, b) =>
@@ -528,26 +467,14 @@ function availableValues(
   );
 }
 
-/* =========================================================
-   REMOVE INVALID FILTER SELECTIONS
-========================================================= */
-
 function pruneSelections() {
-
   let changed = true;
   let pass = 0;
 
-  while (
-    changed &&
-    pass++ < 12
-  ) {
-
+  while (changed && pass++ < 12) {
     changed = false;
 
-    for (
-      const [key]
-      of filterMap
-    ) {
+    for (const [key] of filterMap) {
 
       const available =
         new Set(
@@ -555,16 +482,10 @@ function pruneSelections() {
         );
 
       for (
-        const value
-        of [
-          ...filterSelections[key]
-        ]
+        const value of
+        [...filterSelections[key]]
       ) {
-
-        if (
-          !available.has(value)
-        ) {
-
+        if (!available.has(value)) {
           filterSelections[key]
             .delete(value);
 
@@ -579,7 +500,6 @@ function filterButtonText(
   key,
   label
 ) {
-
   const selected =
     filterSelections[key];
 
@@ -587,12 +507,8 @@ function filterButtonText(
     return `All ${label}`;
   }
 
-  if (
-    selected.size === 1
-  ) {
-    return [
-      ...selected
-    ][0];
+  if (selected.size === 1) {
+    return [...selected][0];
   }
 
   return `${selected.size} selected`;
@@ -615,8 +531,7 @@ function renderFilterOptions(key) {
 
   const definition =
     filterMap.find(
-      item =>
-        item[0] === key
+      item => item[0] === key
     );
 
   if (!definition) {
@@ -694,7 +609,6 @@ function renderFilterOptions(key) {
     );
 
   if (trigger) {
-
     trigger.textContent =
       filterButtonText(
         key,
@@ -712,17 +626,12 @@ function renderFilterOptions(key) {
         checkbox.onchange =
           () => {
 
-            if (
-              checkbox.checked
-            ) {
-
+            if (checkbox.checked) {
               filterSelections[key]
                 .add(
                   checkbox.value
                 );
-
             } else {
-
               filterSelections[key]
                 .delete(
                   checkbox.value
@@ -736,7 +645,6 @@ function renderFilterOptions(key) {
 }
 
 function refreshAllFilters() {
-
   filterMap.forEach(
     ([key]) =>
       renderFilterOptions(key)
@@ -744,7 +652,6 @@ function refreshAllFilters() {
 }
 
 function filtersChanged() {
-
   pruneSelections();
 
   detailPage = 1;
@@ -755,7 +662,7 @@ function filtersChanged() {
 }
 
 /* =========================================================
-   CREATE MULTI SELECT FILTERS
+   CREATE FILTERS
 ========================================================= */
 
 function makeFilters() {
@@ -895,16 +802,13 @@ function makeFilters() {
               .classList
               .toggle('open');
 
-            renderFilterOptions(
-              key
-            );
+            renderFilterOptions(key);
 
             if (
               component
                 .classList
                 .contains('open')
             ) {
-
               setTimeout(
                 () =>
                   search?.focus(),
@@ -919,9 +823,7 @@ function makeFilters() {
 
         search.oninput =
           () =>
-            renderFilterOptions(
-              key
-            );
+            renderFilterOptions(key);
 
         clear.onclick =
           () => {
@@ -965,18 +867,12 @@ function makeFilters() {
   refreshAllFilters();
 }
 
-/* =========================================================
-   CLOSE FILTER WHEN CLICKING OUTSIDE
-========================================================= */
-
 document.addEventListener(
   'click',
   () => {
 
     document
-      .querySelectorAll(
-        '.ms.open'
-      )
+      .querySelectorAll('.ms.open')
       .forEach(
         component =>
           component
@@ -990,15 +886,10 @@ document.addEventListener(
    METRICS
 ========================================================= */
 
-function sum(
-  data,
-  key
-) {
-
+function sum(data, key) {
   return data.reduce(
     (total, row) =>
-      total +
-      num(row[key]),
+      total + num(row[key]),
     0
   );
 }
@@ -1023,10 +914,7 @@ function metrics(data) {
   return {
 
     total:
-      sum(
-        data,
-        'balance'
-      ),
+      sum(data, 'balance'),
 
     customers:
       new Set(
@@ -1041,22 +929,13 @@ function metrics(data) {
       ).size,
 
     pdc:
-      sum(
-        data,
-        'pdc'
-      ),
+      sum(data, 'pdc'),
 
     over90:
-      sum(
-        data,
-        'days_90'
-      ),
+      sum(data, 'days_90'),
 
     over150:
-      sum(
-        data,
-        'days_150'
-      ),
+      sum(data, 'days_150'),
 
     bs:
       bucketSums
@@ -1091,139 +970,139 @@ function draw(
   }
 
   charts[selector] =
-    new Chart(
-      canvas,
-      {
-        type,
+    new Chart(canvas, {
 
-        data: {
-          labels,
-          datasets
+      type,
+
+      data: {
+        labels,
+        datasets
+      },
+
+      options: {
+
+        responsive: true,
+        maintainAspectRatio: false,
+
+        interaction: {
+          mode: 'index',
+          intersect: false
         },
 
-        options: {
+        plugins: {
 
-          responsive: true,
-          maintainAspectRatio: false,
-
-          interaction: {
-            mode: 'index',
-            intersect: false
+          legend: {
+            display:
+              type === 'doughnut' ||
+              !!options.legend
           },
 
-          plugins: {
+          tooltip: {
 
-            legend: {
-              display:
-                type === 'doughnut' ||
-                !!options.legend
-            },
+            callbacks: {
 
-            tooltip: {
+              label(context) {
 
-              callbacks: {
+                const prefix =
+                  context.dataset.label
+                    ? context.dataset.label + ': '
+                    : '';
 
-                label(context) {
-
-                  const prefix =
-                    context.dataset.label
-                      ? context.dataset.label + ': '
-                      : '';
-
-                  if (
-                    options.countChart
-                  ) {
-
-                    return (
-                      prefix +
-                      Number(
-                        context.raw || 0
-                      ).toLocaleString(
-                        'en-IN'
-                      )
-                    );
-                  }
+                if (options.countChart) {
 
                   return (
                     prefix +
-                    money(
+                    Number(
                       context.raw || 0
+                    ).toLocaleString(
+                      'en-IN'
                     )
                   );
                 }
+
+                return (
+                  prefix +
+                  money(
+                    context.raw || 0
+                  )
+                );
               }
             }
-          },
+          }
+        },
 
-          scales:
-            type === 'doughnut'
-              ? {}
-              : {
+        scales:
+          type === 'doughnut'
+            ? {}
+            : {
 
-                  y: {
+                y: {
 
-                    beginAtZero: true,
+                  beginAtZero: true,
 
-                    grid: {
-                      color: '#eef1f7'
-                    },
-
-                    ticks: {
-
-                      callback(value) {
-
-                        const n =
-                          Number(value);
-
-                        if (
-                          options.countChart
-                        ) {
-                          return n.toLocaleString(
-                            'en-IN'
-                          );
-                        }
-
-                        if (
-                          Math.abs(n) >=
-                          10000000
-                        ) {
-                          return (
-                            n / 10000000
-                          ).toFixed(1) + ' Cr';
-                        }
-
-                        if (
-                          Math.abs(n) >=
-                          100000
-                        ) {
-                          return (
-                            n / 100000
-                          ).toFixed(1) + ' L';
-                        }
-
-                        if (
-                          Math.abs(n) >=
-                          1000
-                        ) {
-                          return (
-                            n / 1000
-                          ).toFixed(0) + ' K';
-                        }
-
-                        return n;
-                      }
-                    }
+                  grid: {
+                    color: '#eef1f7'
                   },
 
-                  x: {
-                    grid: {
-                      display: false
+                  ticks: {
+
+                    callback(value) {
+
+                      const n =
+                        Number(value);
+
+                      if (
+                        options.countChart
+                      ) {
+
+                        return n.toLocaleString(
+                          'en-IN'
+                        );
+                      }
+
+                      if (
+                        Math.abs(n) >=
+                        10000000
+                      ) {
+
+                        return (
+                          n / 10000000
+                        ).toFixed(1) + ' Cr';
+                      }
+
+                      if (
+                        Math.abs(n) >=
+                        100000
+                      ) {
+
+                        return (
+                          n / 100000
+                        ).toFixed(1) + ' L';
+                      }
+
+                      if (
+                        Math.abs(n) >=
+                        1000
+                      ) {
+
+                        return (
+                          n / 1000
+                        ).toFixed(0) + ' K';
+                      }
+
+                      return n;
                     }
                   }
+                },
+
+                x: {
+                  grid: {
+                    display: false
+                  }
                 }
-        }
+              }
       }
-    );
+    });
 }
 
 /* =========================================================
@@ -1242,19 +1121,17 @@ function simpleTable(
         <tr>
 
           ${
-            columns
-              .map(
-                column => `
-                  <th class="${
-                    column.num
-                      ? 'num'
-                      : ''
-                  }">
-                    ${esc(column.label)}
-                  </th>
-                `
-              )
-              .join('')
+            columns.map(
+              column => `
+                <th class="${
+                  column.num
+                    ? 'num'
+                    : ''
+                }">
+                  ${esc(column.label)}
+                </th>
+              `
+            ).join('')
           }
 
         </tr>
@@ -1265,48 +1142,44 @@ function simpleTable(
         ${
           items.length
 
-            ? items
-                .map(
-                  (row, index) => `
+            ? items.map(
+                (row, index) => `
 
-                    <tr>
+                  <tr>
 
-                      ${
-                        columns
-                          .map(
-                            column => `
+                    ${
+                      columns.map(
+                        column => `
 
-                              <td class="${
-                                column.num
-                                  ? 'num'
-                                  : ''
-                              }">
+                          <td class="${
+                            column.num
+                              ? 'num'
+                              : ''
+                          }">
 
-                                ${
-                                  column.render
+                            ${
+                              column.render
 
-                                    ? column.render(
-                                        row,
-                                        index
-                                      )
+                                ? column.render(
+                                    row,
+                                    index
+                                  )
 
-                                    : esc(
-                                        row[
-                                          column.key
-                                        ] ?? ''
-                                      )
-                                }
+                                : esc(
+                                    row[
+                                      column.key
+                                    ] ?? ''
+                                  )
+                            }
 
-                              </td>
-                            `
-                          )
-                          .join('')
-                      }
+                          </td>
+                        `
+                      ).join('')
+                    }
 
-                    </tr>
-                  `
-                )
-                .join('')
+                  </tr>
+                `
+              ).join('')
 
             : `
                 <tr>
@@ -1542,38 +1415,36 @@ function renderDetails(data) {
         <tr>
 
           ${
-            columns
-              .map(
-                (
-                  [
-                    key,
-                    label,
+            columns.map(
+              (
+                [
+                  key,
+                  label,
+                  numeric
+                ]
+              ) => `
+
+                <th
+                  class="sortable ${
                     numeric
-                  ]
-                ) => `
+                      ? 'num'
+                      : ''
+                  }"
+                  data-detail-sort="${key}"
+                >
 
-                  <th
-                    class="sortable ${
-                      numeric
-                        ? 'num'
-                        : ''
-                    }"
-                    data-detail-sort="${key}"
-                  >
+                  ${esc(label)}
 
-                    ${esc(label)}
+                  ${
+                    sortArrow(
+                      detailSort,
+                      key
+                    )
+                  }
 
-                    ${
-                      sortArrow(
-                        detailSort,
-                        key
-                      )
-                    }
-
-                  </th>
-                `
-              )
-              .join('')
+                </th>
+              `
+            ).join('')
           }
 
         </tr>
@@ -1585,52 +1456,48 @@ function renderDetails(data) {
         ${
           pageRows.length
 
-            ? pageRows
-                .map(
-                  row => `
+            ? pageRows.map(
+                row => `
 
-                    <tr>
+                  <tr>
 
-                      ${
-                        columns
-                          .map(
-                            (
-                              [
-                                key,
-                                ,
-                                numeric
-                              ]
-                            ) => `
+                    ${
+                      columns.map(
+                        (
+                          [
+                            key,
+                            ,
+                            numeric
+                          ]
+                        ) => `
 
-                              <td class="${
-                                numeric
-                                  ? 'num'
-                                  : ''
-                              }">
+                          <td class="${
+                            numeric
+                              ? 'num'
+                              : ''
+                          }">
 
-                                ${
-                                  numeric
+                            ${
+                              numeric
 
-                                    ? money(
-                                        row[key]
-                                      )
+                                ? money(
+                                    row[key]
+                                  )
 
-                                    : esc(
-                                        row[key] ??
-                                        ''
-                                      )
-                                }
+                                : esc(
+                                    row[key] ??
+                                    ''
+                                  )
+                            }
 
-                              </td>
-                            `
-                          )
-                          .join('')
-                      }
+                          </td>
+                        `
+                      ).join('')
+                    }
 
-                    </tr>
-                  `
-                )
-                .join('')
+                  </tr>
+                `
+              ).join('')
 
             : `
 
@@ -1652,9 +1519,7 @@ function renderDetails(data) {
     </table>
   `;
 
-  if (
-    $('#detailCount')
-  ) {
+  if ($('#detailCount')) {
 
     $('#detailCount')
       .textContent =
@@ -1663,26 +1528,20 @@ function renderDetails(data) {
         )} rows`;
   }
 
-  if (
-    $('#pageInfo')
-  ) {
+  if ($('#pageInfo')) {
 
     $('#pageInfo')
       .textContent =
         `Page ${detailPage} of ${totalPages}`;
   }
 
-  if (
-    $('#prevPage')
-  ) {
+  if ($('#prevPage')) {
 
     $('#prevPage').disabled =
       detailPage <= 1;
   }
 
-  if (
-    $('#nextPage')
-  ) {
+  if ($('#nextPage')) {
 
     $('#nextPage').disabled =
       detailPage >=
@@ -1792,36 +1651,34 @@ function render() {
     ];
 
     kpis.innerHTML =
-      cards
-        .map(
-          (
-            [
-              label,
-              value
-            ]
-          ) => `
+      cards.map(
+        (
+          [
+            label,
+            value
+          ]
+        ) => `
 
-            <article class="kpi">
+          <article class="kpi">
 
-              <span>
-                ${esc(label)}
-              </span>
+            <span>
+              ${esc(label)}
+            </span>
 
-              <strong>
-                ${esc(value)}
-              </strong>
+            <strong>
+              ${esc(value)}
+            </strong>
 
-              <small>
-                Current snapshot
-              </small>
+            <small>
+              Current snapshot
+            </small>
 
-            </article>
-          `
-        )
-        .join('');
+          </article>
+        `
+      ).join('');
   }
 
-  /* ---------------- AGEING ---------------- */
+  /* ---------------- AGEING ANALYSIS ---------------- */
 
   const labels =
     bucketDefs.map(
@@ -1849,7 +1706,7 @@ function render() {
     ]
   );
 
-  /* ---------------- DONUT ---------------- */
+  /* ---------------- OUTSTANDING BREAKUP ---------------- */
 
   draw(
     '#donutChart',
@@ -1867,94 +1724,97 @@ function render() {
     }
   );
 
-  /* ---------------- AMOUNT RANGE ---------------- */
+  /* =====================================================
+     AGEING WISE CUSTOMER COUNT (> ₹1,000)
 
-  const ranges = [
+     IMPORTANT:
+     Each bar counts UNIQUE customers where that exact
+     ageing bucket amount is greater than ₹1,000.
+     PDC is not included in this chart.
+  ===================================================== */
 
-    [
-      '< 1,000',
-      0,
-      1000
-    ],
+  const ageingCustomerBuckets = [
 
-    [
-      '1,000-5,000',
-      1000,
-      5000
-    ],
+    ['0-15', 'days_15'],
 
-    [
-      '5,000-10,000',
-      5000,
-      10000
-    ],
+    ['16-30', 'days_30'],
 
-    [
-      '10,000-50,000',
-      10000,
-      50000
-    ],
+    ['31-45', 'days_45'],
 
-    [
-      '50,000-1,00,000',
-      50000,
-      100000
-    ],
+    ['46-60', 'days_60'],
 
-    [
-      '>1,00,000',
-      100000,
-      Infinity
-    ]
+    ['61-75', 'days_75'],
+
+    ['76-90', 'days_90'],
+
+    ['91-120', 'days_120'],
+
+    ['121-150', 'days_150'],
+
+    ['>150', 'over150']
   ];
 
-  const rangeCounts =
-    ranges.map(
-      (
-        [
-          ,
-          minimum,
-          maximum
-        ]
-      ) =>
+  const ageingCustomerCounts =
+    ageingCustomerBuckets.map(
+      ([label, key]) => {
 
-        data.filter(
+        const customers =
+          new Set();
+
+        data.forEach(
           row => {
 
-            const balance =
-              num(
-                row.balance
-              );
+            const ageingAmount =
+              bucket(row)[key];
 
-            return (
-              balance >=
-                minimum &&
-              balance <
-                maximum
-            );
+            if (
+              ageingAmount > 1000
+            ) {
+
+              const party =
+                String(
+                  row.party ?? ''
+                ).trim();
+
+              if (party) {
+                customers.add(
+                  party
+                );
+              }
+            }
           }
-        ).length
+        );
+
+        return customers.size;
+      }
     );
 
   draw(
     '#rangeChart',
     'bar',
-    ranges.map(
+
+    ageingCustomerBuckets.map(
       item => item[0]
     ),
+
     [
       {
-        label: 'Customers',
-        data: rangeCounts,
+        label:
+          'Customers > ₹1,000',
+
+        data:
+          ageingCustomerCounts,
+
         borderRadius: 6
       }
     ],
+
     {
       countChart: true
     }
   );
 
-  /* ---------------- TOP 5 ---------------- */
+  /* ---------------- TOP 5 CUSTOMERS ---------------- */
 
   const topCustomers =
     [...data]
@@ -1968,9 +1828,7 @@ function render() {
         5
       );
 
-  if (
-    $('#topCustomers')
-  ) {
+  if ($('#topCustomers')) {
 
     $('#topCustomers')
       .innerHTML =
@@ -1980,6 +1838,7 @@ function render() {
 
             {
               label: '#',
+
               render:
                 (
                   row,
@@ -1991,13 +1850,18 @@ function render() {
             {
               label:
                 'Party Name',
-              key: 'party'
+
+              key:
+                'party'
             },
 
             {
               label:
                 'Balance',
-              num: true,
+
+              num:
+                true,
+
               render:
                 row =>
                   money(
@@ -2008,7 +1872,7 @@ function render() {
         );
   }
 
-  /* ---------------- TOP OVERDUE ---------------- */
+  /* ---------------- TOP 5 >150 ---------------- */
 
   const overdue =
     [...data]
@@ -2032,9 +1896,7 @@ function render() {
         5
       );
 
-  if (
-    $('#overdueCustomers')
-  ) {
+  if ($('#overdueCustomers')) {
 
     $('#overdueCustomers')
       .innerHTML =
@@ -2044,6 +1906,7 @@ function render() {
 
             {
               label: '#',
+
               render:
                 (
                   row,
@@ -2055,13 +1918,18 @@ function render() {
             {
               label:
                 'Party Name',
-              key: 'party'
+
+              key:
+                'party'
             },
 
             {
               label:
                 '>150 Days',
-              num: true,
+
+              num:
+                true,
+
               render:
                 row =>
                   money(
@@ -2072,7 +1940,10 @@ function render() {
             {
               label:
                 'Balance',
-              num: true,
+
+              num:
+                true,
+
               render:
                 row =>
                   money(
@@ -2083,11 +1954,7 @@ function render() {
         );
   }
 
-  /* ---------------- DETAILS ---------------- */
-
   renderDetails(data);
-
-  /* ---------------- COMPARISON ---------------- */
 
   renderCompare(
     currentMetrics
@@ -2125,20 +1992,18 @@ function populateCompareSelector() {
     </option>
 
     ${
-      available
-        .map(
-          upload => `
+      available.map(
+        upload => `
 
-            <option
-              value="${esc(upload.id)}"
-            >
-              ${esc(
-                upload.outstanding_date
-              )}
-            </option>
-          `
-        )
-        .join('')
+          <option
+            value="${esc(upload.id)}"
+          >
+            ${esc(
+              upload.outstanding_date
+            )}
+          </option>
+        `
+      ).join('')
     }
   `;
 
@@ -2172,6 +2037,7 @@ function populateCompareSelector() {
       : null;
 
   if (previous) {
+
     select.value =
       previous.id;
   }
@@ -2211,7 +2077,7 @@ async function getComparisonRows(
 }
 
 /* =========================================================
-   RENDER COMPARISON
+   COMPARISON
 ========================================================= */
 
 async function renderCompare(
@@ -2236,9 +2102,7 @@ async function renderCompare(
 
   if (!compareId) {
 
-    if (
-      $('#summaryCompare')
-    ) {
+    if ($('#summaryCompare')) {
 
       $('#summaryCompare')
         .innerHTML = `
@@ -2285,9 +2149,8 @@ async function renderCompare(
     }
 
     /*
-      IMPORTANT:
       Same selected filters are applied
-      to previous snapshot also.
+      to current and comparison snapshots.
     */
 
     const compareMetrics =
@@ -2297,7 +2160,7 @@ async function renderCompare(
         )
       );
 
-    const labels =
+    const compareLabels =
       bucketDefs.map(
         item => item[0]
       );
@@ -2305,7 +2168,7 @@ async function renderCompare(
     draw(
       '#compareChart',
       'bar',
-      labels,
+      compareLabels,
       [
 
         {
@@ -2364,7 +2227,8 @@ async function renderCompare(
         current:
           currentMetrics.customers,
 
-        count: true
+        count:
+          true
       },
 
       {
@@ -2401,9 +2265,7 @@ async function renderCompare(
       }
     ];
 
-    if (
-      $('#summaryCompare')
-    ) {
+    if ($('#summaryCompare')) {
 
       $('#summaryCompare')
         .innerHTML =
@@ -2414,6 +2276,7 @@ async function renderCompare(
               {
                 label:
                   'Metric',
+
                 key:
                   'metric'
               },
@@ -2423,7 +2286,8 @@ async function renderCompare(
                   compareUpload
                     .outstanding_date,
 
-                num: true,
+                num:
+                  true,
 
                 render:
                   row =>
@@ -2445,7 +2309,8 @@ async function renderCompare(
                   activeUpload
                     .outstanding_date,
 
-                num: true,
+                num:
+                  true,
 
                 render:
                   row =>
@@ -2479,18 +2344,14 @@ async function renderCompare(
       return;
     }
 
-    if (
-      $('#summaryCompare')
-    ) {
+    if ($('#summaryCompare')) {
 
       $('#summaryCompare')
         .innerHTML = `
 
           <span class="muted">
-
             Comparison unavailable:
             ${esc(error.message)}
-
           </span>
         `;
     }
@@ -2499,70 +2360,466 @@ async function renderCompare(
 
 
 
-
  /* =========================================================
-   SNAPSHOT HISTORY
+   CHART
 ========================================================= */
 
-function renderHistory() {
+function draw(
+  selector,
+  type,
+  labels,
+  datasets,
+  options = {}
+) {
+
+  if (charts[selector]) {
+    charts[selector].destroy();
+  }
+
+  const canvas = $(selector);
+
+  if (
+    !canvas ||
+    typeof Chart === 'undefined'
+  ) {
+    return;
+  }
+
+  charts[selector] =
+    new Chart(canvas, {
+
+      type,
+
+      data: {
+        labels,
+        datasets
+      },
+
+      options: {
+
+        responsive: true,
+        maintainAspectRatio: false,
+
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+
+        plugins: {
+
+          legend: {
+            display:
+              type === 'doughnut' ||
+              !!options.legend
+          },
+
+          tooltip: {
+
+            callbacks: {
+
+              label(context) {
+
+                const prefix =
+                  context.dataset.label
+                    ? context.dataset.label + ': '
+                    : '';
+
+                if (options.countChart) {
+
+                  return (
+                    prefix +
+                    Number(
+                      context.raw || 0
+                    ).toLocaleString(
+                      'en-IN'
+                    )
+                  );
+                }
+
+                return (
+                  prefix +
+                  money(
+                    context.raw || 0
+                  )
+                );
+              }
+            }
+          }
+        },
+
+        scales:
+          type === 'doughnut'
+            ? {}
+            : {
+
+                y: {
+
+                  beginAtZero: true,
+
+                  grid: {
+                    color: '#eef1f7'
+                  },
+
+                  ticks: {
+
+                    callback(value) {
+
+                      const n =
+                        Number(value);
+
+                      if (
+                        options.countChart
+                      ) {
+
+                        return n.toLocaleString(
+                          'en-IN'
+                        );
+                      }
+
+                      if (
+                        Math.abs(n) >=
+                        10000000
+                      ) {
+
+                        return (
+                          n / 10000000
+                        ).toFixed(1) + ' Cr';
+                      }
+
+                      if (
+                        Math.abs(n) >=
+                        100000
+                      ) {
+
+                        return (
+                          n / 100000
+                        ).toFixed(1) + ' L';
+                      }
+
+                      if (
+                        Math.abs(n) >=
+                        1000
+                      ) {
+
+                        return (
+                          n / 1000
+                        ).toFixed(0) + ' K';
+                      }
+
+                      return n;
+                    }
+                  }
+                },
+
+                x: {
+                  grid: {
+                    display: false
+                  }
+                }
+              }
+      }
+    });
+}
+
+/* =========================================================
+   SIMPLE TABLE
+========================================================= */
+
+function simpleTable(
+  items,
+  columns
+) {
+
+  return `
+    <table>
+
+      <thead>
+        <tr>
+
+          ${
+            columns.map(
+              column => `
+                <th class="${
+                  column.num
+                    ? 'num'
+                    : ''
+                }">
+                  ${esc(column.label)}
+                </th>
+              `
+            ).join('')
+          }
+
+        </tr>
+      </thead>
+
+      <tbody>
+
+        ${
+          items.length
+
+            ? items.map(
+                (row, index) => `
+
+                  <tr>
+
+                    ${
+                      columns.map(
+                        column => `
+
+                          <td class="${
+                            column.num
+                              ? 'num'
+                              : ''
+                          }">
+
+                            ${
+                              column.render
+
+                                ? column.render(
+                                    row,
+                                    index
+                                  )
+
+                                : esc(
+                                    row[
+                                      column.key
+                                    ] ?? ''
+                                  )
+                            }
+
+                          </td>
+                        `
+                      ).join('')
+                    }
+
+                  </tr>
+                `
+              ).join('')
+
+            : `
+                <tr>
+                  <td
+                    colspan="${columns.length}"
+                    class="muted"
+                  >
+                    No data
+                  </td>
+                </tr>
+              `
+        }
+
+      </tbody>
+
+    </table>
+  `;
+}
+
+/* =========================================================
+   SORTING
+========================================================= */
+
+const numericFields =
+  new Set([
+    'balance',
+    'days_15',
+    'days_30',
+    'days_45',
+    'days_60',
+    'days_75',
+    'days_90',
+    'days_120',
+    'days_150',
+    'pdc',
+    'total_customers',
+    'total_outstanding',
+    'total_pdc'
+  ]);
+
+function compareValues(
+  a,
+  b,
+  key
+) {
+
+  if (
+    numericFields.has(key)
+  ) {
+
+    return (
+      num(a?.[key]) -
+      num(b?.[key])
+    );
+  }
+
+  return String(
+    a?.[key] ?? ''
+  ).localeCompare(
+    String(
+      b?.[key] ?? ''
+    ),
+    undefined,
+    {
+      numeric: true,
+      sensitivity: 'base'
+    }
+  );
+}
+
+function sortArrow(
+  sort,
+  key
+) {
+
+  if (
+    sort.key !== key
+  ) {
+    return '';
+  }
+
+  return sort.dir === 'asc'
+    ? ' ▲'
+    : ' ▼';
+}
+
+/* =========================================================
+   CUSTOMER DETAILS
+========================================================= */
+
+function renderDetails(data) {
 
   const container =
-    $('#history');
+    $('#customerDetails');
 
   if (!container) {
     return;
   }
 
-  const list =
-    [...uploads]
-      .sort(
-        (a, b) => {
+  const search =
+    String(
+      $('#detailSearch')?.value ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
 
-          const result =
-            compareValues(
-              a,
-              b,
-              historySort.key
-            );
+  let list = [...data];
 
-          return historySort.dir ===
-            'asc'
-              ? result
-              : -result;
-        }
+  if (search) {
+
+    list =
+      list.filter(
+        row => [
+
+          row.party,
+          row.sm,
+          row.grp_name,
+          row.division,
+          row.area,
+          row.order_type,
+          row.city,
+          row.pincode
+
+        ].some(
+          value =>
+            String(
+              value ?? ''
+            )
+              .toLowerCase()
+              .includes(search)
+        )
       );
+  }
+
+  list.sort(
+    (a, b) => {
+
+      const result =
+        compareValues(
+          a,
+          b,
+          detailSort.key
+        );
+
+      return detailSort.dir ===
+        'asc'
+          ? result
+          : -result;
+    }
+  );
+
+  const totalPages =
+    Math.max(
+      1,
+      Math.ceil(
+        list.length /
+        DETAIL_PAGE_SIZE
+      )
+    );
+
+  detailPage =
+    Math.min(
+      Math.max(
+        1,
+        detailPage
+      ),
+      totalPages
+    );
+
+  const start =
+    (
+      detailPage - 1
+    ) *
+    DETAIL_PAGE_SIZE;
+
+  const pageRows =
+    list.slice(
+      start,
+      start +
+      DETAIL_PAGE_SIZE
+    );
 
   const columns = [
 
+    ['party', 'Party', false],
+
+    ['balance', 'Balance', true],
+
+    ['days_15', '>15', true],
+
+    ['days_30', '>30', true],
+
+    ['days_45', '>45', true],
+
+    ['days_60', '>60', true],
+
+    ['days_75', '>75', true],
+
+    ['days_90', '>90', true],
+
+    ['days_120', '>120', true],
+
+    ['days_150', '>150', true],
+
+    ['pdc', 'PDC', true],
+
+    ['sm', 'SM', false],
+
+    ['grp_name', 'GrpName', false],
+
+    ['division', 'Division', false],
+
+    ['area', 'Area', false],
+
     [
-      'outstanding_date',
-      'Date',
+      'order_type',
+      'OD / Order',
       false
     ],
 
-    [
-      'uploaded_at',
-      'Uploaded On',
-      false
-    ],
+    ['city', 'City', false],
 
-    [
-      'uploaded_by',
-      'By',
-      false
-    ],
-
-    [
-      'total_customers',
-      'Customers',
-      true
-    ],
-
-    [
-      'total_outstanding',
-      'Outstanding',
-      true
-    ]
+    ['pincode', 'Pincode', false]
   ];
 
   container.innerHTML = `
@@ -2574,38 +2831,36 @@ function renderHistory() {
         <tr>
 
           ${
-            columns
-              .map(
-                (
-                  [
-                    key,
-                    label,
+            columns.map(
+              (
+                [
+                  key,
+                  label,
+                  numeric
+                ]
+              ) => `
+
+                <th
+                  class="sortable ${
                     numeric
-                  ]
-                ) => `
+                      ? 'num'
+                      : ''
+                  }"
+                  data-detail-sort="${key}"
+                >
 
-                  <th
-                    class="sortable ${
-                      numeric
-                        ? 'num'
-                        : ''
-                    }"
-                    data-history-sort="${key}"
-                  >
+                  ${esc(label)}
 
-                    ${esc(label)}
+                  ${
+                    sortArrow(
+                      detailSort,
+                      key
+                    )
+                  }
 
-                    ${
-                      sortArrow(
-                        historySort,
-                        key
-                      )
-                    }
-
-                  </th>
-                `
-              )
-              .join('')
+                </th>
+              `
+            ).join('')
           }
 
         </tr>
@@ -2615,76 +2870,60 @@ function renderHistory() {
       <tbody>
 
         ${
-          list.length
+          pageRows.length
 
-            ? list
-                .map(
-                  upload => `
+            ? pageRows.map(
+                row => `
 
-                    <tr>
+                  <tr>
 
-                      <td>
-                        ${esc(
-                          upload.outstanding_date ||
-                          ''
-                        )}
-                      </td>
+                    ${
+                      columns.map(
+                        (
+                          [
+                            key,
+                            ,
+                            numeric
+                          ]
+                        ) => `
 
-                      <td>
-                        ${esc(
-                          upload.uploaded_at
-                            ? new Date(
-                                upload.uploaded_at
-                              ).toLocaleString(
-                                'en-IN'
-                              )
-                            : ''
-                        )}
-                      </td>
+                          <td class="${
+                            numeric
+                              ? 'num'
+                              : ''
+                          }">
 
-                      <td>
-                        ${esc(
-                          upload.uploaded_by ||
-                          ''
-                        )}
-                      </td>
+                            ${
+                              numeric
 
-                      <td class="num">
+                                ? money(
+                                    row[key]
+                                  )
 
-                        ${
-                          num(
-                            upload.total_customers
-                          ).toLocaleString(
-                            'en-IN'
-                          )
-                        }
+                                : esc(
+                                    row[key] ??
+                                    ''
+                                  )
+                            }
 
-                      </td>
+                          </td>
+                        `
+                      ).join('')
+                    }
 
-                      <td class="num">
-
-                        ${
-                          money(
-                            upload.total_outstanding
-                          )
-                        }
-
-                      </td>
-
-                    </tr>
-                  `
-                )
-                .join('')
+                  </tr>
+                `
+              ).join('')
 
             : `
 
                 <tr>
 
                   <td
-                    colspan="5"
+                    colspan="${columns.length}"
                     class="muted"
                   >
-                    No snapshots
+                    No matching data
                   </td>
 
                 </tr>
@@ -2696,9 +2935,38 @@ function renderHistory() {
     </table>
   `;
 
+  if ($('#detailCount')) {
+
+    $('#detailCount')
+      .textContent =
+        `${list.length.toLocaleString(
+          'en-IN'
+        )} rows`;
+  }
+
+  if ($('#pageInfo')) {
+
+    $('#pageInfo')
+      .textContent =
+        `Page ${detailPage} of ${totalPages}`;
+  }
+
+  if ($('#prevPage')) {
+
+    $('#prevPage').disabled =
+      detailPage <= 1;
+  }
+
+  if ($('#nextPage')) {
+
+    $('#nextPage').disabled =
+      detailPage >=
+      totalPages;
+  }
+
   container
     .querySelectorAll(
-      '[data-history-sort]'
+      '[data-detail-sort]'
     )
     .forEach(
       heading => {
@@ -2708,218 +2976,496 @@ function renderHistory() {
 
             const key =
               heading.dataset
-                .historySort;
+                .detailSort;
 
             if (
-              historySort.key ===
+              detailSort.key ===
               key
             ) {
 
-              historySort.dir =
-                historySort.dir ===
+              detailSort.dir =
+                detailSort.dir ===
                 'asc'
                   ? 'desc'
                   : 'asc';
 
             } else {
 
-              historySort = {
+              detailSort = {
                 key,
                 dir: 'asc'
               };
             }
 
-            renderHistory();
+            detailPage = 1;
+
+            renderDetails(
+              filtered()
+            );
           };
       }
     );
 }
 
 /* =========================================================
-   SORT SNAPSHOTS
+   MAIN DASHBOARD RENDER
 ========================================================= */
 
-function sortUploads() {
-
-  uploads.sort(
-    (a, b) => {
-
-      const dateCompare =
-        String(
-          b.outstanding_date || ''
-        ).localeCompare(
-          String(
-            a.outstanding_date || ''
-          )
-        );
-
-      if (dateCompare) {
-        return dateCompare;
-      }
-
-      return String(
-        b.uploaded_at || ''
-      ).localeCompare(
-        String(
-          a.uploaded_at || ''
-        )
-      );
-    }
-  );
-}
-
-/* =========================================================
-   LOAD DASHBOARD
-========================================================= */
-
-async function load(
-  preferredId = null
-) {
-
-  toast(
-    'Loading snapshot list...',
-    true
-  );
+function render() {
 
   const data =
-    await rpc(
-      'raj_outstanding_list_uploads'
-    );
+    filtered();
 
-  uploads =
-    Array.isArray(data)
-      ? data
-      : [];
+  const currentMetrics =
+    metrics(data);
 
-  sortUploads();
+  /* ---------------- KPI ---------------- */
 
-  const snapshotSelect =
-    $('#snapshotSelect');
+  const kpis =
+    $('#kpis');
 
-  if (snapshotSelect) {
+  if (kpis) {
 
-    snapshotSelect.innerHTML =
-      uploads.length
+    const cards = [
 
-        ? uploads
-            .map(
-              upload => `
+      [
+        'Total Outstanding',
+        money(
+          currentMetrics.total
+        )
+      ],
 
-                <option
-                  value="${esc(upload.id)}"
-                >
-                  ${esc(
-                    upload.outstanding_date
-                  )}
-                </option>
-              `
-            )
-            .join('')
+      [
+        'Total Customers',
+        currentMetrics
+          .customers
+          .toLocaleString(
+            'en-IN'
+          )
+      ],
 
-        : `
-            <option value="">
-              No snapshot
-            </option>
-          `;
+      [
+        'PDC Amount',
+        money(
+          currentMetrics.pdc
+        )
+      ],
+
+      [
+        'Over 90 Days',
+        money(
+          currentMetrics.over90
+        )
+      ],
+
+      [
+        'Over 150 Days',
+        money(
+          currentMetrics.over150
+        )
+      ]
+    ];
+
+    kpis.innerHTML =
+      cards.map(
+        (
+          [
+            label,
+            value
+          ]
+        ) => `
+
+          <article class="kpi">
+
+            <span>
+              ${esc(label)}
+            </span>
+
+            <strong>
+              ${esc(value)}
+            </strong>
+
+            <small>
+              Current snapshot
+            </small>
+
+          </article>
+        `
+      ).join('');
   }
 
-  renderHistory();
+  /* ---------------- AGEING ANALYSIS ---------------- */
 
-  if (!uploads.length) {
-
-    rows = [];
-    activeUpload = null;
-
-    makeFilters();
-    render();
-
-    toast(
-      'No outstanding snapshot found.',
-      true
+  const labels =
+    bucketDefs.map(
+      item => item[0]
     );
 
-    return;
-  }
-
-  activeUpload =
-    uploads.find(
-      upload =>
-        upload.id ===
-        preferredId
-    ) ||
-    uploads[0];
-
-  if (snapshotSelect) {
-
-    snapshotSelect.value =
-      activeUpload.id;
-  }
-
-  toast(
-    `Loading ${activeUpload.outstanding_date}...`,
-    true
-  );
-
-  rows =
-    await getAllOutstandingRows(
-      activeUpload.id,
-      'Loading current'
+  const values =
+    bucketDefs.map(
+      item =>
+        currentMetrics.bs[
+          item[1]
+        ]
     );
 
-  snapshotCache.set(
-    activeUpload.id,
-    rows
+  draw(
+    '#ageChart',
+    'bar',
+    labels,
+    [
+      {
+        label: 'Amount',
+        data: values,
+        borderRadius: 6
+      }
+    ]
   );
 
-  filterMap.forEach(
-    ([key]) =>
-      filterSelections[key]
-        .clear()
+  /* ---------------- OUTSTANDING BREAKUP ---------------- */
+
+  draw(
+    '#donutChart',
+    'doughnut',
+    labels,
+    [
+      {
+        label: 'Amount',
+        data: values,
+        borderWidth: 0
+      }
+    ],
+    {
+      legend: true
+    }
   );
 
-  makeFilters();
+  /* =====================================================
+     AGEING WISE CUSTOMER COUNT (> ₹1,000)
 
-  populateCompareSelector();
+     IMPORTANT:
+     Each bar counts UNIQUE customers where that exact
+     ageing bucket amount is greater than ₹1,000.
+     PDC is not included in this chart.
+  ===================================================== */
 
-  renderHistory();
+  const ageingCustomerBuckets = [
 
-  render();
+    ['0-15', 'days_15'],
 
-  toast(
-    `${rows.length.toLocaleString(
-      'en-IN'
-    )} rows loaded.`
+    ['16-30', 'days_30'],
+
+    ['31-45', 'days_45'],
+
+    ['46-60', 'days_60'],
+
+    ['61-75', 'days_75'],
+
+    ['76-90', 'days_90'],
+
+    ['91-120', 'days_120'],
+
+    ['121-150', 'days_150'],
+
+    ['>150', 'over150']
+  ];
+
+  const ageingCustomerCounts =
+    ageingCustomerBuckets.map(
+      ([label, key]) => {
+
+        const customers =
+          new Set();
+
+        data.forEach(
+          row => {
+
+            const ageingAmount =
+              bucket(row)[key];
+
+            if (
+              ageingAmount > 1000
+            ) {
+
+              const party =
+                String(
+                  row.party ?? ''
+                ).trim();
+
+              if (party) {
+                customers.add(
+                  party
+                );
+              }
+            }
+          }
+        );
+
+        return customers.size;
+      }
+    );
+
+  draw(
+    '#rangeChart',
+    'bar',
+
+    ageingCustomerBuckets.map(
+      item => item[0]
+    ),
+
+    [
+      {
+        label:
+          'Customers > ₹1,000',
+
+        data:
+          ageingCustomerCounts,
+
+        borderRadius: 6
+      }
+    ],
+
+    {
+      countChart: true
+    }
+  );
+
+  /* ---------------- TOP 5 CUSTOMERS ---------------- */
+
+  const topCustomers =
+    [...data]
+      .sort(
+        (a, b) =>
+          num(b.balance) -
+          num(a.balance)
+      )
+      .slice(
+        0,
+        5
+      );
+
+  if ($('#topCustomers')) {
+
+    $('#topCustomers')
+      .innerHTML =
+        simpleTable(
+          topCustomers,
+          [
+
+            {
+              label: '#',
+
+              render:
+                (
+                  row,
+                  index
+                ) =>
+                  index + 1
+            },
+
+            {
+              label:
+                'Party Name',
+
+              key:
+                'party'
+            },
+
+            {
+              label:
+                'Balance',
+
+              num:
+                true,
+
+              render:
+                row =>
+                  money(
+                    row.balance
+                  )
+            }
+          ]
+        );
+  }
+
+  /* ---------------- TOP 5 >150 ---------------- */
+
+  const overdue =
+    [...data]
+      .filter(
+        row =>
+          num(
+            row.days_150
+          ) > 0
+      )
+      .sort(
+        (a, b) =>
+          num(
+            b.days_150
+          ) -
+          num(
+            a.days_150
+          )
+      )
+      .slice(
+        0,
+        5
+      );
+
+  if ($('#overdueCustomers')) {
+
+    $('#overdueCustomers')
+      .innerHTML =
+        simpleTable(
+          overdue,
+          [
+
+            {
+              label: '#',
+
+              render:
+                (
+                  row,
+                  index
+                ) =>
+                  index + 1
+            },
+
+            {
+              label:
+                'Party Name',
+
+              key:
+                'party'
+            },
+
+            {
+              label:
+                '>150 Days',
+
+              num:
+                true,
+
+              render:
+                row =>
+                  money(
+                    row.days_150
+                  )
+            },
+
+            {
+              label:
+                'Balance',
+
+              num:
+                true,
+
+              render:
+                row =>
+                  money(
+                    row.balance
+                  )
+            }
+          ]
+        );
+  }
+
+  renderDetails(data);
+
+  renderCompare(
+    currentMetrics
   );
 }
 
 /* =========================================================
-   CHANGE SNAPSHOT
+   COMPARISON SNAPSHOT SELECTOR
 ========================================================= */
 
-async function switchSnapshot() {
+function populateCompareSelector() {
 
-  const uploadId =
-    $('#snapshotSelect')
-      ?.value;
+  const select =
+    $('#compareSnapshotSelect');
 
-  if (
-    !uploadId ||
-    uploadId ===
-      activeUpload?.id
-  ) {
+  if (!select) {
     return;
   }
 
-  activeUpload =
-    uploads.find(
+  const previousValue =
+    select.value;
+
+  const available =
+    uploads.filter(
       upload =>
-        upload.id ===
-        uploadId
+        !activeUpload ||
+        upload.id !==
+          activeUpload.id
     );
 
-  if (!activeUpload) {
+  select.innerHTML = `
+
+    <option value="">
+      Select snapshot
+    </option>
+
+    ${
+      available.map(
+        upload => `
+
+          <option
+            value="${esc(upload.id)}"
+          >
+            ${esc(
+              upload.outstanding_date
+            )}
+          </option>
+        `
+      ).join('')
+    }
+  `;
+
+  if (
+    previousValue &&
+    available.some(
+      upload =>
+        upload.id ===
+        previousValue
+    )
+  ) {
+
+    select.value =
+      previousValue;
+
     return;
   }
+
+  const currentIndex =
+    uploads.findIndex(
+      upload =>
+        upload.id ===
+        activeUpload?.id
+    );
+
+  const previous =
+    currentIndex >= 0
+      ? uploads[
+          currentIndex + 1
+        ]
+      : null;
+
+  if (previous) {
+
+    select.value =
+      previous.id;
+  }
+}
+
+/* =========================================================
+   COMPARISON ROW CACHE
+========================================================= */
+
+async function getComparisonRows(
+  uploadId
+) {
 
   if (
     snapshotCache.has(
@@ -2927,658 +3473,303 @@ async function switchSnapshot() {
     )
   ) {
 
-    rows =
-      snapshotCache.get(
-        uploadId
-      );
+    return snapshotCache.get(
+      uploadId
+    );
+  }
 
-  } else {
-
-    rows =
-      await getAllOutstandingRows(
-        uploadId,
-        'Loading current'
-      );
-
-    snapshotCache.set(
+  const data =
+    await getAllOutstandingRows(
       uploadId,
-      rows
+      'Loading comparison'
     );
-  }
 
-  filterMap.forEach(
-    ([key]) =>
-      filterSelections[key]
-        .clear()
+  snapshotCache.set(
+    uploadId,
+    data
   );
 
-  detailPage = 1;
-
-  makeFilters();
-
-  populateCompareSelector();
-
-  render();
-
-  toast(
-    `${rows.length.toLocaleString(
-      'en-IN'
-    )} rows loaded.`
-  );
+  return data;
 }
 
 /* =========================================================
-   CSV UPLOAD
+   COMPARISON
 ========================================================= */
 
-function csvNumber(value) {
-  return num(value);
-}
+async function renderCompare(
+  currentMetrics
+) {
 
-async function upload(file) {
-
-  if (!file) {
-    return;
-  }
+  const select =
+    $('#compareSnapshotSelect');
 
   if (
-    !/\.csv$/i.test(
-      file.name
-    )
+    !activeUpload ||
+    !select
   ) {
-
-    toast(
-      'Please select a CSV file.'
-    );
-
     return;
   }
 
-  const date =
-    prompt(
-      'Outstanding Date (YYYY-MM-DD):',
-      new Date()
-        .toISOString()
-        .slice(
-          0,
-          10
-        )
-    );
+  const compareId =
+    select.value;
 
-  if (!date) {
-    return;
-  }
+  const requestId =
+    ++comparisonRequestId;
 
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/
-      .test(date)
-  ) {
+  if (!compareId) {
 
-    toast(
-      'Date format must be YYYY-MM-DD.'
-    );
+    if ($('#summaryCompare')) {
 
-    return;
-  }
+      $('#summaryCompare')
+        .innerHTML = `
 
-  toast(
-    'Reading CSV...',
-    true
-  );
-
-  const parsed =
-    await new Promise(
-      (
-        resolve,
-        reject
-      ) => {
-
-        Papa.parse(
-          file,
-          {
-            header: true,
-
-            skipEmptyLines:
-              true,
-
-            complete:
-              resolve,
-
-            error:
-              reject
-          }
-        );
-      }
-    );
-
-  if (
-    parsed.errors?.length
-  ) {
-
-    const seriousError =
-      parsed.errors.find(
-        error =>
-          error.type !==
-          'FieldMismatch'
-      );
-
-    if (seriousError) {
-
-      throw new Error(
-        seriousError.message
-      );
+          <span class="muted">
+            Select a snapshot in Compare With.
+          </span>
+        `;
     }
-  }
 
-  const requiredColumns = [
-
-    'Party',
-    'Balance',
-    '15',
-    '30',
-    '45',
-    '60',
-    '75',
-    '90',
-    '120',
-    '150',
-    'PDC',
-    'SM',
-    'GrpName',
-    'Division',
-    'Area',
-    'Order',
-    'City',
-    'Pincode'
-  ];
-
-  const csvFields =
-    parsed.meta?.fields ||
-    [];
-
-  const missing =
-    requiredColumns.filter(
-      column =>
-        !csvFields.includes(
-          column
-        )
+    draw(
+      '#compareChart',
+      'bar',
+      [],
+      []
     );
 
-  if (missing.length) {
-
-    throw new Error(
-      'Missing CSV columns: ' +
-      missing.join(', ')
-    );
+    return;
   }
 
-  const payload =
-    parsed.data
-      .map(
-        row => ({
-
-          party:
-            String(
-              row.Party ?? ''
-            ).trim(),
-
-          balance:
-            csvNumber(
-              row.Balance
-            ),
-
-          days_15:
-            csvNumber(
-              row['15']
-            ),
-
-          days_30:
-            csvNumber(
-              row['30']
-            ),
-
-          days_45:
-            csvNumber(
-              row['45']
-            ),
-
-          days_60:
-            csvNumber(
-              row['60']
-            ),
-
-          days_75:
-            csvNumber(
-              row['75']
-            ),
-
-          days_90:
-            csvNumber(
-              row['90']
-            ),
-
-          days_120:
-            csvNumber(
-              row['120']
-            ),
-
-          days_150:
-            csvNumber(
-              row['150']
-            ),
-
-          pdc:
-            csvNumber(
-              row.PDC
-            ),
-
-          sm:
-            String(
-              row.SM ?? ''
-            ).trim(),
-
-          grp_name:
-            String(
-              row.GrpName ?? ''
-            ).trim(),
-
-          division:
-            String(
-              row.Division ?? ''
-            ).trim(),
-
-          area:
-            String(
-              row.Area ?? ''
-            ).trim(),
-
-          order_type:
-            String(
-              row.Order ?? ''
-            ).trim(),
-
-          city:
-            String(
-              row.City ?? ''
-            ).trim(),
-
-          pincode:
-            String(
-              row.Pincode ?? ''
-            ).trim()
-        })
-      )
-      .filter(
-        row =>
-          row.party
-      );
-
-  if (!payload.length) {
-
-    throw new Error(
-      'CSV contains no valid rows.'
+  const compareUpload =
+    uploads.find(
+      upload =>
+        upload.id ===
+        compareId
     );
-  }
 
-  let uploadedBy = '';
+  if (!compareUpload) {
+    return;
+  }
 
   try {
 
-    const user =
-      JSON.parse(
-        localStorage.getItem(
-          USER
-        ) || '{}'
+    const compareRows =
+      await getComparisonRows(
+        compareId
       );
-
-    uploadedBy =
-      user.name ||
-      user.full_name ||
-      user.username ||
-      user.email ||
-      '';
-
-  } catch (error) {
-
-    console.warn(
-      'Could not read user details.',
-      error
-    );
-  }
-
-  toast(
-    `Uploading ${payload.length.toLocaleString(
-      'en-IN'
-    )} rows...`,
-    true
-  );
-
-  const result =
-    await rpc(
-      'raj_outstanding_upload_json',
-      {
-
-        p_outstanding_date:
-          date,
-
-        p_file_name:
-          file.name,
-
-        p_uploaded_by:
-          uploadedBy,
-
-        p_rows:
-          payload
-      }
-    );
-
-  snapshotCache.clear();
-
-  let newUploadId =
-    null;
-
-  if (
-    typeof result ===
-    'string'
-  ) {
-
-    newUploadId =
-      result;
-
-  } else if (
-    result &&
-    typeof result ===
-      'object'
-  ) {
-
-    newUploadId =
-      result.upload_id ||
-      result.id ||
-      null;
-  }
-
-  toast(
-    'Upload completed. Reloading...',
-    true
-  );
-
-  await load(
-    newUploadId
-  );
-}
-
-/* =========================================================
-   EVENTS
-========================================================= */
-
-function bindEvents() {
-
-  $('#snapshotSelect')
-    ?.addEventListener(
-      'change',
-      () => {
-
-        switchSnapshot()
-          .catch(
-            showFatal
-          );
-      }
-    );
-
-  $('#compareSnapshotSelect')
-    ?.addEventListener(
-      'change',
-      () => {
-
-        renderCompare(
-          metrics(
-            filtered()
-          )
-        ).catch(
-          showFatal
-        );
-      }
-    );
-
-  $('#resetBtn')
-    ?.addEventListener(
-      'click',
-      () => {
-
-        filterMap.forEach(
-          ([key]) =>
-            filterSelections[key]
-              .clear()
-        );
-
-        detailPage = 1;
-
-        makeFilters();
-
-        render();
-      }
-    );
-
-  $('#detailSearch')
-    ?.addEventListener(
-      'input',
-      () => {
-
-        detailPage = 1;
-
-        renderDetails(
-          filtered()
-        );
-      }
-    );
-
-  $('#prevPage')
-    ?.addEventListener(
-      'click',
-      () => {
-
-        if (
-          detailPage > 1
-        ) {
-
-          detailPage--;
-
-          renderDetails(
-            filtered()
-          );
-        }
-      }
-    );
-
-  $('#nextPage')
-    ?.addEventListener(
-      'click',
-      () => {
-
-        detailPage++;
-
-        renderDetails(
-          filtered()
-        );
-      }
-    );
-
-  $('#refreshBtn')
-    ?.addEventListener(
-      'click',
-      () => {
-
-        load(
-          activeUpload?.id
-        ).catch(
-          showFatal
-        );
-      }
-    );
-
-  $('#logsBtn')
-    ?.addEventListener(
-      'click',
-      () => {
-
-        $('#customerDetails')
-          ?.scrollIntoView({
-            behavior:
-              'smooth',
-
-            block:
-              'start'
-          });
-      }
-    );
-
-  const fileInput =
-    $('#fileInput');
-
-  const openFile =
-    () =>
-      fileInput?.click();
-
-  $('#uploadBtn')
-    ?.addEventListener(
-      'click',
-      openFile
-    );
-
-  $('#uploadBtn2')
-    ?.addEventListener(
-      'click',
-      openFile
-    );
-
-  fileInput
-    ?.addEventListener(
-      'change',
-      async event => {
-
-        const file =
-          event.target
-            .files?.[0];
-
-        event.target.value =
-          '';
-
-        if (!file) {
-          return;
-        }
-
-        try {
-
-          await upload(file);
-
-        } catch (error) {
-
-          showFatal(error);
-        }
-      }
-    );
-
-  $('#logoutBtn')
-    ?.addEventListener(
-      'click',
-      () => {
-
-        localStorage.removeItem(
-          TOKEN
-        );
-
-        localStorage.removeItem(
-          USER
-        );
-
-        location.href =
-          'index.html';
-      }
-    );
-}
-
-/* =========================================================
-   START DASHBOARD
-========================================================= */
-
-async function init() {
-
-  try {
 
     if (
-      typeof supabase ===
-      'undefined'
+      requestId !==
+      comparisonRequestId
     ) {
-
-      throw new Error(
-        'Supabase library not loaded.'
-      );
-    }
-
-    if (
-      typeof RAJ_CONFIG ===
-      'undefined'
-    ) {
-
-      throw new Error(
-        'config.js / RAJ_CONFIG not loaded.'
-      );
-    }
-
-    if (
-      typeof Chart ===
-      'undefined'
-    ) {
-
-      throw new Error(
-        'Chart.js not loaded.'
-      );
-    }
-
-    if (
-      typeof Papa ===
-      'undefined'
-    ) {
-
-      throw new Error(
-        'PapaParse not loaded.'
-      );
-    }
-
-    bindEvents();
-
-    const sessionOK =
-      await guard();
-
-    if (!sessionOK) {
       return;
     }
 
-    await load();
+    /*
+      Same selected filters are applied
+      to current and comparison snapshots.
+    */
+
+    const compareMetrics =
+      metrics(
+        filtered(
+          compareRows
+        )
+      );
+
+    const compareLabels =
+      bucketDefs.map(
+        item => item[0]
+      );
+
+    draw(
+      '#compareChart',
+      'bar',
+      compareLabels,
+      [
+
+        {
+          label:
+            compareUpload
+              .outstanding_date,
+
+          data:
+            bucketDefs.map(
+              item =>
+                compareMetrics.bs[
+                  item[1]
+                ]
+            )
+        },
+
+        {
+          label:
+            activeUpload
+              .outstanding_date,
+
+          data:
+            bucketDefs.map(
+              item =>
+                currentMetrics.bs[
+                  item[1]
+                ]
+            )
+        }
+      ],
+      {
+        legend: true
+      }
+    );
+
+    const comparisonTable = [
+
+      {
+        metric:
+          'Total Outstanding',
+
+        previous:
+          compareMetrics.total,
+
+        current:
+          currentMetrics.total
+      },
+
+      {
+        metric:
+          'Total Customers',
+
+        previous:
+          compareMetrics.customers,
+
+        current:
+          currentMetrics.customers,
+
+        count:
+          true
+      },
+
+      {
+        metric:
+          'PDC Amount',
+
+        previous:
+          compareMetrics.pdc,
+
+        current:
+          currentMetrics.pdc
+      },
+
+      {
+        metric:
+          'Over 90 Days',
+
+        previous:
+          compareMetrics.over90,
+
+        current:
+          currentMetrics.over90
+      },
+
+      {
+        metric:
+          'Over 150 Days',
+
+        previous:
+          compareMetrics.over150,
+
+        current:
+          currentMetrics.over150
+      }
+    ];
+
+    if ($('#summaryCompare')) {
+
+      $('#summaryCompare')
+        .innerHTML =
+          simpleTable(
+            comparisonTable,
+            [
+
+              {
+                label:
+                  'Metric',
+
+                key:
+                  'metric'
+              },
+
+              {
+                label:
+                  compareUpload
+                    .outstanding_date,
+
+                num:
+                  true,
+
+                render:
+                  row =>
+                    row.count
+
+                      ? Number(
+                          row.previous
+                        ).toLocaleString(
+                          'en-IN'
+                        )
+
+                      : money(
+                          row.previous
+                        )
+              },
+
+              {
+                label:
+                  activeUpload
+                    .outstanding_date,
+
+                num:
+                  true,
+
+                render:
+                  row =>
+                    row.count
+
+                      ? Number(
+                          row.current
+                        ).toLocaleString(
+                          'en-IN'
+                        )
+
+                      : money(
+                          row.current
+                        )
+              }
+            ]
+          );
+    }
 
   } catch (error) {
 
-    showFatal(error);
+    console.error(
+      'Comparison error:',
+      error
+    );
+
+    if (
+      requestId !==
+      comparisonRequestId
+    ) {
+      return;
+    }
+
+    if ($('#summaryCompare')) {
+
+      $('#summaryCompare')
+        .innerHTML = `
+
+          <span class="muted">
+            Comparison unavailable:
+            ${esc(error.message)}
+          </span>
+        `;
+    }
   }
 }
-
-/* =========================================================
-   RUN
-========================================================= */
-
-if (
-  document.readyState ===
-  'loading'
-) {
-
-  document.addEventListener(
-    'DOMContentLoaded',
-    init
-  );
-
-} else {
-
-  init();
-}
-
-})();
