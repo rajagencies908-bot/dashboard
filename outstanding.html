@@ -1,11 +1,493 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Outstanding Dashboard</title><link rel="stylesheet" href="outstanding.css"></head><body>
-<div class="od-shell"><aside><div class="od-brand">RAJ <small>Sales & Distribution</small></div><a href="index.html">← Sales Dashboard</a><a class="active" href="outstanding.html">Outstanding Dashboard</a><div class="spacer"></div><button id="logoutBtn">Logout</button></aside><main>
-<header><div><h1>Outstanding Dashboard</h1><p>Customer outstanding, ageing analysis, comparison and collection tracking</p></div><div class="head-actions"><select id="snapshotSelect"></select><button id="uploadBtn">Upload Outstanding</button><input id="fileInput" type="file" accept=".csv" hidden></div></header>
-<section class="kpis" id="kpis"></section>
-<section class="card"><div class="card-title"><b>Filters</b><button class="link" id="resetBtn">Reset Filters</button></div><div class="filters" id="filters"></div></section>
-<section class="two"><div class="card"><div class="card-title"><b>Ageing Analysis</b><span>Amount (₹)</span></div><div class="chartbox"><canvas id="ageChart"></canvas></div></div><div class="card"><div class="card-title"><b>Outstanding Breakup</b><span>By amount</span></div><div class="chartbox"><canvas id="donutChart"></canvas></div></div></section>
-<section class="three"><div class="card"><div class="card-title"><b>Amount Range Wise Customer Count</b></div><div class="chartbox small"><canvas id="rangeChart"></canvas></div></div><div class="card"><div class="card-title"><b>Top 5 Customers by Outstanding</b></div><div id="topCustomers"></div></div><div class="card"><div class="card-title"><b>Top 5 Overdue Customers (&gt;150 Days)</b></div><div id="overdueCustomers"></div></div></section>
-<section class="two"><div class="card"><div class="card-title"><b>Outstanding Comparison</b></div><div class="chartbox"><canvas id="compareChart"></canvas></div></div><div class="card"><div class="card-title"><b>Summary Comparison</b></div><div id="summaryCompare"></div></div></section>
-<section class="two bottom"><div class="card"><div class="card-title"><b>Snapshot History</b><button class="link" id="refreshBtn">Refresh</button></div><div id="history"></div></div><div class="card"><div class="card-title"><b>Quick Actions</b></div><div class="actions"><button id="uploadBtn2">Upload New File</button><button id="downloadBtn">Download Report</button><button id="logsBtn">View Data Log</button></div></div></section>
-</main></div><div id="toast"></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script><script src="config.js"></script><script src="outstanding.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Outstanding Dashboard</title>
+
+    <link
+        rel="stylesheet"
+        href="outstanding.css"
+    >
+</head>
+
+
+<body>
+
+<div class="od-shell">
+
+    <!-- ================================
+         SIDEBAR
+    ================================= -->
+
+    <aside>
+
+        <div class="od-brand">
+            RAJ
+
+            <small>
+                Sales & Distribution
+            </small>
+        </div>
+
+
+        <a href="index.html">
+            ← Sales Dashboard
+        </a>
+
+
+        <a
+            class="active"
+            href="outstanding.html"
+        >
+            Outstanding Dashboard
+        </a>
+
+
+        <div class="spacer"></div>
+
+
+        <button id="logoutBtn">
+            Logout
+        </button>
+
+    </aside>
+
+
+
+    <!-- ================================
+         MAIN DASHBOARD
+    ================================= -->
+
+    <main>
+
+
+        <!-- HEADER -->
+
+        <header>
+
+            <div>
+
+                <h1>
+                    Outstanding Dashboard
+                </h1>
+
+                <p>
+                    Customer outstanding,
+                    ageing analysis,
+                    comparison and
+                    collection tracking
+                </p>
+
+            </div>
+
+
+            <div class="head-actions">
+
+                <!-- Outstanding Snapshot -->
+
+                <select
+                    id="snapshotSelect"
+                    title="Outstanding Date"
+                >
+                </select>
+
+
+                <!-- ADMIN UPLOAD BUTTON -->
+
+                <button
+                    id="uploadBtn"
+                    class="admin-upload"
+                >
+                    Upload Outstanding
+                </button>
+
+
+                <!-- CSV FILE -->
+
+                <input
+                    id="fileInput"
+                    type="file"
+                    accept=".csv,text/csv"
+                    hidden
+                >
+
+            </div>
+
+        </header>
+
+
+
+        <!-- ================================
+             KPI CARDS
+        ================================= -->
+
+        <section
+            class="kpis"
+            id="kpis"
+        >
+        </section>
+
+
+
+        <!-- ================================
+             FILTERS
+        ================================= -->
+
+        <section class="card">
+
+            <div class="card-title">
+
+                <b>
+                    Filters
+                </b>
+
+
+                <button
+                    class="link"
+                    id="resetBtn"
+                >
+                    Reset Filters
+                </button>
+
+            </div>
+
+
+            <div
+                class="filters"
+                id="filters"
+            >
+            </div>
+
+        </section>
+
+
+
+        <!-- ================================
+             AGEING + BREAKUP
+        ================================= -->
+
+        <section class="two">
+
+
+            <!-- AGEING -->
+
+            <div class="card">
+
+                <div class="card-title">
+
+                    <b>
+                        Ageing Analysis
+                    </b>
+
+                    <span>
+                        Amount (₹)
+                    </span>
+
+                </div>
+
+
+                <div class="chartbox">
+
+                    <canvas
+                        id="ageChart"
+                    ></canvas>
+
+                </div>
+
+            </div>
+
+
+
+            <!-- BREAKUP -->
+
+            <div class="card">
+
+                <div class="card-title">
+
+                    <b>
+                        Outstanding Breakup
+                    </b>
+
+                    <span>
+                        By Amount
+                    </span>
+
+                </div>
+
+
+                <div class="chartbox">
+
+                    <canvas
+                        id="donutChart"
+                    ></canvas>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- ================================
+             CUSTOMER ANALYSIS
+        ================================= -->
+
+        <section class="three">
+
+
+            <!-- AMOUNT RANGE -->
+
+            <div class="card">
+
+                <div class="card-title">
+
+                    <b>
+                        Amount Range Wise
+                        Customer Count
+                    </b>
+
+                </div>
+
+
+                <div class="chartbox small">
+
+                    <canvas
+                        id="rangeChart"
+                    ></canvas>
+
+                </div>
+
+            </div>
+
+
+
+            <!-- TOP CUSTOMERS -->
+
+            <div class="card">
+
+                <div class="card-title">
+
+                    <b>
+                        Top 5 Customers
+                        by Outstanding
+                    </b>
+
+                </div>
+
+
+                <div id="topCustomers">
+                </div>
+
+            </div>
+
+
+
+            <!-- OVER 150 -->
+
+            <div class="card">
+
+                <div class="card-title">
+
+                    <b>
+                        Top 5 Overdue Customers
+                        (&gt;150 Days)
+                    </b>
+
+                </div>
+
+
+                <div id="overdueCustomers">
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- ================================
+             COMPARISON
+        ================================= -->
+
+        <section class="two">
+
+
+            <!-- CHART -->
+
+            <div class="card">
+
+                <div class="card-title">
+
+                    <b>
+                        Outstanding Comparison
+                    </b>
+
+                </div>
+
+
+                <div class="chartbox">
+
+                    <canvas
+                        id="compareChart"
+                    ></canvas>
+
+                </div>
+
+            </div>
+
+
+
+            <!-- SUMMARY -->
+
+            <div class="card">
+
+                <div class="card-title">
+
+                    <b>
+                        Summary Comparison
+                    </b>
+
+                </div>
+
+
+                <div id="summaryCompare">
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- ================================
+             HISTORY + QUICK ACTIONS
+        ================================= -->
+
+        <section class="two bottom">
+
+
+            <!-- HISTORY -->
+
+            <div class="card">
+
+                <div class="card-title">
+
+                    <b>
+                        Snapshot History
+                    </b>
+
+
+                    <button
+                        class="link"
+                        id="refreshBtn"
+                    >
+                        Refresh
+                    </button>
+
+                </div>
+
+
+                <div id="history">
+                </div>
+
+            </div>
+
+
+
+            <!-- QUICK ACTIONS -->
+
+            <div class="card">
+
+                <div class="card-title">
+
+                    <b>
+                        Quick Actions
+                    </b>
+
+                </div>
+
+
+                <div class="actions">
+
+
+                    <!-- ADMIN ONLY -->
+
+                    <button
+                        id="uploadBtn2"
+                        class="admin-upload"
+                    >
+                        Upload New File
+                    </button>
+
+
+                    <!-- NO DOWNLOAD BUTTON -->
+
+
+                    <button id="logsBtn">
+                        View Data Log
+                    </button>
+
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+    </main>
+
+</div>
+
+
+
+<!-- ================================
+     TOAST MESSAGE
+================================= -->
+
+<div id="toast">
+</div>
+
+
+
+<!-- ================================
+     JAVASCRIPT LIBRARIES
+================================= -->
+
+<script
+    src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+></script>
+
+
+<script
+    src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"
+></script>
+
+
+<script
+    src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"
+></script>
+
+
+
+<!-- PROJECT CONFIG -->
+
+<script src="config.js"></script>
+
+
+<!-- OUTSTANDING LOGIC -->
+
+<script src="outstanding.js"></script>
+
+
+</body>
+
+</html>
