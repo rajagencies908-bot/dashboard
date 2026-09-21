@@ -25,9 +25,9 @@ const num = v => {
 };
 
 
-/* ===============================
+/* =========================================
    TOAST
-================================ */
+========================================= */
 
 function toast(message) {
     const e = $('#toast');
@@ -43,9 +43,9 @@ function toast(message) {
 }
 
 
-/* ===============================
+/* =========================================
    AUTH / RPC
-================================ */
+========================================= */
 
 function authArgs(extra = {}) {
     return {
@@ -57,7 +57,6 @@ function authArgs(extra = {}) {
 
 
 async function rpc(name, args = {}) {
-
     const { data, error } = await sb.rpc(
         name,
         authArgs(args)
@@ -70,19 +69,16 @@ async function rpc(name, args = {}) {
 
 
 async function guard() {
-
     if (!localStorage.getItem(TOKEN)) {
         location.href = 'index.html';
         return false;
     }
 
     try {
-
-        const { data, error } =
-            await sb.rpc(
-                'raj_app_validate_session',
-                authArgs()
-            );
+        const { data, error } = await sb.rpc(
+            'raj_app_validate_session',
+            authArgs()
+        );
 
         if (
             error ||
@@ -96,16 +92,15 @@ async function guard() {
         return true;
 
     } catch (e) {
-
         location.href = 'index.html';
         return false;
     }
 }
 
 
-/* ===============================
+/* =========================================
    AGEING BUCKETS
-================================ */
+========================================= */
 
 const bucketDefs = [
     ['0-15', 'days_15'],
@@ -122,9 +117,7 @@ const bucketDefs = [
 
 
 function bucket(r) {
-
     return {
-
         days_15:
             num(r.days_15),
 
@@ -191,39 +184,26 @@ function bucket(r) {
 }
 
 
-/* ===============================
+/* =========================================
    FILTERS
-================================ */
+========================================= */
 
 const filterMap = [
-
     ['party', 'Customer / Party'],
-
     ['sm', 'SM'],
-
     ['division', 'Division'],
-
     ['area', 'Area'],
-
     ['order_type', 'OD / Order'],
-
     ['city', 'City'],
-
     ['pincode', 'Pincode']
 ];
 
 
 function filtered() {
-
     return rows.filter(r =>
-
         filterMap.every(([key]) => {
-
-            const el =
-                $(`#f_${key}`);
-
-            const value =
-                el?.value;
+            const el = $(`#f_${key}`);
+            const value = el?.value;
 
             return (
                 !value ||
@@ -235,7 +215,6 @@ function filtered() {
 
 
 function esc(s) {
-
     return String(s).replace(
         /[&<>"']/g,
         c => ({
@@ -250,7 +229,6 @@ function esc(s) {
 
 
 function makeFilters() {
-
     const box = $('#filters');
 
     if (!box) return;
@@ -258,7 +236,6 @@ function makeFilters() {
     box.innerHTML = '';
 
     filterMap.forEach(([key, label]) => {
-
         const values = [
             ...new Set(
                 rows
@@ -273,13 +250,9 @@ function makeFilters() {
             'beforeend',
             `
             <div class="field">
-
-                <label>
-                    ${label}
-                </label>
+                <label>${label}</label>
 
                 <select id="f_${key}">
-
                     <option value="">
                         All ${label}
                     </option>
@@ -289,31 +262,25 @@ function makeFilters() {
                             `<option value="${esc(v)}">${esc(v)}</option>`
                         )
                         .join('')}
-
                 </select>
-
             </div>
             `
         );
     });
 
-
     box
         .querySelectorAll('select')
         .forEach(select => {
-
             select.onchange = render;
-
         });
 }
 
 
-/* ===============================
+/* =========================================
    CALCULATIONS
-================================ */
+========================================= */
 
 function sum(data, key) {
-
     return data.reduce(
         (total, row) =>
             total + num(row[key]),
@@ -323,28 +290,20 @@ function sum(data, key) {
 
 
 function metrics(data) {
-
-    const bs =
-        Object.fromEntries(
-
-            bucketDefs.map(
-                ([label, key]) => [
-
-                    key,
-
-                    data.reduce(
-                        (total, row) =>
-                            total +
-                            bucket(row)[key],
-                        0
-                    )
-                ]
-            )
-        );
-
+    const bs = Object.fromEntries(
+        bucketDefs.map(
+            ([label, key]) => [
+                key,
+                data.reduce(
+                    (total, row) =>
+                        total + bucket(row)[key],
+                    0
+                )
+            ]
+        )
+    );
 
     return {
-
         total:
             sum(data, 'balance'),
 
@@ -371,9 +330,9 @@ function metrics(data) {
 }
 
 
-/* ===============================
+/* =========================================
    CHART
-================================ */
+========================================= */
 
 function draw(
     id,
@@ -382,189 +341,145 @@ function draw(
     data,
     opts = {}
 ) {
-
     if (charts[id]) {
         charts[id].destroy();
     }
-
 
     const canvas = $(id);
 
     if (!canvas) return;
 
+    charts[id] = new Chart(
+        canvas,
+        {
+            type,
 
-    charts[id] =
-        new Chart(
-            canvas,
-            {
+            data: {
+                labels,
+                datasets: data
+            },
 
-                type,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
 
-                data: {
-                    labels,
-                    datasets: data
+                plugins: {
+                    legend: {
+                        display:
+                            type === 'doughnut' ||
+                            opts.legend
+                    }
                 },
 
-                options: {
+                scales:
+                    type === 'doughnut'
+                        ? {}
+                        : {
+                            y: {
+                                beginAtZero: true,
+                                grid: {
+                                    color: '#eef1f7'
+                                }
+                            },
 
-                    responsive: true,
-
-                    maintainAspectRatio: false,
-
-                    plugins: {
-
-                        legend: {
-                            display:
-                                type === 'doughnut' ||
-                                opts.legend
-                        }
-                    },
-
-                    scales:
-                        type === 'doughnut'
-                            ? {}
-                            : {
-
-                                y: {
-                                    beginAtZero: true,
-
-                                    grid: {
-                                        color: '#eef1f7'
-                                    }
-                                },
-
-                                x: {
-                                    grid: {
-                                        display: false
-                                    }
+                            x: {
+                                grid: {
+                                    display: false
                                 }
                             }
-                }
+                        }
             }
-        );
+        }
+    );
 }
 
 
-/* ===============================
-   TABLE GENERATOR
-================================ */
+/* =========================================
+   TABLE
+========================================= */
 
 function table(items, cols) {
-
     return `
-
-    <table>
-
-        <thead>
-
-            <tr>
-
-                ${cols
-                    .map(c =>
-                        `<th class="${c.num ? 'num' : ''}">
-                            ${c.l}
-                        </th>`
-                    )
-                    .join('')}
-
-            </tr>
-
-        </thead>
-
-
-        <tbody>
-
-            ${
-                items.length
-
-                ? items
-                    .map(
-                        (r, i) => `
-
-                        <tr>
-
-                            ${cols
-                                .map(c => `
-
-                                <td class="${c.num ? 'num' : ''}">
-
-                                    ${
-                                        c.f
-                                            ? c.f(r, i)
-                                            : esc(r[c.k] ?? '')
-                                    }
-
-                                </td>
-
-                                `)
-                                .join('')}
-
-                        </tr>
-
-                    `
-                    )
-                    .join('')
-
-                : `
-
+        <table>
+            <thead>
                 <tr>
-
-                    <td
-                        colspan="${cols.length}"
-                        class="muted"
-                    >
-                        No data
-                    </td>
-
+                    ${cols
+                        .map(c =>
+                            `<th class="${c.num ? 'num' : ''}">
+                                ${c.l}
+                            </th>`
+                        )
+                        .join('')}
                 </tr>
+            </thead>
 
-                `
-            }
+            <tbody>
+                ${
+                    items.length
+                        ? items
+                            .map(
+                                (r, i) => `
+                                    <tr>
+                                        ${cols
+                                            .map(c => `
+                                                <td class="${c.num ? 'num' : ''}">
+                                                    ${
+                                                        c.f
+                                                            ? c.f(r, i)
+                                                            : esc(r[c.k] ?? '')
+                                                    }
+                                                </td>
+                                            `)
+                                            .join('')}
+                                    </tr>
+                                `
+                            )
+                            .join('')
 
-        </tbody>
-
-    </table>
+                        : `
+                            <tr>
+                                <td
+                                    colspan="${cols.length}"
+                                    class="muted"
+                                >
+                                    No data
+                                </td>
+                            </tr>
+                        `
+                }
+            </tbody>
+        </table>
     `;
 }
 
 
-/* ===============================
-   MAIN DASHBOARD
-================================ */
+/* =========================================
+   RENDER DASHBOARD
+========================================= */
 
 function render() {
-
-    const data =
-        filtered();
-
-    const m =
-        metrics(data);
-
+    const data = filtered();
+    const m = metrics(data);
 
     /* KPI */
 
     $('#kpis').innerHTML = [
-
         [
             'Total Outstanding',
             money(m.total)
         ],
-
         [
             'Total Customers',
             m.customers.toLocaleString('en-IN')
         ],
-
         [
             'PDC Amount',
             money(m.pdc)
         ],
-
         [
             'Over 90 Days',
             money(m.over90)
         ],
-
         [
             'Over 150 Days',
             money(m.over150)
@@ -572,23 +487,17 @@ function render() {
 
     ].map(
         ([label, value]) => `
+            <article class="kpi">
+                <span>${label}</span>
 
-        <article class="kpi">
+                <strong>
+                    ${value}
+                </strong>
 
-            <span>
-                ${label}
-            </span>
-
-            <strong>
-                ${value}
-            </strong>
-
-            <small>
-                Current snapshot
-            </small>
-
-        </article>
-
+                <small>
+                    Current snapshot
+                </small>
+            </article>
         `
     ).join('');
 
@@ -602,7 +511,6 @@ function render() {
         bucketDefs.map(
             x => m.bs[x[1]]
         );
-
 
     draw(
         '#ageChart',
@@ -639,40 +547,13 @@ function render() {
     /* AMOUNT RANGE */
 
     const ranges = [
-
         ['< 1,000', 0, 1000],
-
-        [
-            '1,000-5,000',
-            1000,
-            5000
-        ],
-
-        [
-            '5,000-10,000',
-            5000,
-            10000
-        ],
-
-        [
-            '10,000-50,000',
-            10000,
-            50000
-        ],
-
-        [
-            '50,000-1,00,000',
-            50000,
-            100000
-        ],
-
-        [
-            '>1,00,000',
-            100000,
-            Infinity
-        ]
+        ['1,000-5,000', 1000, 5000],
+        ['5,000-10,000', 5000, 10000],
+        ['10,000-50,000', 10000, 50000],
+        ['50,000-1,00,000', 50000, 100000],
+        ['>1,00,000', 100000, Infinity]
     ];
-
 
     draw(
         '#rangeChart',
@@ -680,23 +561,15 @@ function render() {
         ranges.map(x => x[0]),
         [
             {
-
                 label: 'Customers',
 
                 data:
                     ranges.map(
                         range =>
-
                             data.filter(
                                 row =>
-
-                                    num(row.balance) >=
-                                    range[1]
-
-                                    &&
-
-                                    num(row.balance) <
-                                    range[2]
+                                    num(row.balance) >= range[1] &&
+                                    num(row.balance) < range[2]
                             ).length
                     ),
 
@@ -708,9 +581,7 @@ function render() {
 
     /* TOP CUSTOMERS */
 
-    const top = [
-        ...data
-    ]
+    const top = [...data]
         .sort(
             (a, b) =>
                 num(b.balance) -
@@ -718,16 +589,13 @@ function render() {
         )
         .slice(0, 5);
 
-
     $('#topCustomers').innerHTML =
         table(
             top,
             [
-
                 {
                     l: '#',
-                    f: (r, i) =>
-                        i + 1
+                    f: (r, i) => i + 1
                 },
 
                 {
@@ -738,8 +606,7 @@ function render() {
                 {
                     l: 'Balance',
                     num: 1,
-                    f: r =>
-                        money(r.balance)
+                    f: r => money(r.balance)
                 }
             ]
         );
@@ -747,9 +614,7 @@ function render() {
 
     /* OVER 150 */
 
-    const overdue = [
-        ...data
-    ]
+    const overdue = [...data]
         .map(
             row => ({
                 ...row,
@@ -764,16 +629,13 @@ function render() {
         )
         .slice(0, 5);
 
-
     $('#overdueCustomers').innerHTML =
         table(
             overdue,
             [
-
                 {
                     l: '#',
-                    f: (r, i) =>
-                        i + 1
+                    f: (r, i) => i + 1
                 },
 
                 {
@@ -797,17 +659,15 @@ function render() {
             ]
         );
 
-
     renderCompare(m);
 }
 
 
-/* ===============================
+/* =========================================
    COMPARISON
-================================ */
+========================================= */
 
 async function renderCompare(current) {
-
     const previous =
         uploads.find(
             u =>
@@ -815,9 +675,7 @@ async function renderCompare(current) {
                 activeUpload?.id
         );
 
-
     if (!previous) {
-
         $('#summaryCompare').innerHTML =
             '<span class="muted">Upload another snapshot to compare.</span>';
 
@@ -831,9 +689,7 @@ async function renderCompare(current) {
         return;
     }
 
-
     try {
-
         const previousRows =
             await rpc(
                 'raj_outstanding_get_rows',
@@ -843,25 +699,21 @@ async function renderCompare(current) {
                 }
             );
 
-
         const previousMetrics =
             metrics(
                 previousRows || []
             );
-
 
         const labels =
             bucketDefs.map(
                 x => x[0]
             );
 
-
         draw(
             '#compareChart',
             'bar',
             labels,
             [
-
                 {
                     label:
                         previous.outstanding_date,
@@ -885,40 +737,33 @@ async function renderCompare(current) {
                                 current.bs[x[1]]
                         )
                 }
-
             ],
             {
                 legend: true
             }
         );
 
-
         const comparisonRows = [
-
             [
                 'Total Outstanding',
                 previousMetrics.total,
                 current.total
             ],
-
             [
                 'Total Customers',
                 previousMetrics.customers,
                 current.customers
             ],
-
             [
                 'PDC Amount',
                 previousMetrics.pdc,
                 current.pdc
             ],
-
             [
                 'Over 90 Days',
                 previousMetrics.over90,
                 current.over90
             ],
-
             [
                 'Over 150 Days',
                 previousMetrics.over150,
@@ -926,12 +771,10 @@ async function renderCompare(current) {
             ]
         ];
 
-
         $('#summaryCompare').innerHTML =
             table(
                 comparisonRows,
                 [
-
                     {
                         l: 'Metric',
                         f: r => r[0]
@@ -945,8 +788,7 @@ async function renderCompare(current) {
                         num: 1,
 
                         f: r =>
-                            r[0] ===
-                            'Total Customers'
+                            r[0] === 'Total Customers'
                                 ? r[1]
                                 : money(r[1])
                     },
@@ -959,18 +801,14 @@ async function renderCompare(current) {
                         num: 1,
 
                         f: r =>
-                            r[0] ===
-                            'Total Customers'
+                            r[0] === 'Total Customers'
                                 ? r[2]
                                 : money(r[2])
                     }
-
                 ]
             );
 
-
     } catch (e) {
-
         console.error(e);
 
         $('#summaryCompare').innerHTML =
@@ -979,17 +817,15 @@ async function renderCompare(current) {
 }
 
 
-/* ===============================
+/* =========================================
    LOAD DATA
-================================ */
+========================================= */
 
 async function load() {
-
     uploads =
         await rpc(
             'raj_outstanding_list_uploads'
         ) || [];
-
 
     $('#snapshotSelect').innerHTML =
         uploads
@@ -1001,28 +837,21 @@ async function load() {
             )
             .join('');
 
-
     activeUpload =
         uploads[0] || null;
 
-
     if (!activeUpload) {
-
         rows = [];
 
         makeFilters();
-
         render();
-
         history();
 
         return;
     }
 
-
     $('#snapshotSelect').value =
         activeUpload.id;
-
 
     rows =
         await rpc(
@@ -1033,26 +862,21 @@ async function load() {
             }
         ) || [];
 
-
     makeFilters();
-
     render();
-
     history();
 }
 
 
-/* ===============================
-   HISTORY
-================================ */
+/* =========================================
+   SNAPSHOT HISTORY
+========================================= */
 
 function history() {
-
     $('#history').innerHTML =
         table(
             uploads.slice(0, 10),
             [
-
                 {
                     l: 'Date',
                     k: 'outstanding_date'
@@ -1089,18 +913,16 @@ function history() {
                             r.total_outstanding
                         )
                 }
-
             ]
         );
 }
 
 
-/* ===============================
+/* =========================================
    CHANGE SNAPSHOT
-================================ */
+========================================= */
 
 async function switchSnapshot() {
-
     activeUpload =
         uploads.find(
             x =>
@@ -1108,9 +930,7 @@ async function switchSnapshot() {
                 $('#snapshotSelect').value
         );
 
-
     if (!activeUpload) return;
-
 
     rows =
         await rpc(
@@ -1121,21 +941,17 @@ async function switchSnapshot() {
             }
         ) || [];
 
-
     makeFilters();
-
     render();
 }
 
 
-/* ===============================
+/* =========================================
    CSV UPLOAD
-================================ */
+========================================= */
 
 async function upload(file) {
-
     if (!file) return;
-
 
     const date =
         prompt(
@@ -1145,33 +961,25 @@ async function upload(file) {
                 .slice(0, 10)
         );
 
-
     if (!date) return;
-
 
     toast(
         'Reading file…'
     );
 
-
     Papa.parse(
         file,
         {
-
             header: true,
-
             skipEmptyLines: true,
-
 
             complete:
                 async result => {
 
                     try {
-
                         const mapped =
                             result.data.map(
                                 r => ({
-
                                     party:
                                         r.Party || '',
 
@@ -1230,7 +1038,6 @@ async function upload(file) {
                                 })
                             );
 
-
                         const user =
                             JSON.parse(
                                 localStorage.getItem(
@@ -1238,11 +1045,9 @@ async function upload(file) {
                                 ) || '{}'
                             );
 
-
                         await rpc(
                             'raj_outstanding_upload_json',
                             {
-
                                 p_outstanding_date:
                                     date,
 
@@ -1260,23 +1065,27 @@ async function upload(file) {
                             }
                         );
 
-
                         toast(
                             'Outstanding uploaded successfully'
                         );
 
+                        /*
+                         * Same CSV ફરી select કરી શકાય
+                         * એ માટે input reset કરીએ.
+                         */
+                        $('#fileInput').value = '';
 
                         await load();
 
-
                     } catch (e) {
-
                         console.error(e);
 
                         toast(
                             'Upload failed: ' +
                             e.message
                         );
+
+                        $('#fileInput').value = '';
                     }
                 }
         }
@@ -1284,58 +1093,9 @@ async function upload(file) {
 }
 
 
-/* ===============================
-   DOWNLOAD CSV
-================================ */
-
-function download() {
-
-    const data =
-        filtered();
-
-
-    const csv =
-        Papa.unparse(data);
-
-
-    const blob =
-        new Blob(
-            [csv],
-            {
-                type: 'text/csv'
-            }
-        );
-
-
-    const url =
-        URL.createObjectURL(blob);
-
-
-    const link =
-        document.createElement('a');
-
-
-    link.href =
-        url;
-
-
-    link.download =
-        `outstanding-${
-            activeUpload?.outstanding_date ||
-            'report'
-        }.csv`;
-
-
-    link.click();
-
-
-    URL.revokeObjectURL(url);
-}
-
-
-/* ===============================
+/* =========================================
    START PAGE
-================================ */
+========================================= */
 
 (async () => {
 
@@ -1344,15 +1104,31 @@ function download() {
     }
 
 
-    $('#uploadBtn').onclick =
-        () =>
-            $('#fileInput').click();
+    /* TOP UPLOAD */
+
+    const uploadBtn =
+        $('#uploadBtn');
+
+    if (uploadBtn) {
+        uploadBtn.onclick =
+            () =>
+                $('#fileInput').click();
+    }
 
 
-    $('#uploadBtn2').onclick =
-        () =>
-            $('#fileInput').click();
+    /* QUICK ACTION UPLOAD */
 
+    const uploadBtn2 =
+        $('#uploadBtn2');
+
+    if (uploadBtn2) {
+        uploadBtn2.onclick =
+            () =>
+                $('#fileInput').click();
+    }
+
+
+    /* FILE SELECT */
 
     $('#fileInput').onchange =
         e =>
@@ -1361,9 +1137,13 @@ function download() {
             );
 
 
+    /* SNAPSHOT */
+
     $('#snapshotSelect').onchange =
         switchSnapshot;
 
+
+    /* RESET FILTER */
 
     $('#resetBtn').onclick =
         () => {
@@ -1379,13 +1159,13 @@ function download() {
         };
 
 
+    /* REFRESH */
+
     $('#refreshBtn').onclick =
         load;
 
 
-    $('#downloadBtn').onclick =
-        download;
-
+    /* VIEW DATA LOG */
 
     $('#logsBtn').onclick =
         () =>
@@ -1395,6 +1175,8 @@ function download() {
                     behavior: 'smooth'
                 });
 
+
+    /* LOGOUT */
 
     $('#logoutBtn').onclick =
         () => {
@@ -1413,7 +1195,6 @@ function download() {
 
 
     await load();
-
 
 })().catch(
     e => {
