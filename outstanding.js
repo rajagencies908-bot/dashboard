@@ -1,12 +1,18 @@
+/* =========================================================
+   OUTSTANDING DASHBOARD
+   FINAL VERSION
+   Part 1 of 3
+========================================================= */
+
 const { createClient } = supabase;
 
 const sb = createClient(
-    RAJ_CONFIG.supabaseUrl,
-    RAJ_CONFIG.supabasePublishableKey
+  RAJ_CONFIG.supabaseUrl,
+  RAJ_CONFIG.supabasePublishableKey
 );
 
 /* =========================================================
-   CONFIG
+   SETTINGS
 ========================================================= */
 
 const TOKEN = 'raj_dashboard_session_token';
@@ -16,235 +22,298 @@ const USER = 'raj_dashboard_user';
 const RPC_PAGE_SIZE = 1000;
 const DETAIL_PAGE_SIZE = 50;
 
+/* =========================================================
+   STATE
+========================================================= */
+
 let rows = [];
 let uploads = [];
 let activeUpload = null;
+
 let charts = {};
 
 let detailPage = 1;
 
 let detailSort = {
-    key: 'party',
-    dir: 'asc'
+  key: 'party',
+  dir: 'asc'
 };
 
 let historySort = {
-    key: 'outstanding_date',
-    dir: 'desc'
+  key: 'outstanding_date',
+  dir: 'desc'
 };
 
+/*
+  Multiple selected values for every filter.
+*/
+let filterSelections = {};
+
+/*
+  Cache comparison snapshots so the same snapshot
+  does not need to download again on every filter click.
+*/
+const snapshotCache = new Map();
+
+/*
+  Used to stop an old comparison request from
+  overwriting a newer comparison.
+*/
+let comparisonRequestId = 0;
 
 /* =========================================================
-   BASIC HELPERS
+   DOM / BASIC HELPERS
 ========================================================= */
 
-const $ = selector =>
-    document.querySelector(selector);
-
+const $ = selector => document.querySelector(selector);
 
 function num(value) {
-    if (
-        value === null ||
-        value === undefined ||
-        value === ''
-    ) {
-        return 0;
-    }
+  if (
+    value === null ||
+    value === undefined ||
+    value === ''
+  ) {
+    return 0;
+  }
 
-    const n = Number(
-        String(value)
-            .replace(/,/g, '')
-            .trim()
-    );
+  const parsed = Number(
+    String(value)
+      .replace(/,/g, '')
+      .trim()
+  );
 
-    return Number.isFinite(n) ? n : 0;
+  return Number.isFinite(parsed)
+    ? parsed
+    : 0;
 }
-
 
 function money(value) {
-    return '₹ ' +
-        Math.round(num(value))
-            .toLocaleString('en-IN');
+  return '₹ ' +
+    Math.round(num(value))
+      .toLocaleString('en-IN');
 }
-
 
 function esc(value) {
-    return String(value ?? '')
-        .replace(
-            /[&<>"']/g,
-            char => ({
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '"': '&quot;',
-                "'": '&#39;'
-            }[char])
-        );
+  return String(value ?? '')
+    .replace(
+      /[&<>"']/g,
+      character => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[character])
+    );
 }
 
+/* =========================================================
+   STATUS / TOAST
 
-function toast(message) {
-    const element = $('#toast');
+   This is intentionally used throughout loading.
+   If anything fails, the page itself will show the error.
+========================================================= */
 
-    if (!element) return;
+function toast(message, stay = false) {
+  const element = $('#toast');
 
-    element.textContent = message;
-    element.style.display = 'block';
+  console.log('[Outstanding]', message);
 
-    clearTimeout(toast.timer);
+  if (!element) {
+    return;
+  }
 
+  element.textContent = message;
+  element.style.display = 'block';
+
+  clearTimeout(toast.timer);
+
+  if (!stay) {
     toast.timer = setTimeout(() => {
-        element.style.display = 'none';
-    }, 3500);
+      element.style.display = 'none';
+    }, 4000);
+  }
 }
 
+function showFatal(error) {
+  console.error(
+    '[Outstanding Dashboard Error]',
+    error
+  );
+
+  const message =
+    error?.message ||
+    String(error) ||
+    'Unknown dashboard error';
+
+  toast(
+    'Dashboard error: ' + message,
+    true
+  );
+}
 
 /* =========================================================
    AUTH / RPC
 ========================================================= */
 
 function authArgs(extra = {}) {
-    return {
-        p_session_token:
-            localStorage.getItem(TOKEN) || '',
+  return {
+    p_session_token:
+      localStorage.getItem(TOKEN) || '',
 
-        p_device_id:
-            localStorage.getItem(DEVICE) || '',
+    p_device_id:
+      localStorage.getItem(DEVICE) || '',
 
-        ...extra
-    };
+    ...extra
+  };
 }
-
 
 async function rpc(functionName, args = {}) {
-    const { data, error } = await sb.rpc(
-        functionName,
-        authArgs(args)
+  const { data, error } = await sb.rpc(
+    functionName,
+    authArgs(args)
+  );
+
+  if (error) {
+    throw new Error(
+      `${functionName}: ${error.message}`
     );
+  }
 
-    if (error) {
-        throw error;
-    }
-
-    return data;
+  return data;
 }
-
 
 /* =========================================================
    SESSION CHECK
 ========================================================= */
 
 async function guard() {
-    if (!localStorage.getItem(TOKEN)) {
-        location.href = 'index.html';
-        return false;
-    }
+  toast('Checking session...', true);
 
-    try {
-        const { data, error } = await sb.rpc(
-            'raj_app_validate_session',
-            authArgs()
-        );
+  const token =
+    localStorage.getItem(TOKEN);
 
-        if (
-            error ||
-            !data ||
-            data.success !== true
-        ) {
-            location.href = 'index.html';
-            return false;
-        }
+  if (!token) {
+    location.href = 'index.html';
+    return false;
+  }
 
-        return true;
+  const { data, error } = await sb.rpc(
+    'raj_app_validate_session',
+    authArgs()
+  );
 
-    } catch (error) {
-        console.error(
-            'Session validation failed:',
-            error
-        );
+  if (error) {
+    throw new Error(
+      'Session check failed: ' +
+      error.message
+    );
+  }
 
-        location.href = 'index.html';
-        return false;
-    }
+  if (
+    !data ||
+    data.success !== true
+  ) {
+    location.href = 'index.html';
+    return false;
+  }
+
+  toast('Session OK. Loading dashboard...', true);
+
+  return true;
 }
 
-
 /* =========================================================
-   LOAD ALL OUTSTANDING ROWS
+   GET ALL ROWS - SERVER PAGINATION
 
-   IMPORTANT:
-   SQL RPC now accepts:
-   p_offset
-   p_limit
+   Supabase function:
+   raj_outstanding_get_rows(
+     p_session_token,
+     p_device_id,
+     p_upload_id,
+     p_offset,
+     p_limit
+   )
 
-   So rows load like:
+   4052 rows will load:
    0-999
    1000-1999
    2000-2999
    3000-3999
-   4000-...
+   4000-4051
 ========================================================= */
 
-async function getAllOutstandingRows(uploadId) {
+async function getAllOutstandingRows(
+  uploadId,
+  statusPrefix = 'Loading'
+) {
+  const allRows = [];
 
-    const allRows = [];
+  let offset = 0;
+  let pageNumber = 1;
 
-    let offset = 0;
-
-    const pageSize = RPC_PAGE_SIZE;
-
-    while (true) {
-
-        const { data, error } = await sb.rpc(
-            'raj_outstanding_get_rows',
-            authArgs({
-                p_upload_id: uploadId,
-                p_offset: offset,
-                p_limit: pageSize
-            })
-        );
-
-        if (error) {
-            throw error;
-        }
-
-        const page =
-            Array.isArray(data)
-                ? data
-                : [];
-
-        allRows.push(...page);
-
-        console.log(
-            `Loaded ${page.length} rows. Total: ${allRows.length}`
-        );
-
-        if (page.length < pageSize) {
-            break;
-        }
-
-        offset += pageSize;
-
-        if (offset > 100000) {
-            throw new Error(
-                'Outstanding pagination safety limit reached.'
-            );
-        }
-    }
-
-    console.log(
-        'FINAL OUTSTANDING ROW COUNT:',
-        allRows.length
+  while (true) {
+    toast(
+      `${statusPrefix} rows... ${allRows.length.toLocaleString('en-IN')} loaded`,
+      true
     );
 
-    return allRows;
-}
+    const { data, error } = await sb.rpc(
+      'raj_outstanding_get_rows',
+      authArgs({
+        p_upload_id: uploadId,
+        p_offset: offset,
+        p_limit: RPC_PAGE_SIZE
+      })
+    );
 
+    if (error) {
+      throw new Error(
+        'Outstanding rows load failed: ' +
+        error.message
+      );
+    }
+
+    const page =
+      Array.isArray(data)
+        ? data
+        : [];
+
+    allRows.push(...page);
+
+    console.log(
+      `[Outstanding] Page ${pageNumber}:`,
+      page.length,
+      'Total:',
+      allRows.length
+    );
+
+    if (page.length < RPC_PAGE_SIZE) {
+      break;
+    }
+
+    offset += RPC_PAGE_SIZE;
+    pageNumber += 1;
+
+    if (offset > 100000) {
+      throw new Error(
+        'Outstanding pagination safety limit reached.'
+      );
+    }
+  }
+
+  console.log(
+    '[Outstanding] Final row count:',
+    allRows.length
+  );
+
+  return allRows;
+}
 
 /* =========================================================
    AGEING LOGIC
 
-   CSV columns 15,30,45...150 are cumulative.
+   Source CSV ageing columns are cumulative.
 
    0-15    = Balance - 15 - PDC
    16-30   = 15 - 30
@@ -259,2159 +328,2869 @@ async function getAllOutstandingRows(uploadId) {
 ========================================================= */
 
 const bucketDefs = [
-    ['0-15', 'days_15'],
-    ['16-30', 'days_30'],
-    ['31-45', 'days_45'],
-    ['46-60', 'days_60'],
-    ['61-75', 'days_75'],
-    ['76-90', 'days_90'],
-    ['91-120', 'days_120'],
-    ['121-150', 'days_150'],
-    ['>150', 'over150'],
-    ['PDC', 'pdc']
+  ['0-15', 'days_15'],
+  ['16-30', 'days_30'],
+  ['31-45', 'days_45'],
+  ['46-60', 'days_60'],
+  ['61-75', 'days_75'],
+  ['76-90', 'days_90'],
+  ['91-120', 'days_120'],
+  ['121-150', 'days_150'],
+  ['>150', 'over150'],
+  ['PDC', 'pdc']
 ];
 
-
 function bucket(row) {
-    return {
-        days_15:
-            Math.max(
-                0,
-                num(row.balance) -
-                num(row.days_15) -
-                num(row.pdc)
-            ),
+  return {
+    days_15: Math.max(
+      0,
+      num(row.balance) -
+      num(row.days_15) -
+      num(row.pdc)
+    ),
 
-        days_30:
-            Math.max(
-                0,
-                num(row.days_15) -
-                num(row.days_30)
-            ),
+    days_30: Math.max(
+      0,
+      num(row.days_15) -
+      num(row.days_30)
+    ),
 
-        days_45:
-            Math.max(
-                0,
-                num(row.days_30) -
-                num(row.days_45)
-            ),
+    days_45: Math.max(
+      0,
+      num(row.days_30) -
+      num(row.days_45)
+    ),
 
-        days_60:
-            Math.max(
-                0,
-                num(row.days_45) -
-                num(row.days_60)
-            ),
+    days_60: Math.max(
+      0,
+      num(row.days_45) -
+      num(row.days_60)
+    ),
 
-        days_75:
-            Math.max(
-                0,
-                num(row.days_60) -
-                num(row.days_75)
-            ),
+    days_75: Math.max(
+      0,
+      num(row.days_60) -
+      num(row.days_75)
+    ),
 
-        days_90:
-            Math.max(
-                0,
-                num(row.days_75) -
-                num(row.days_90)
-            ),
+    days_90: Math.max(
+      0,
+      num(row.days_75) -
+      num(row.days_90)
+    ),
 
-        days_120:
-            Math.max(
-                0,
-                num(row.days_90) -
-                num(row.days_120)
-            ),
+    days_120: Math.max(
+      0,
+      num(row.days_90) -
+      num(row.days_120)
+    ),
 
-        days_150:
-            Math.max(
-                0,
-                num(row.days_120) -
-                num(row.days_150)
-            ),
+    days_150: Math.max(
+      0,
+      num(row.days_120) -
+      num(row.days_150)
+    ),
 
-        over150:
-            Math.max(
-                0,
-                num(row.days_150)
-            ),
+    over150: Math.max(
+      0,
+      num(row.days_150)
+    ),
 
-        pdc:
-            Math.max(
-                0,
-                num(row.pdc)
-            )
-    };
+    pdc: Math.max(
+      0,
+      num(row.pdc)
+    )
+  };
 }
 
-
 /* =========================================================
-   FILTERS
+   FILTER DEFINITIONS
 ========================================================= */
 
 const filterMap = [
-    ['party', 'Customer / Party'],
-    ['sm', 'SM'],
-    ['grp_name', 'GrpName'],
-    ['division', 'Division'],
-    ['area', 'Area'],
-    ['order_type', 'OD / Order'],
-    ['city', 'City'],
-    ['pincode', 'Pincode']
+  ['party', 'Customer / Party'],
+  ['sm', 'SM'],
+  ['grp_name', 'GrpName'],
+  ['division', 'Division'],
+  ['area', 'Area'],
+  ['order_type', 'OD / Order'],
+  ['city', 'City'],
+  ['pincode', 'Pincode']
 ];
 
-
-function filtered() {
-    return rows.filter(row =>
-        filterMap.every(([key]) => {
-            const select = $(`#f_${key}`);
-
-            const selected =
-                select ? select.value : '';
-
-            return (
-                !selected ||
-                String(row[key] ?? '') === selected
-            );
-        })
-    );
-}
-
+filterMap.forEach(([key]) => {
+  filterSelections[key] = new Set();
+});
 
 /* =========================================================
-   CREATE FILTERS
+   FILTER MATCHING
+
+   IMPORTANT:
+   This accepts a sourceData argument so the SAME selections
+   can be applied to current and comparison snapshots.
+========================================================= */
+
+function rowMatchesSelections(
+  row,
+  ignoreKey = null
+) {
+  return filterMap.every(([key]) => {
+    if (key === ignoreKey) {
+      return true;
+    }
+
+    const selected =
+      filterSelections[key];
+
+    if (!selected.size) {
+      return true;
+    }
+
+    const value =
+      String(row[key] ?? '').trim();
+
+    return selected.has(value);
+  });
+}
+
+function filtered(sourceData = rows) {
+  return sourceData.filter(row =>
+    rowMatchesSelections(row)
+  );
+}
+
+/* =========================================================
+   CASCADING FILTER OPTIONS
+
+   For a particular filter, all OTHER selected filters
+   are applied.
+
+   Example:
+   SM = Bh
+   GrpName = Sundry Debtors (Both)
+
+   Party options will contain only parties matching both.
+========================================================= */
+
+function availableValues(
+  key,
+  sourceData = rows
+) {
+  return [
+    ...new Set(
+      sourceData
+        .filter(row =>
+          rowMatchesSelections(
+            row,
+            key
+          )
+        )
+        .map(row =>
+          String(
+            row[key] ?? ''
+          ).trim()
+        )
+        .filter(Boolean)
+    )
+  ].sort(
+    (a, b) =>
+      a.localeCompare(
+        b,
+        undefined,
+        {
+          numeric: true,
+          sensitivity: 'base'
+        }
+      )
+  );
+}
+
+/*
+   If another filter selection makes an existing
+   selection impossible, remove that selection.
+*/
+function pruneSelections() {
+  let changed = true;
+  let passes = 0;
+
+  while (
+    changed &&
+    passes < 12
+  ) {
+    changed = false;
+    passes += 1;
+
+    for (
+      const [key] of filterMap
+    ) {
+      const available =
+        new Set(
+          availableValues(key)
+        );
+
+      for (
+        const selectedValue
+        of [...filterSelections[key]]
+      ) {
+        if (
+          !available.has(
+            selectedValue
+          )
+        ) {
+          filterSelections[key]
+            .delete(selectedValue);
+
+          changed = true;
+        }
+      }
+    }
+  }
+}
+
+function filterButtonText(
+  key,
+  label
+) {
+  const selected =
+    filterSelections[key];
+
+  if (!selected.size) {
+    return `All ${label}`;
+  }
+
+  if (selected.size === 1) {
+    return [...selected][0];
+  }
+
+  return `${selected.size} selected`;
+}
+
+/* =========================================================
+   MULTI SELECT FILTER UI
+========================================================= */
+
+function renderFilterOptions(key) {
+  const component =
+    document.querySelector(
+      `.ms[data-key="${key}"]`
+    );
+
+  if (!component) {
+    return;
+  }
+
+  const definition =
+    filterMap.find(
+      item => item[0] === key
+    );
+
+  if (!definition) {
+    return;
+  }
+
+  const label = definition[1];
+
+  const searchInput =
+    component.querySelector(
+      '.ms-search'
+    );
+
+  const search =
+    String(
+      searchInput?.value || ''
+    )
+      .trim()
+      .toLowerCase();
+
+  const values =
+    availableValues(key)
+      .filter(value =>
+        value
+          .toLowerCase()
+          .includes(search)
+      );
+
+  const options =
+    component.querySelector(
+      '.ms-options'
+    );
+
+  if (!options) {
+    return;
+  }
+
+  options.innerHTML =
+    values.length
+      ? values.map(value => `
+          <label class="ms-option">
+            <input
+              type="checkbox"
+              value="${esc(value)}"
+              ${
+                filterSelections[key]
+                  .has(value)
+                  ? 'checked'
+                  : ''
+              }
+            >
+            <span>${esc(value)}</span>
+          </label>
+        `).join('')
+      : `
+          <div class="ms-empty">
+            No matching options
+          </div>
+        `;
+
+  const trigger =
+    component.querySelector(
+      '.ms-trigger'
+    );
+
+  if (trigger) {
+    trigger.textContent =
+      filterButtonText(
+        key,
+        label
+      );
+  }
+
+  options
+    .querySelectorAll(
+      'input[type="checkbox"]'
+    )
+    .forEach(checkbox => {
+      checkbox.onchange = () => {
+        const value =
+          checkbox.value;
+
+        if (checkbox.checked) {
+          filterSelections[key]
+            .add(value);
+        } else {
+          filterSelections[key]
+            .delete(value);
+        }
+
+        filtersChanged();
+      };
+    });
+}
+
+function refreshAllFilters() {
+  filterMap.forEach(([key]) => {
+    renderFilterOptions(key);
+  });
+}
+
+function filtersChanged() {
+  pruneSelections();
+
+  detailPage = 1;
+
+  refreshAllFilters();
+
+  render();
+}
+
+/* =========================================================
+   CREATE FILTER COMPONENTS
 ========================================================= */
 
 function makeFilters() {
+  const container =
+    $('#filters');
 
-    const container = $('#filters');
+  if (!container) {
+    return;
+  }
 
-    if (!container) return;
+  container.innerHTML =
+    filterMap.map(
+      ([key, label]) => `
+        <div class="field">
 
-    container.innerHTML = '';
+          <label>
+            ${esc(label)}
+          </label>
 
-    filterMap.forEach(([key, label]) => {
+          <div
+            class="ms"
+            data-key="${key}"
+          >
 
-        const values = [
-            ...new Set(
-                rows
-                    .map(row =>
-                        String(
-                            row[key] ?? ''
-                        ).trim()
-                    )
-                    .filter(Boolean)
-            )
-        ].sort((a, b) =>
-            a.localeCompare(
-                b,
-                undefined,
-                {
-                    numeric: true,
-                    sensitivity: 'base'
-                }
-            )
+            <button
+              type="button"
+              class="ms-trigger"
+            >
+              ${esc(
+                filterButtonText(
+                  key,
+                  label
+                )
+              )}
+            </button>
+
+            <div class="ms-menu">
+
+              <div class="ms-search-wrap">
+                <input
+                  class="ms-search"
+                  type="search"
+                  placeholder="Search ${esc(label)}..."
+                >
+              </div>
+
+              <div class="ms-actions">
+
+                <button
+                  type="button"
+                  data-act="all"
+                >
+                  Select visible
+                </button>
+
+                <button
+                  type="button"
+                  data-act="clear"
+                >
+                  Clear
+                </button>
+
+              </div>
+
+              <div class="ms-options">
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+      `
+    ).join('');
+
+  container
+    .querySelectorAll('.ms')
+    .forEach(component => {
+      const key =
+        component.dataset.key;
+
+      const trigger =
+        component.querySelector(
+          '.ms-trigger'
         );
 
-        const wrapper =
-            document.createElement('div');
+      const menu =
+        component.querySelector(
+          '.ms-menu'
+        );
 
-        wrapper.className = 'field';
+      const search =
+        component.querySelector(
+          '.ms-search'
+        );
 
-        wrapper.innerHTML = `
-            <label>${esc(label)}</label>
+      const selectVisible =
+        component.querySelector(
+          '[data-act="all"]'
+        );
 
-            <select id="f_${key}">
-                <option value="">
-                    All ${esc(label)}
-                </option>
+      const clear =
+        component.querySelector(
+          '[data-act="clear"]'
+        );
 
-                ${values.map(value => `
-                    <option value="${esc(value)}">
-                        ${esc(value)}
-                    </option>
-                `).join('')}
-            </select>
-        `;
+      trigger.onclick = event => {
+        event.stopPropagation();
 
-        container.appendChild(wrapper);
+        document
+          .querySelectorAll(
+            '.ms.open'
+          )
+          .forEach(openComponent => {
+            if (
+              openComponent !==
+              component
+            ) {
+              openComponent
+                .classList
+                .remove('open');
+            }
+          });
+
+        component
+          .classList
+          .toggle('open');
+
+        renderFilterOptions(key);
+
+        if (
+          component.classList
+            .contains('open')
+        ) {
+          setTimeout(
+            () => search?.focus(),
+            20
+          );
+        }
+      };
+
+      menu.onclick =
+        event =>
+          event.stopPropagation();
+
+      search.oninput =
+        () =>
+          renderFilterOptions(key);
+
+      clear.onclick = () => {
+        filterSelections[key]
+          .clear();
+
+        search.value = '';
+
+        filtersChanged();
+      };
+
+      selectVisible.onclick = () => {
+        const query =
+          String(
+            search.value || ''
+          )
+            .trim()
+            .toLowerCase();
+
+        availableValues(key)
+          .filter(value =>
+            value
+              .toLowerCase()
+              .includes(query)
+          )
+          .forEach(value =>
+            filterSelections[key]
+              .add(value)
+          );
+
+        filtersChanged();
+      };
     });
 
-    container
-        .querySelectorAll('select')
-        .forEach(select => {
-
-            select.addEventListener(
-                'change',
-                () => {
-                    detailPage = 1;
-                    render();
-                }
-            );
-
-        });
+  refreshAllFilters();
 }
 
+/*
+  Clicking outside closes open multi-select.
+*/
+document.addEventListener(
+  'click',
+  () => {
+    document
+      .querySelectorAll('.ms.open')
+      .forEach(component =>
+        component
+          .classList
+          .remove('open')
+      );
+  }
+);
 
 /* =========================================================
-   TOTAL HELPERS
+   METRICS
 ========================================================= */
 
 function sum(data, key) {
-    return data.reduce(
-        (total, row) =>
-            total + num(row[key]),
-        0
-    );
+  return data.reduce(
+    (total, row) =>
+      total + num(row[key]),
+    0
+  );
 }
-
 
 function metrics(data) {
+  const bucketSums = {};
 
-    const bucketSums = {};
+  bucketDefs.forEach(
+    ([, key]) => {
+      bucketSums[key] =
+        data.reduce(
+          (total, row) =>
+            total +
+            bucket(row)[key],
+          0
+        );
+    }
+  );
 
-    bucketDefs.forEach(([label, key]) => {
+  return {
+    total:
+      sum(data, 'balance'),
 
-        bucketSums[key] =
-            data.reduce(
-                (total, row) =>
-                    total + bucket(row)[key],
-                0
-            );
+    customers:
+      new Set(
+        data
+          .map(row =>
+            String(
+              row.party ?? ''
+            ).trim()
+          )
+          .filter(Boolean)
+      ).size,
 
-    });
+    pdc:
+      sum(data, 'pdc'),
 
-    return {
-        total:
-            sum(data, 'balance'),
+    /*
+      CSV 90 and 150 are cumulative overdue columns.
+    */
+    over90:
+      sum(data, 'days_90'),
 
-        customers:
-            new Set(
-                data
-                    .map(row =>
-                        String(
-                            row.party ?? ''
-                        ).trim()
-                    )
-                    .filter(Boolean)
-            ).size,
+    over150:
+      sum(data, 'days_150'),
 
-        pdc:
-            sum(data, 'pdc'),
-
-        over90:
-            sum(data, 'days_90'),
-
-        over150:
-            sum(data, 'days_150'),
-
-        bs:
-            bucketSums
-    };
+    bs:
+      bucketSums
+  };
 }
+
+
+
 
 
 /* =========================================================
-   CHART
+   OUTSTANDING DASHBOARD
+   FINAL VERSION
+   Part 1 of 3
 ========================================================= */
 
-function draw(
-    selector,
-    type,
-    labels,
-    datasets,
-    options = {}
-) {
+const { createClient } = supabase;
 
-    if (charts[selector]) {
-        charts[selector].destroy();
-    }
+const sb = createClient(
+  RAJ_CONFIG.supabaseUrl,
+  RAJ_CONFIG.supabasePublishableKey
+);
 
-    const canvas = $(selector);
+/* =========================================================
+   SETTINGS
+========================================================= */
 
-    if (!canvas) return;
+const TOKEN = 'raj_dashboard_session_token';
+const DEVICE = 'raj_dashboard_device_id';
+const USER = 'raj_dashboard_user';
 
-    charts[selector] = new Chart(
-        canvas,
-        {
-            type,
+const RPC_PAGE_SIZE = 1000;
+const DETAIL_PAGE_SIZE = 50;
 
-            data: {
-                labels,
-                datasets
-            },
+/* =========================================================
+   STATE
+========================================================= */
 
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
+let rows = [];
+let uploads = [];
+let activeUpload = null;
 
-                interaction: {
-                    mode: 'index',
-                    intersect: false
-                },
+let charts = {};
 
-                plugins: {
-                    legend: {
-                        display:
-                            type === 'doughnut' ||
-                            !!options.legend
-                    },
+let detailPage = 1;
 
-                    tooltip: {
-                        callbacks: {
-                            label: context => {
+let detailSort = {
+  key: 'party',
+  dir: 'asc'
+};
 
-                                const value =
-                                    context.raw ?? 0;
+let historySort = {
+  key: 'outstanding_date',
+  dir: 'desc'
+};
 
-                                const prefix =
-                                    context.dataset.label
-                                        ? context.dataset.label + ': '
-                                        : '';
+/*
+  Multiple selected values for every filter.
+*/
+let filterSelections = {};
 
-                                return (
-                                    prefix +
-                                    money(value)
-                                );
-                            }
-                        }
-                    }
-                },
+/*
+  Cache comparison snapshots so the same snapshot
+  does not need to download again on every filter click.
+*/
+const snapshotCache = new Map();
 
-                scales:
-                    type === 'doughnut'
-                        ? {}
-                        : {
-                            y: {
-                                beginAtZero: true,
+/*
+  Used to stop an old comparison request from
+  overwriting a newer comparison.
+*/
+let comparisonRequestId = 0;
 
-                                grid: {
-                                    color: '#eef1f7'
-                                },
+/* =========================================================
+   DOM / BASIC HELPERS
+========================================================= */
 
-                                ticks: {
-                                    callback: value => {
+const $ = selector => document.querySelector(selector);
 
-                                        const n =
-                                            Number(value);
+function num(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ''
+  ) {
+    return 0;
+  }
 
-                                        if (
-                                            Math.abs(n) >=
-                                            10000000
-                                        ) {
-                                            return (
-                                                n / 10000000
-                                            ).toFixed(1) + ' Cr';
-                                        }
+  const parsed = Number(
+    String(value)
+      .replace(/,/g, '')
+      .trim()
+  );
 
-                                        if (
-                                            Math.abs(n) >=
-                                            100000
-                                        ) {
-                                            return (
-                                                n / 100000
-                                            ).toFixed(1) + ' L';
-                                        }
+  return Number.isFinite(parsed)
+    ? parsed
+    : 0;
+}
 
-                                        if (
-                                            Math.abs(n) >=
-                                            1000
-                                        ) {
-                                            return (
-                                                n / 1000
-                                            ).toFixed(0) + ' K';
-                                        }
+function money(value) {
+  return '₹ ' +
+    Math.round(num(value))
+      .toLocaleString('en-IN');
+}
 
-                                        return n;
-                                    }
-                                }
-                            },
-
-                            x: {
-                                grid: {
-                                    display: false
-                                }
-                            }
-                        }
-            }
-        }
+function esc(value) {
+  return String(value ?? '')
+    .replace(
+      /[&<>"']/g,
+      character => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[character])
     );
 }
 
+/* =========================================================
+   STATUS / TOAST
+
+   This is intentionally used throughout loading.
+   If anything fails, the page itself will show the error.
+========================================================= */
+
+function toast(message, stay = false) {
+  const element = $('#toast');
+
+  console.log('[Outstanding]', message);
+
+  if (!element) {
+    return;
+  }
+
+  element.textContent = message;
+  element.style.display = 'block';
+
+  clearTimeout(toast.timer);
+
+  if (!stay) {
+    toast.timer = setTimeout(() => {
+      element.style.display = 'none';
+    }, 4000);
+  }
+}
+
+function showFatal(error) {
+  console.error(
+    '[Outstanding Dashboard Error]',
+    error
+  );
+
+  const message =
+    error?.message ||
+    String(error) ||
+    'Unknown dashboard error';
+
+  toast(
+    'Dashboard error: ' + message,
+    true
+  );
+}
+
+/* =========================================================
+   AUTH / RPC
+========================================================= */
+
+function authArgs(extra = {}) {
+  return {
+    p_session_token:
+      localStorage.getItem(TOKEN) || '',
+
+    p_device_id:
+      localStorage.getItem(DEVICE) || '',
+
+    ...extra
+  };
+}
+
+async function rpc(functionName, args = {}) {
+  const { data, error } = await sb.rpc(
+    functionName,
+    authArgs(args)
+  );
+
+  if (error) {
+    throw new Error(
+      `${functionName}: ${error.message}`
+    );
+  }
+
+  return data;
+}
+
+/* =========================================================
+   SESSION CHECK
+========================================================= */
+
+async function guard() {
+  toast('Checking session...', true);
+
+  const token =
+    localStorage.getItem(TOKEN);
+
+  if (!token) {
+    location.href = 'index.html';
+    return false;
+  }
+
+  const { data, error } = await sb.rpc(
+    'raj_app_validate_session',
+    authArgs()
+  );
+
+  if (error) {
+    throw new Error(
+      'Session check failed: ' +
+      error.message
+    );
+  }
+
+  if (
+    !data ||
+    data.success !== true
+  ) {
+    location.href = 'index.html';
+    return false;
+  }
+
+  toast('Session OK. Loading dashboard...', true);
+
+  return true;
+}
+
+/* =========================================================
+   GET ALL ROWS - SERVER PAGINATION
+
+   Supabase function:
+   raj_outstanding_get_rows(
+     p_session_token,
+     p_device_id,
+     p_upload_id,
+     p_offset,
+     p_limit
+   )
+
+   4052 rows will load:
+   0-999
+   1000-1999
+   2000-2999
+   3000-3999
+   4000-4051
+========================================================= */
+
+async function getAllOutstandingRows(
+  uploadId,
+  statusPrefix = 'Loading'
+) {
+  const allRows = [];
+
+  let offset = 0;
+  let pageNumber = 1;
+
+  while (true) {
+    toast(
+      `${statusPrefix} rows... ${allRows.length.toLocaleString('en-IN')} loaded`,
+      true
+    );
+
+    const { data, error } = await sb.rpc(
+      'raj_outstanding_get_rows',
+      authArgs({
+        p_upload_id: uploadId,
+        p_offset: offset,
+        p_limit: RPC_PAGE_SIZE
+      })
+    );
+
+    if (error) {
+      throw new Error(
+        'Outstanding rows load failed: ' +
+        error.message
+      );
+    }
+
+    const page =
+      Array.isArray(data)
+        ? data
+        : [];
+
+    allRows.push(...page);
+
+    console.log(
+      `[Outstanding] Page ${pageNumber}:`,
+      page.length,
+      'Total:',
+      allRows.length
+    );
+
+    if (page.length < RPC_PAGE_SIZE) {
+      break;
+    }
+
+    offset += RPC_PAGE_SIZE;
+    pageNumber += 1;
+
+    if (offset > 100000) {
+      throw new Error(
+        'Outstanding pagination safety limit reached.'
+      );
+    }
+  }
+
+  console.log(
+    '[Outstanding] Final row count:',
+    allRows.length
+  );
+
+  return allRows;
+}
+
+/* =========================================================
+   AGEING LOGIC
+
+   Source CSV ageing columns are cumulative.
+
+   0-15    = Balance - 15 - PDC
+   16-30   = 15 - 30
+   31-45   = 30 - 45
+   46-60   = 45 - 60
+   61-75   = 60 - 75
+   76-90   = 75 - 90
+   91-120  = 90 - 120
+   121-150 = 120 - 150
+   >150    = 150
+   PDC     = PDC
+========================================================= */
+
+const bucketDefs = [
+  ['0-15', 'days_15'],
+  ['16-30', 'days_30'],
+  ['31-45', 'days_45'],
+  ['46-60', 'days_60'],
+  ['61-75', 'days_75'],
+  ['76-90', 'days_90'],
+  ['91-120', 'days_120'],
+  ['121-150', 'days_150'],
+  ['>150', 'over150'],
+  ['PDC', 'pdc']
+];
+
+function bucket(row) {
+  return {
+    days_15: Math.max(
+      0,
+      num(row.balance) -
+      num(row.days_15) -
+      num(row.pdc)
+    ),
+
+    days_30: Math.max(
+      0,
+      num(row.days_15) -
+      num(row.days_30)
+    ),
+
+    days_45: Math.max(
+      0,
+      num(row.days_30) -
+      num(row.days_45)
+    ),
+
+    days_60: Math.max(
+      0,
+      num(row.days_45) -
+      num(row.days_60)
+    ),
+
+    days_75: Math.max(
+      0,
+      num(row.days_60) -
+      num(row.days_75)
+    ),
+
+    days_90: Math.max(
+      0,
+      num(row.days_75) -
+      num(row.days_90)
+    ),
+
+    days_120: Math.max(
+      0,
+      num(row.days_90) -
+      num(row.days_120)
+    ),
+
+    days_150: Math.max(
+      0,
+      num(row.days_120) -
+      num(row.days_150)
+    ),
+
+    over150: Math.max(
+      0,
+      num(row.days_150)
+    ),
+
+    pdc: Math.max(
+      0,
+      num(row.pdc)
+    )
+  };
+}
+
+/* =========================================================
+   FILTER DEFINITIONS
+========================================================= */
+
+const filterMap = [
+  ['party', 'Customer / Party'],
+  ['sm', 'SM'],
+  ['grp_name', 'GrpName'],
+  ['division', 'Division'],
+  ['area', 'Area'],
+  ['order_type', 'OD / Order'],
+  ['city', 'City'],
+  ['pincode', 'Pincode']
+];
+
+filterMap.forEach(([key]) => {
+  filterSelections[key] = new Set();
+});
+
+/* =========================================================
+   FILTER MATCHING
+
+   IMPORTANT:
+   This accepts a sourceData argument so the SAME selections
+   can be applied to current and comparison snapshots.
+========================================================= */
+
+function rowMatchesSelections(
+  row,
+  ignoreKey = null
+) {
+  return filterMap.every(([key]) => {
+    if (key === ignoreKey) {
+      return true;
+    }
+
+    const selected =
+      filterSelections[key];
+
+    if (!selected.size) {
+      return true;
+    }
+
+    const value =
+      String(row[key] ?? '').trim();
+
+    return selected.has(value);
+  });
+}
+
+function filtered(sourceData = rows) {
+  return sourceData.filter(row =>
+    rowMatchesSelections(row)
+  );
+}
+
+/* =========================================================
+   CASCADING FILTER OPTIONS
+
+   For a particular filter, all OTHER selected filters
+   are applied.
+
+   Example:
+   SM = Bh
+   GrpName = Sundry Debtors (Both)
+
+   Party options will contain only parties matching both.
+========================================================= */
+
+function availableValues(
+  key,
+  sourceData = rows
+) {
+  return [
+    ...new Set(
+      sourceData
+        .filter(row =>
+          rowMatchesSelections(
+            row,
+            key
+          )
+        )
+        .map(row =>
+          String(
+            row[key] ?? ''
+          ).trim()
+        )
+        .filter(Boolean)
+    )
+  ].sort(
+    (a, b) =>
+      a.localeCompare(
+        b,
+        undefined,
+        {
+          numeric: true,
+          sensitivity: 'base'
+        }
+      )
+  );
+}
+
+/*
+   If another filter selection makes an existing
+   selection impossible, remove that selection.
+*/
+function pruneSelections() {
+  let changed = true;
+  let passes = 0;
+
+  while (
+    changed &&
+    passes < 12
+  ) {
+    changed = false;
+    passes += 1;
+
+    for (
+      const [key] of filterMap
+    ) {
+      const available =
+        new Set(
+          availableValues(key)
+        );
+
+      for (
+        const selectedValue
+        of [...filterSelections[key]]
+      ) {
+        if (
+          !available.has(
+            selectedValue
+          )
+        ) {
+          filterSelections[key]
+            .delete(selectedValue);
+
+          changed = true;
+        }
+      }
+    }
+  }
+}
+
+function filterButtonText(
+  key,
+  label
+) {
+  const selected =
+    filterSelections[key];
+
+  if (!selected.size) {
+    return `All ${label}`;
+  }
+
+  if (selected.size === 1) {
+    return [...selected][0];
+  }
+
+  return `${selected.size} selected`;
+}
+
+/* =========================================================
+   MULTI SELECT FILTER UI
+========================================================= */
+
+function renderFilterOptions(key) {
+  const component =
+    document.querySelector(
+      `.ms[data-key="${key}"]`
+    );
+
+  if (!component) {
+    return;
+  }
+
+  const definition =
+    filterMap.find(
+      item => item[0] === key
+    );
+
+  if (!definition) {
+    return;
+  }
+
+  const label = definition[1];
+
+  const searchInput =
+    component.querySelector(
+      '.ms-search'
+    );
+
+  const search =
+    String(
+      searchInput?.value || ''
+    )
+      .trim()
+      .toLowerCase();
+
+  const values =
+    availableValues(key)
+      .filter(value =>
+        value
+          .toLowerCase()
+          .includes(search)
+      );
+
+  const options =
+    component.querySelector(
+      '.ms-options'
+    );
+
+  if (!options) {
+    return;
+  }
+
+  options.innerHTML =
+    values.length
+      ? values.map(value => `
+          <label class="ms-option">
+            <input
+              type="checkbox"
+              value="${esc(value)}"
+              ${
+                filterSelections[key]
+                  .has(value)
+                  ? 'checked'
+                  : ''
+              }
+            >
+            <span>${esc(value)}</span>
+          </label>
+        `).join('')
+      : `
+          <div class="ms-empty">
+            No matching options
+          </div>
+        `;
+
+  const trigger =
+    component.querySelector(
+      '.ms-trigger'
+    );
+
+  if (trigger) {
+    trigger.textContent =
+      filterButtonText(
+        key,
+        label
+      );
+  }
+
+  options
+    .querySelectorAll(
+      'input[type="checkbox"]'
+    )
+    .forEach(checkbox => {
+      checkbox.onchange = () => {
+        const value =
+          checkbox.value;
+
+        if (checkbox.checked) {
+          filterSelections[key]
+            .add(value);
+        } else {
+          filterSelections[key]
+            .delete(value);
+        }
+
+        filtersChanged();
+      };
+    });
+}
+
+function refreshAllFilters() {
+  filterMap.forEach(([key]) => {
+    renderFilterOptions(key);
+  });
+}
+
+function filtersChanged() {
+  pruneSelections();
+
+  detailPage = 1;
+
+  refreshAllFilters();
+
+  render();
+}
+
+/* =========================================================
+   CREATE FILTER COMPONENTS
+========================================================= */
+
+function makeFilters() {
+  const container =
+    $('#filters');
+
+  if (!container) {
+    return;
+  }
+
+  container.innerHTML =
+    filterMap.map(
+      ([key, label]) => `
+        <div class="field">
+
+          <label>
+            ${esc(label)}
+          </label>
+
+          <div
+            class="ms"
+            data-key="${key}"
+          >
+
+            <button
+              type="button"
+              class="ms-trigger"
+            >
+              ${esc(
+                filterButtonText(
+                  key,
+                  label
+                )
+              )}
+            </button>
+
+            <div class="ms-menu">
+
+              <div class="ms-search-wrap">
+                <input
+                  class="ms-search"
+                  type="search"
+                  placeholder="Search ${esc(label)}..."
+                >
+              </div>
+
+              <div class="ms-actions">
+
+                <button
+                  type="button"
+                  data-act="all"
+                >
+                  Select visible
+                </button>
+
+                <button
+                  type="button"
+                  data-act="clear"
+                >
+                  Clear
+                </button>
+
+              </div>
+
+              <div class="ms-options">
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+      `
+    ).join('');
+
+  container
+    .querySelectorAll('.ms')
+    .forEach(component => {
+      const key =
+        component.dataset.key;
+
+      const trigger =
+        component.querySelector(
+          '.ms-trigger'
+        );
+
+      const menu =
+        component.querySelector(
+          '.ms-menu'
+        );
+
+      const search =
+        component.querySelector(
+          '.ms-search'
+        );
+
+      const selectVisible =
+        component.querySelector(
+          '[data-act="all"]'
+        );
+
+      const clear =
+        component.querySelector(
+          '[data-act="clear"]'
+        );
+
+      trigger.onclick = event => {
+        event.stopPropagation();
+
+        document
+          .querySelectorAll(
+            '.ms.open'
+          )
+          .forEach(openComponent => {
+            if (
+              openComponent !==
+              component
+            ) {
+              openComponent
+                .classList
+                .remove('open');
+            }
+          });
+
+        component
+          .classList
+          .toggle('open');
+
+        renderFilterOptions(key);
+
+        if (
+          component.classList
+            .contains('open')
+        ) {
+          setTimeout(
+            () => search?.focus(),
+            20
+          );
+        }
+      };
+
+      menu.onclick =
+        event =>
+          event.stopPropagation();
+
+      search.oninput =
+        () =>
+          renderFilterOptions(key);
+
+      clear.onclick = () => {
+        filterSelections[key]
+          .clear();
+
+        search.value = '';
+
+        filtersChanged();
+      };
+
+      selectVisible.onclick = () => {
+        const query =
+          String(
+            search.value || ''
+          )
+            .trim()
+            .toLowerCase();
+
+        availableValues(key)
+          .filter(value =>
+            value
+              .toLowerCase()
+              .includes(query)
+          )
+          .forEach(value =>
+            filterSelections[key]
+              .add(value)
+          );
+
+        filtersChanged();
+      };
+    });
+
+  refreshAllFilters();
+}
+
+/*
+  Clicking outside closes open multi-select.
+*/
+document.addEventListener(
+  'click',
+  () => {
+    document
+      .querySelectorAll('.ms.open')
+      .forEach(component =>
+        component
+          .classList
+          .remove('open')
+      );
+  }
+);
+
+/* =========================================================
+   METRICS
+========================================================= */
+
+function sum(data, key) {
+  return data.reduce(
+    (total, row) =>
+      total + num(row[key]),
+    0
+  );
+}
+
+function metrics(data) {
+  const bucketSums = {};
+
+  bucketDefs.forEach(
+    ([, key]) => {
+      bucketSums[key] =
+        data.reduce(
+          (total, row) =>
+            total +
+            bucket(row)[key],
+          0
+        );
+    }
+  );
+
+  return {
+    total:
+      sum(data, 'balance'),
+
+    customers:
+      new Set(
+        data
+          .map(row =>
+            String(
+              row.party ?? ''
+            ).trim()
+          )
+          .filter(Boolean)
+      ).size,
+
+    pdc:
+      sum(data, 'pdc'),
+
+    /*
+      CSV 90 and 150 are cumulative overdue columns.
+    */
+    over90:
+      sum(data, 'days_90'),
+
+    over150:
+      sum(data, 'days_150'),
+
+    bs:
+      bucketSums
+  };
+}
+
+
+
+
+/* =========================================================
+   CHART HELPERS
+========================================================= */
+
+function draw(
+  selector,
+  type,
+  labels,
+  datasets,
+  options = {}
+) {
+  if (charts[selector]) {
+    charts[selector].destroy();
+  }
+
+  const canvas = $(selector);
+
+  if (!canvas) {
+    return;
+  }
+
+  charts[selector] = new Chart(
+    canvas,
+    {
+      type,
+
+      data: {
+        labels,
+        datasets
+      },
+
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+
+        plugins: {
+          legend: {
+            display:
+              type === 'doughnut' ||
+              !!options.legend
+          },
+
+          tooltip: {
+            callbacks: {
+              label: context => {
+                const value =
+                  context.raw ?? 0;
+
+                const prefix =
+                  context.dataset.label
+                    ? context.dataset.label + ': '
+                    : '';
+
+                /*
+                  Customer count chart should not
+                  display values as currency.
+                */
+                if (options.countChart) {
+                  return (
+                    prefix +
+                    Number(value)
+                      .toLocaleString('en-IN')
+                  );
+                }
+
+                return prefix + money(value);
+              }
+            }
+          }
+        },
+
+        scales:
+          type === 'doughnut'
+            ? {}
+            : {
+                y: {
+                  beginAtZero: true,
+
+                  grid: {
+                    color: '#eef1f7'
+                  },
+
+                  ticks: {
+                    callback: value => {
+                      const n =
+                        Number(value);
+
+                      if (options.countChart) {
+                        return n
+                          .toLocaleString('en-IN');
+                      }
+
+                      if (
+                        Math.abs(n) >=
+                        10000000
+                      ) {
+                        return (
+                          n / 10000000
+                        ).toFixed(1) + ' Cr';
+                      }
+
+                      if (
+                        Math.abs(n) >=
+                        100000
+                      ) {
+                        return (
+                          n / 100000
+                        ).toFixed(1) + ' L';
+                      }
+
+                      if (
+                        Math.abs(n) >=
+                        1000
+                      ) {
+                        return (
+                          n / 1000
+                        ).toFixed(0) + ' K';
+                      }
+
+                      return n;
+                    }
+                  }
+                },
+
+                x: {
+                  grid: {
+                    display: false
+                  }
+                }
+              }
+      }
+    }
+  );
+}
 
 /* =========================================================
    SIMPLE TABLE
 ========================================================= */
 
-function simpleTable(items, columns) {
+function simpleTable(
+  items,
+  columns
+) {
+  return `
+    <table>
 
-    return `
-        <table>
+      <thead>
+        <tr>
+          ${columns.map(column => `
+            <th
+              class="${
+                column.num
+                  ? 'num'
+                  : ''
+              }"
+            >
+              ${esc(column.label)}
+            </th>
+          `).join('')}
+        </tr>
+      </thead>
 
-            <thead>
+      <tbody>
+
+        ${
+          items.length
+
+            ? items.map(
+                (row, index) => `
+                  <tr>
+                    ${columns.map(
+                      column => `
+                        <td
+                          class="${
+                            column.num
+                              ? 'num'
+                              : ''
+                          }"
+                        >
+                          ${
+                            column.render
+                              ? column.render(
+                                  row,
+                                  index
+                                )
+                              : esc(
+                                  row[
+                                    column.key
+                                  ] ?? ''
+                                )
+                          }
+                        </td>
+                      `
+                    ).join('')}
+                  </tr>
+                `
+              ).join('')
+
+            : `
                 <tr>
-                    ${columns.map(column => `
-                        <th class="${column.num ? 'num' : ''}">
-                            ${esc(column.label)}
-                        </th>
-                    `).join('')}
+                  <td
+                    colspan="${columns.length}"
+                    class="muted"
+                  >
+                    No data
+                  </td>
                 </tr>
-            </thead>
+              `
+        }
 
-            <tbody>
+      </tbody>
 
-                ${
-                    items.length
-
-                    ? items.map((row, index) => `
-                        <tr>
-                            ${columns.map(column => `
-                                <td class="${column.num ? 'num' : ''}">
-                                    ${
-                                        column.render
-                                            ? column.render(
-                                                row,
-                                                index
-                                            )
-                                            : esc(
-                                                row[column.key] ?? ''
-                                            )
-                                    }
-                                </td>
-                            `).join('')}
-                        </tr>
-                    `).join('')
-
-                    : `
-                        <tr>
-                            <td
-                                colspan="${columns.length}"
-                                class="muted"
-                            >
-                                No data
-                            </td>
-                        </tr>
-                    `
-                }
-
-            </tbody>
-
-        </table>
-    `;
+    </table>
+  `;
 }
-
 
 /* =========================================================
-   SORT HELPERS
+   SORTING
 ========================================================= */
 
-function compareValues(a, b, key) {
+const numericFields =
+  new Set([
+    'balance',
+    'days_15',
+    'days_30',
+    'days_45',
+    'days_60',
+    'days_75',
+    'days_90',
+    'days_120',
+    'days_150',
+    'pdc',
+    'total_customers',
+    'total_outstanding',
+    'total_pdc'
+  ]);
 
-    const aValue = a?.[key] ?? '';
-    const bValue = b?.[key] ?? '';
+function compareValues(
+  a,
+  b,
+  key
+) {
+  const aValue =
+    a?.[key] ?? '';
 
-    const numericFields =
-        new Set([
-            'balance',
-            'days_15',
-            'days_30',
-            'days_45',
-            'days_60',
-            'days_75',
-            'days_90',
-            'days_120',
-            'days_150',
-            'pdc',
-            'total_customers',
-            'total_outstanding',
-            'total_pdc'
-        ]);
+  const bValue =
+    b?.[key] ?? '';
 
-    if (numericFields.has(key)) {
-        return (
-            num(aValue) -
-            num(bValue)
-        );
-    }
+  if (
+    numericFields.has(key)
+  ) {
+    return (
+      num(aValue) -
+      num(bValue)
+    );
+  }
 
-    return String(aValue)
-        .localeCompare(
-            String(bValue),
-            undefined,
-            {
-                numeric: true,
-                sensitivity: 'base'
-            }
-        );
+  return String(aValue)
+    .localeCompare(
+      String(bValue),
+      undefined,
+      {
+        numeric: true,
+        sensitivity: 'base'
+      }
+    );
 }
 
+function sortArrow(
+  sort,
+  key
+) {
+  if (
+    sort.key !== key
+  ) {
+    return '';
+  }
 
-function sortArrow(sort, key) {
-
-    if (sort.key !== key) {
-        return '';
-    }
-
-    return sort.dir === 'asc'
-        ? ' ▲'
-        : ' ▼';
+  return sort.dir === 'asc'
+    ? ' ▲'
+    : ' ▼';
 }
-
 
 /* =========================================================
    CUSTOMER DETAILS
 ========================================================= */
 
 function renderDetails(data) {
+  const container =
+    $('#customerDetails');
 
-    const container =
-        $('#customerDetails');
+  if (!container) {
+    return;
+  }
 
-    if (!container) return;
+  const search =
+    String(
+      $('#detailSearch')?.value ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
 
-    const search =
-        (
-            $('#detailSearch')?.value ||
-            ''
+  let list = [...data];
+
+  if (search) {
+    list = list.filter(
+      row =>
+        [
+          row.party,
+          row.sm,
+          row.grp_name,
+          row.division,
+          row.area,
+          row.order_type,
+          row.city,
+          row.pincode
+        ].some(value =>
+          String(value ?? '')
+            .toLowerCase()
+            .includes(search)
         )
-        .trim()
-        .toLowerCase();
+    );
+  }
 
-    let list = [...data];
-
-    if (search) {
-
-        list = list.filter(row =>
-            [
-                row.party,
-                row.sm,
-                row.grp_name,
-                row.division,
-                row.area,
-                row.order_type,
-                row.city,
-                row.pincode
-            ].some(value =>
-                String(value ?? '')
-                    .toLowerCase()
-                    .includes(search)
-            )
+  list.sort(
+    (a, b) => {
+      const result =
+        compareValues(
+          a,
+          b,
+          detailSort.key
         );
 
+      return (
+        detailSort.dir === 'asc'
+          ? result
+          : -result
+      );
     }
+  );
 
-    list.sort((a, b) => {
+  const totalPages =
+    Math.max(
+      1,
+      Math.ceil(
+        list.length /
+        DETAIL_PAGE_SIZE
+      )
+    );
 
-        const result =
-            compareValues(
-                a,
-                b,
-                detailSort.key
-            );
+  detailPage =
+    Math.min(
+      Math.max(
+        1,
+        detailPage
+      ),
+      totalPages
+    );
 
-        return detailSort.dir === 'asc'
-            ? result
-            : -result;
-    });
+  const start =
+    (detailPage - 1) *
+    DETAIL_PAGE_SIZE;
 
-    const totalPages =
-        Math.max(
-            1,
-            Math.ceil(
-                list.length /
-                DETAIL_PAGE_SIZE
-            )
-        );
+  const pageRows =
+    list.slice(
+      start,
+      start + DETAIL_PAGE_SIZE
+    );
 
-    detailPage =
-        Math.min(
-            Math.max(
-                1,
-                detailPage
-            ),
-            totalPages
-        );
+  const columns = [
+    ['party', 'Party', false],
+    ['balance', 'Balance', true],
+    ['days_15', '>15', true],
+    ['days_30', '>30', true],
+    ['days_45', '>45', true],
+    ['days_60', '>60', true],
+    ['days_75', '>75', true],
+    ['days_90', '>90', true],
+    ['days_120', '>120', true],
+    ['days_150', '>150', true],
+    ['pdc', 'PDC', true],
+    ['sm', 'SM', false],
+    ['grp_name', 'GrpName', false],
+    ['division', 'Division', false],
+    ['area', 'Area', false],
+    ['order_type', 'OD / Order', false],
+    ['city', 'City', false],
+    ['pincode', 'Pincode', false]
+  ];
 
-    const start =
-        (detailPage - 1) *
-        DETAIL_PAGE_SIZE;
+  container.innerHTML = `
+    <table>
 
-    const pageRows =
-        list.slice(
-            start,
-            start + DETAIL_PAGE_SIZE
-        );
+      <thead>
+        <tr>
+          ${columns.map(
+            ([key, label, numeric]) => `
+              <th
+                class="
+                  sortable
+                  ${numeric ? 'num' : ''}
+                "
+                data-detail-sort="${key}"
+              >
+                ${esc(label)}
+                ${sortArrow(
+                  detailSort,
+                  key
+                )}
+              </th>
+            `
+          ).join('')}
+        </tr>
+      </thead>
 
-    const columns = [
-        ['party', 'Party', false],
-        ['balance', 'Balance', true],
-        ['days_15', '>15', true],
-        ['days_30', '>30', true],
-        ['days_45', '>45', true],
-        ['days_60', '>60', true],
-        ['days_75', '>75', true],
-        ['days_90', '>90', true],
-        ['days_120', '>120', true],
-        ['days_150', '>150', true],
-        ['pdc', 'PDC', true],
-        ['sm', 'SM', false],
-        ['grp_name', 'GrpName', false],
-        ['division', 'Division', false],
-        ['area', 'Area', false],
-        ['order_type', 'OD / Order', false],
-        ['city', 'City', false],
-        ['pincode', 'Pincode', false]
-    ];
+      <tbody>
 
-    container.innerHTML = `
-        <table>
+        ${
+          pageRows.length
 
-            <thead>
-                <tr>
+            ? pageRows.map(
+                row => `
+                  <tr>
                     ${columns.map(
-                        ([key, label, numeric]) => `
-                        <th
-                            class="sortable ${numeric ? 'num' : ''}"
-                            data-detail-sort="${key}"
+                      ([key, , numeric]) => `
+                        <td
+                          class="${
+                            numeric
+                              ? 'num'
+                              : ''
+                          }"
                         >
-                            ${esc(label)}
-                            ${sortArrow(
-                                detailSort,
-                                key
-                            )}
-                        </th>
-                    `).join('')}
-                </tr>
-            </thead>
-
-            <tbody>
-
-                ${
-                    pageRows.length
-
-                    ? pageRows.map(row => `
-                        <tr>
-                            ${columns.map(
-                                ([key, label, numeric]) => `
-                                <td class="${numeric ? 'num' : ''}">
-                                    ${
-                                        numeric
-                                            ? money(row[key])
-                                            : esc(row[key] ?? '')
-                                    }
-                                </td>
-                            `).join('')}
-                        </tr>
-                    `).join('')
-
-                    : `
-                        <tr>
-                            <td
-                                colspan="${columns.length}"
-                                class="muted"
-                            >
-                                No matching data
-                            </td>
-                        </tr>
-                    `
-                }
-
-            </tbody>
-
-        </table>
-    `;
-
-    if ($('#detailCount')) {
-        $('#detailCount').textContent =
-            `${list.length.toLocaleString('en-IN')} rows`;
-    }
-
-    if ($('#pageInfo')) {
-        $('#pageInfo').textContent =
-            `Page ${detailPage} of ${totalPages}`;
-    }
-
-    if ($('#prevPage')) {
-        $('#prevPage').disabled =
-            detailPage <= 1;
-    }
-
-    if ($('#nextPage')) {
-        $('#nextPage').disabled =
-            detailPage >= totalPages;
-    }
-
-    document
-        .querySelectorAll(
-            '[data-detail-sort]'
-        )
-        .forEach(heading => {
-
-            heading.onclick = () => {
-
-                const key =
-                    heading.dataset.detailSort;
-
-                if (
-                    detailSort.key === key
-                ) {
-                    detailSort.dir =
-                        detailSort.dir === 'asc'
-                            ? 'desc'
-                            : 'asc';
-
-                } else {
-                    detailSort = {
-                        key,
-                        dir: 'asc'
-                    };
-                }
-
-                detailPage = 1;
-
-                renderDetails(
-                    filtered()
-                );
-            };
-
-        });
-}
-
-
-/* =========================================================
-   MAIN DASHBOARD
-========================================================= */
-
-function render() {
-
-    const data = filtered();
-
-    const m = metrics(data);
-
-    /* KPI */
-
-    const kpis = $('#kpis');
-
-    if (kpis) {
-
-        kpis.innerHTML = [
-            [
-                'Total Outstanding',
-                money(m.total)
-            ],
-            [
-                'Total Customers',
-                m.customers.toLocaleString(
-                    'en-IN'
-                )
-            ],
-            [
-                'PDC Amount',
-                money(m.pdc)
-            ],
-            [
-                'Over 90 Days',
-                money(m.over90)
-            ],
-            [
-                'Over 150 Days',
-                money(m.over150)
-            ]
-        ]
-        .map(([label, value]) => `
-            <article class="kpi">
-
-                <span>
-                    ${label}
-                </span>
-
-                <strong>
-                    ${value}
-                </strong>
-
-                <small>
-                    Current snapshot
-                </small>
-
-            </article>
-        `)
-        .join('');
-    }
-
-
-    /* AGEING */
-
-    const ageingLabels =
-        bucketDefs.map(item => item[0]);
-
-    const ageingValues =
-        bucketDefs.map(
-            item => m.bs[item[1]]
-        );
-
-    draw(
-        '#ageChart',
-        'bar',
-        ageingLabels,
-        [
-            {
-                label: 'Amount',
-                data: ageingValues,
-                borderRadius: 6
-            }
-        ]
-    );
-
-
-    /* DONUT */
-
-    draw(
-        '#donutChart',
-        'doughnut',
-        ageingLabels,
-        [
-            {
-                label: 'Amount',
-                data: ageingValues,
-                borderWidth: 0
-            }
-        ],
-        {
-            legend: true
-        }
-    );
-
-
-    /* AMOUNT RANGE */
-
-    const ranges = [
-        {
-            label: '< 1,000',
-            min: 0,
-            max: 1000
-        },
-        {
-            label: '1,000-5,000',
-            min: 1000,
-            max: 5000
-        },
-        {
-            label: '5,000-10,000',
-            min: 5000,
-            max: 10000
-        },
-        {
-            label: '10,000-50,000',
-            min: 10000,
-            max: 50000
-        },
-        {
-            label: '50,000-1,00,000',
-            min: 50000,
-            max: 100000
-        },
-        {
-            label: '>1,00,000',
-            min: 100000,
-            max: Infinity
-        }
-    ];
-
-    draw(
-        '#rangeChart',
-        'bar',
-        ranges.map(
-            range => range.label
-        ),
-        [
-            {
-                label: 'Customers',
-
-                data:
-                    ranges.map(range =>
-                        data.filter(row => {
-
-                            const balance =
-                                num(row.balance);
-
-                            return (
-                                balance >= range.min &&
-                                balance < range.max
-                            );
-
-                        }).length
-                    ),
-
-                borderRadius: 6
-            }
-        ]
-    );
-
-
-    /* TOP 5 CUSTOMERS */
-
-    const topCustomers =
-        [...data]
-            .sort(
-                (a, b) =>
-                    num(b.balance) -
-                    num(a.balance)
-            )
-            .slice(0, 5);
-
-    if ($('#topCustomers')) {
-
-        $('#topCustomers').innerHTML =
-            simpleTable(
-                topCustomers,
-                [
-                    {
-                        label: '#',
-                        render:
-                            (row, index) =>
-                                index + 1
-                    },
-                    {
-                        label: 'Party Name',
-                        key: 'party'
-                    },
-                    {
-                        label: 'Balance',
-                        num: true,
-                        render:
-                            row =>
-                                money(row.balance)
-                    }
-                ]
-            );
-    }
-
-
-    /* TOP 5 >150 */
-
-    const overdueCustomers =
-        [...data]
-            .filter(
-                row =>
-                    num(row.days_150) > 0
-            )
-            .sort(
-                (a, b) =>
-                    num(b.days_150) -
-                    num(a.days_150)
-            )
-            .slice(0, 5);
-
-    if ($('#overdueCustomers')) {
-
-        $('#overdueCustomers').innerHTML =
-            simpleTable(
-                overdueCustomers,
-                [
-                    {
-                        label: '#',
-                        render:
-                            (row, index) =>
-                                index + 1
-                    },
-                    {
-                        label: 'Party Name',
-                        key: 'party'
-                    },
-                    {
-                        label: '>150 Days',
-                        num: true,
-                        render:
-                            row =>
-                                money(row.days_150)
-                    },
-                    {
-                        label: 'Balance',
-                        num: true,
-                        render:
-                            row =>
-                                money(row.balance)
-                    }
-                ]
-            );
-    }
-
-
-    /* DETAILS */
-
-    renderDetails(data);
-
-
-    /* COMPARISON */
-
-    renderCompare(m);
-}
-
-
-/* =========================================================
-   SNAPSHOT COMPARISON
-========================================================= */
-
-async function renderCompare(
-    currentMetrics
-) {
-
-    if (!activeUpload) return;
-
-    const currentIndex =
-        uploads.findIndex(
-            upload =>
-                upload.id === activeUpload.id
-        );
-
-    const previousUpload =
-        currentIndex >= 0
-            ? uploads[currentIndex + 1]
-            : null;
-
-    if (!previousUpload) {
-
-        if ($('#summaryCompare')) {
-
-            $('#summaryCompare').innerHTML = `
-                <span class="muted">
-                    Upload another older snapshot to compare.
-                </span>
-            `;
-        }
-
-        draw(
-            '#compareChart',
-            'bar',
-            [],
-            []
-        );
-
-        return;
-    }
-
-    try {
-
-        const previousRows =
-            await getAllOutstandingRows(
-                previousUpload.id
-            );
-
-        /*
-           Apply same dashboard filters
-           to previous snapshot too.
-        */
-
-        const previousFiltered =
-            previousRows.filter(row =>
-                filterMap.every(([key]) => {
-
-                    const select =
-                        $(`#f_${key}`);
-
-                    const selected =
-                        select
-                            ? select.value
-                            : '';
-
-                    return (
-                        !selected ||
-                        String(
-                            row[key] ?? ''
-                        ) === selected
-                    );
-                })
-            );
-
-        const previousMetrics =
-            metrics(previousFiltered);
-
-        const labels =
-            bucketDefs.map(
-                item => item[0]
-            );
-
-        draw(
-            '#compareChart',
-            'bar',
-            labels,
-            [
-                {
-                    label:
-                        previousUpload
-                            .outstanding_date,
-
-                    data:
-                        bucketDefs.map(
-                            item =>
-                                previousMetrics.bs[
-                                    item[1]
-                                ]
-                        )
-                },
-                {
-                    label:
-                        activeUpload
-                            .outstanding_date,
-
-                    data:
-                        bucketDefs.map(
-                            item =>
-                                currentMetrics.bs[
-                                    item[1]
-                                ]
-                        )
-                }
-            ],
-            {
-                legend: true
-            }
-        );
-
-        const comparisonRows = [
-            {
-                metric:
-                    'Total Outstanding',
-
-                previous:
-                    previousMetrics.total,
-
-                current:
-                    currentMetrics.total,
-
-                customer:
-                    false
-            },
-            {
-                metric:
-                    'Total Customers',
-
-                previous:
-                    previousMetrics.customers,
-
-                current:
-                    currentMetrics.customers,
-
-                customer:
-                    true
-            },
-            {
-                metric:
-                    'PDC Amount',
-
-                previous:
-                    previousMetrics.pdc,
-
-                current:
-                    currentMetrics.pdc,
-
-                customer:
-                    false
-            },
-            {
-                metric:
-                    'Over 90 Days',
-
-                previous:
-                    previousMetrics.over90,
-
-                current:
-                    currentMetrics.over90,
-
-                customer:
-                    false
-            },
-            {
-                metric:
-                    'Over 150 Days',
-
-                previous:
-                    previousMetrics.over150,
-
-                current:
-                    currentMetrics.over150,
-
-                customer:
-                    false
-            }
-        ];
-
-        if ($('#summaryCompare')) {
-
-            $('#summaryCompare').innerHTML =
-                simpleTable(
-                    comparisonRows,
-                    [
-                        {
-                            label: 'Metric',
-                            key: 'metric'
-                        },
-                        {
-                            label:
-                                previousUpload
-                                    .outstanding_date,
-
-                            num: true,
-
-                            render:
-                                row =>
-                                    row.customer
-                                        ? Number(
-                                            row.previous
-                                        ).toLocaleString(
-                                            'en-IN'
-                                        )
-                                        : money(
-                                            row.previous
-                                        )
-                        },
-                        {
-                            label:
-                                activeUpload
-                                    .outstanding_date,
-
-                            num: true,
-
-                            render:
-                                row =>
-                                    row.customer
-                                        ? Number(
-                                            row.current
-                                        ).toLocaleString(
-                                            'en-IN'
-                                        )
-                                        : money(
-                                            row.current
-                                        )
-                        }
-                    ]
-                );
-        }
-
-    } catch (error) {
-
-        console.error(
-            'Comparison error:',
-            error
-        );
-
-        if ($('#summaryCompare')) {
-
-            $('#summaryCompare').innerHTML = `
-                <span class="muted">
-                    Comparison unavailable.
-                </span>
-            `;
-        }
-    }
-}
-
-
-/* =========================================================
-   SNAPSHOT HISTORY
-========================================================= */
-
-function renderHistory() {
-
-    const container = $('#history');
-
-    if (!container) return;
-
-    const list = [...uploads];
-
-    list.sort((a, b) => {
-
-        const result =
-            compareValues(
-                a,
-                b,
-                historySort.key
-            );
-
-        return historySort.dir === 'asc'
-            ? result
-            : -result;
-    });
-
-    const columns = [
-        [
-            'outstanding_date',
-            'Date',
-            false
-        ],
-        [
-            'uploaded_at',
-            'Uploaded On',
-            false
-        ],
-        [
-            'uploaded_by',
-            'By',
-            false
-        ],
-        [
-            'total_customers',
-            'Customers',
-            true
-        ],
-        [
-            'total_outstanding',
-            'Outstanding',
-            true
-        ]
-    ];
-
-    container.innerHTML = `
-        <table>
-
-            <thead>
+                          ${
+                            numeric
+                              ? money(
+                                  row[key]
+                                )
+                              : esc(
+                                  row[key] ??
+                                  ''
+                                )
+                          }
+                        </td>
+                      `
+                    ).join('')}
+                  </tr>
+                `
+              ).join('')
+
+            : `
                 <tr>
-
-                    ${columns.map(
-                        ([key, label, numeric]) => `
-                        <th
-                            class="sortable ${numeric ? 'num' : ''}"
-                            data-history-sort="${key}"
-                        >
-                            ${esc(label)}
-                            ${sortArrow(
-                                historySort,
-                                key
-                            )}
-                        </th>
-                    `).join('')}
-
+                  <td
+                    colspan="${columns.length}"
+                    class="muted"
+                  >
+                    No matching data
+                  </td>
                 </tr>
-            </thead>
-
-            <tbody>
-
-                ${
-                    list.length
-
-                    ? list.slice(0, 50)
-                        .map(row => `
-                            <tr>
-
-                                <td>
-                                    ${esc(
-                                        row.outstanding_date
-                                    )}
-                                </td>
-
-                                <td>
-                                    ${
-                                        row.uploaded_at
-                                            ? esc(
-                                                new Date(
-                                                    row.uploaded_at
-                                                )
-                                                .toLocaleString(
-                                                    'en-IN'
-                                                )
-                                            )
-                                            : ''
-                                    }
-                                </td>
-
-                                <td>
-                                    ${esc(
-                                        row.uploaded_by
-                                    )}
-                                </td>
-
-                                <td class="num">
-                                    ${
-                                        num(
-                                            row.total_customers
-                                        )
-                                        .toLocaleString(
-                                            'en-IN'
-                                        )
-                                    }
-                                </td>
-
-                                <td class="num">
-                                    ${
-                                        money(
-                                            row.total_outstanding
-                                        )
-                                    }
-                                </td>
-
-                            </tr>
-                        `).join('')
-
-                    : `
-                        <tr>
-                            <td
-                                colspan="5"
-                                class="muted"
-                            >
-                                No snapshots
-                            </td>
-                        </tr>
-                    `
-                }
-
-            </tbody>
-
-        </table>
-    `;
-
-    document
-        .querySelectorAll(
-            '[data-history-sort]'
-        )
-        .forEach(heading => {
-
-            heading.onclick = () => {
-
-                const key =
-                    heading.dataset.historySort;
-
-                if (
-                    historySort.key === key
-                ) {
-                    historySort.dir =
-                        historySort.dir === 'asc'
-                            ? 'desc'
-                            : 'asc';
-
-                } else {
-                    historySort = {
-                        key,
-                        dir: 'asc'
-                    };
-                }
-
-                renderHistory();
-            };
-
-        });
-}
-
-
-/* =========================================================
-   LOAD DASHBOARD
-========================================================= */
-
-async function load(
-    preferredId = null
-) {
-
-    toast(
-        'Loading outstanding data...'
-    );
-
-    uploads =
-        await rpc(
-            'raj_outstanding_list_uploads'
-        ) || [];
-
-    uploads.sort((a, b) => {
-
-        const dateCompare =
-            String(
-                b.outstanding_date ?? ''
-            )
-            .localeCompare(
-                String(
-                    a.outstanding_date ?? ''
-                )
-            );
-
-        if (dateCompare !== 0) {
-            return dateCompare;
+              `
         }
 
-        return String(
-            b.uploaded_at ?? ''
-        )
-        .localeCompare(
-            String(
-                a.uploaded_at ?? ''
-            )
-        );
-    });
+      </tbody>
 
-    const snapshotSelect =
-        $('#snapshotSelect');
+    </table>
+  `;
 
-    if (snapshotSelect) {
+  if ($('#detailCount')) {
+    $('#detailCount')
+      .textContent =
+        `${list.length.toLocaleString('en-IN')} rows`;
+  }
 
-        snapshotSelect.innerHTML =
-            uploads.length
+  if ($('#pageInfo')) {
+    $('#pageInfo')
+      .textContent =
+        `Page ${detailPage} of ${totalPages}`;
+  }
 
-                ? uploads.map(upload => `
-                    <option value="${esc(upload.id)}">
-                        ${esc(
-                            upload.outstanding_date
-                        )}
-                    </option>
-                `).join('')
+  if ($('#prevPage')) {
+    $('#prevPage').disabled =
+      detailPage <= 1;
+  }
 
-                : `
-                    <option value="">
-                        No snapshot
-                    </option>
-                `;
-    }
+  if ($('#nextPage')) {
+    $('#nextPage').disabled =
+      detailPage >= totalPages;
+  }
 
-    activeUpload =
-        uploads.find(
-            upload =>
-                upload.id === preferredId
-        )
-        ||
-        uploads[0]
-        ||
-        null;
+  container
+    .querySelectorAll(
+      '[data-detail-sort]'
+    )
+    .forEach(heading => {
+      heading.onclick = () => {
+        const key =
+          heading.dataset.detailSort;
 
-    if (!activeUpload) {
-
-        rows = [];
-
-        makeFilters();
-        render();
-        renderHistory();
-
-        toast(
-            'No outstanding snapshot found.'
-        );
-
-        return;
-    }
-
-    if (snapshotSelect) {
-        snapshotSelect.value =
-            activeUpload.id;
-    }
-
-    /*
-       FULL PAGINATED LOAD
-    */
-
-    rows =
-        await getAllOutstandingRows(
-            activeUpload.id
-        );
-
-    console.log(
-        'Dashboard total rows:',
-        rows.length
-    );
-
-    makeFilters();
-
-    detailPage = 1;
-
-    render();
-
-    renderHistory();
-
-    toast(
-        `${rows.length.toLocaleString('en-IN')} outstanding rows loaded`
-    );
-}
-
-
-/* =========================================================
-   SWITCH SNAPSHOT
-========================================================= */
-
-async function switchSnapshot() {
-
-    try {
-
-        const selectedId =
-            $('#snapshotSelect')?.value;
-
-        activeUpload =
-            uploads.find(
-                upload =>
-                    upload.id === selectedId
-            );
-
-        if (!activeUpload) return;
-
-        toast(
-            'Loading selected snapshot...'
-        );
-
-        rows =
-            await getAllOutstandingRows(
-                activeUpload.id
-            );
-
-        makeFilters();
+        if (
+          detailSort.key === key
+        ) {
+          detailSort.dir =
+            detailSort.dir === 'asc'
+              ? 'desc'
+              : 'asc';
+        } else {
+          detailSort = {
+            key,
+            dir: 'asc'
+          };
+        }
 
         detailPage = 1;
 
-        render();
-
-        toast(
-            `${rows.length.toLocaleString('en-IN')} rows loaded`
+        renderDetails(
+          filtered()
         );
-
-    } catch (error) {
-
-        console.error(error);
-
-        toast(
-            'Snapshot load failed: ' +
-            error.message
-        );
-    }
+      };
+    });
 }
 
-
 /* =========================================================
-   CSV HEADER
+   KPI + CHARTS + TOP 5
 ========================================================= */
 
-function normalizeHeader(header) {
+function render() {
+  const data =
+    filtered();
 
-    return String(header ?? '')
-        .replace(
-            /^\uFEFF/,
-            ''
+  const currentMetrics =
+    metrics(data);
+
+  /* =========================
+     KPI
+  ========================= */
+
+  const kpis =
+    $('#kpis');
+
+  if (kpis) {
+    const cards = [
+      [
+        'Total Outstanding',
+        money(
+          currentMetrics.total
         )
-        .trim();
+      ],
+
+      [
+        'Total Customers',
+        currentMetrics.customers
+          .toLocaleString('en-IN')
+      ],
+
+      [
+        'PDC Amount',
+        money(
+          currentMetrics.pdc
+        )
+      ],
+
+      [
+        'Over 90 Days',
+        money(
+          currentMetrics.over90
+        )
+      ],
+
+      [
+        'Over 150 Days',
+        money(
+          currentMetrics.over150
+        )
+      ]
+    ];
+
+    kpis.innerHTML =
+      cards.map(
+        ([label, value]) => `
+          <article class="kpi">
+
+            <span>
+              ${esc(label)}
+            </span>
+
+            <strong>
+              ${esc(value)}
+            </strong>
+
+            <small>
+              Current snapshot
+            </small>
+
+          </article>
+        `
+      ).join('');
+  }
+
+  /* =========================
+     AGEING CHART
+  ========================= */
+
+  const ageingLabels =
+    bucketDefs.map(
+      item => item[0]
+    );
+
+  const ageingValues =
+    bucketDefs.map(
+      item =>
+        currentMetrics.bs[
+          item[1]
+        ]
+    );
+
+  draw(
+    '#ageChart',
+    'bar',
+    ageingLabels,
+    [
+      {
+        label: 'Amount',
+        data: ageingValues,
+        borderRadius: 6
+      }
+    ]
+  );
+
+  /* =========================
+     BREAKUP DONUT
+  ========================= */
+
+  draw(
+    '#donutChart',
+    'doughnut',
+    ageingLabels,
+    [
+      {
+        label: 'Amount',
+        data: ageingValues,
+        borderWidth: 0
+      }
+    ],
+    {
+      legend: true
+    }
+  );
+
+  /* =========================
+     AMOUNT RANGE
+  ========================= */
+
+  const ranges = [
+    {
+      label: '< 1,000',
+      min: 0,
+      max: 1000
+    },
+
+    {
+      label: '1,000-5,000',
+      min: 1000,
+      max: 5000
+    },
+
+    {
+      label: '5,000-10,000',
+      min: 5000,
+      max: 10000
+    },
+
+    {
+      label: '10,000-50,000',
+      min: 10000,
+      max: 50000
+    },
+
+    {
+      label: '50,000-1,00,000',
+      min: 50000,
+      max: 100000
+    },
+
+    {
+      label: '>1,00,000',
+      min: 100000,
+      max: Infinity
+    }
+  ];
+
+  draw(
+    '#rangeChart',
+    'bar',
+    ranges.map(
+      range =>
+        range.label
+    ),
+    [
+      {
+        label: 'Customers',
+
+        data:
+          ranges.map(
+            range =>
+              data.filter(
+                row => {
+                  const balance =
+                    num(
+                      row.balance
+                    );
+
+                  return (
+                    balance >=
+                      range.min
+                    &&
+                    balance <
+                      range.max
+                  );
+                }
+              ).length
+          ),
+
+        borderRadius: 6
+      }
+    ],
+    {
+      countChart: true
+    }
+  );
+
+  /* =========================
+     TOP 5 OUTSTANDING
+  ========================= */
+
+  const topCustomers =
+    [...data]
+      .sort(
+        (a, b) =>
+          num(b.balance) -
+          num(a.balance)
+      )
+      .slice(0, 5);
+
+  if ($('#topCustomers')) {
+    $('#topCustomers')
+      .innerHTML =
+        simpleTable(
+          topCustomers,
+          [
+            {
+              label: '#',
+
+              render:
+                (row, index) =>
+                  index + 1
+            },
+
+            {
+              label:
+                'Party Name',
+
+              key:
+                'party'
+            },
+
+            {
+              label:
+                'Balance',
+
+              num:
+                true,
+
+              render:
+                row =>
+                  money(
+                    row.balance
+                  )
+            }
+          ]
+        );
+  }
+
+  /* =========================
+     TOP 5 >150 DAYS
+  ========================= */
+
+  const overdueCustomers =
+    [...data]
+      .filter(
+        row =>
+          num(
+            row.days_150
+          ) > 0
+      )
+      .sort(
+        (a, b) =>
+          num(
+            b.days_150
+          ) -
+          num(
+            a.days_150
+          )
+      )
+      .slice(0, 5);
+
+  if ($('#overdueCustomers')) {
+    $('#overdueCustomers')
+      .innerHTML =
+        simpleTable(
+          overdueCustomers,
+          [
+            {
+              label: '#',
+
+              render:
+                (row, index) =>
+                  index + 1
+            },
+
+            {
+              label:
+                'Party Name',
+
+              key:
+                'party'
+            },
+
+            {
+              label:
+                '>150 Days',
+
+              num:
+                true,
+
+              render:
+                row =>
+                  money(
+                    row.days_150
+                  )
+            },
+
+            {
+              label:
+                'Balance',
+
+              num:
+                true,
+
+              render:
+                row =>
+                  money(
+                    row.balance
+                  )
+            }
+          ]
+        );
+  }
+
+  /* =========================
+     CUSTOMER DETAILS
+  ========================= */
+
+  renderDetails(data);
+
+  /* =========================
+     COMPARISON
+  ========================= */
+
+  renderCompare(
+    currentMetrics
+  );
 }
 
-
 /* =========================================================
-   CSV UPLOAD
+   COMPARISON SELECTOR
 ========================================================= */
 
-async function upload(file) {
+function populateCompareSelector() {
+  const select =
+    $('#compareSnapshotSelect');
 
-    if (!file) return;
+  if (!select) {
+    return;
+  }
 
-    if (!/\.csv$/i.test(file.name)) {
+  const oldValue =
+    select.value;
 
-        toast(
-            'Please select a CSV file.'
-        );
+  const available =
+    uploads.filter(
+      upload =>
+        !activeUpload ||
+        upload.id !==
+          activeUpload.id
+    );
 
-        if ($('#fileInput')) {
-            $('#fileInput').value = '';
-        }
+  select.innerHTML = `
+    <option value="">
+      Select snapshot
+    </option>
 
-        return;
+    ${available.map(
+      upload => `
+        <option
+          value="${esc(upload.id)}"
+        >
+          ${esc(
+            upload.outstanding_date
+          )}
+        </option>
+      `
+    ).join('')}
+  `;
+
+  /*
+    Keep existing comparison if still valid.
+  */
+  if (
+    oldValue &&
+    available.some(
+      upload =>
+        upload.id === oldValue
+    )
+  ) {
+    select.value =
+      oldValue;
+
+    return;
+  }
+
+  /*
+    Otherwise automatically select
+    the previous snapshot.
+  */
+  const currentIndex =
+    uploads.findIndex(
+      upload =>
+        upload.id ===
+        activeUpload?.id
+    );
+
+  const previous =
+    currentIndex >= 0
+      ? uploads[
+          currentIndex + 1
+        ]
+      : null;
+
+  if (previous) {
+    select.value =
+      previous.id;
+  }
+}
+
+/* =========================================================
+   GET COMPARISON SNAPSHOT WITH CACHE
+========================================================= */
+
+async function getComparisonRows(
+  uploadId
+) {
+  if (
+    snapshotCache.has(
+      uploadId
+    )
+  ) {
+    return snapshotCache.get(
+      uploadId
+    );
+  }
+
+  const comparisonRows =
+    await getAllOutstandingRows(
+      uploadId,
+      'Loading comparison'
+    );
+
+  snapshotCache.set(
+    uploadId,
+    comparisonRows
+  );
+
+  return comparisonRows;
+}
+
+/* =========================================================
+   COMPARISON
+========================================================= */
+
+async function renderCompare(
+  currentMetrics
+) {
+  const select =
+    $('#compareSnapshotSelect');
+
+  if (
+    !activeUpload ||
+    !select
+  ) {
+    return;
+  }
+
+  const compareId =
+    select.value;
+
+  const requestId =
+    ++comparisonRequestId;
+
+  if (!compareId) {
+    if ($('#summaryCompare')) {
+      $('#summaryCompare')
+        .innerHTML = `
+          <span class="muted">
+            Select a snapshot in Compare With.
+          </span>
+        `;
     }
 
-    const date =
-        prompt(
-            'Outstanding date (YYYY-MM-DD):',
-            new Date()
-                .toISOString()
-                .slice(0, 10)
-        );
+    draw(
+      '#compareChart',
+      'bar',
+      [],
+      []
+    );
 
-    if (!date) {
+    return;
+  }
 
-        if ($('#fileInput')) {
-            $('#fileInput').value = '';
-        }
+  const compareUpload =
+    uploads.find(
+      upload =>
+        upload.id ===
+        compareId
+    );
 
-        return;
+  if (!compareUpload) {
+    return;
+  }
+
+  try {
+    const comparisonRows =
+      await getComparisonRows(
+        compareId
+      );
+
+    /*
+      A newer comparison request started
+      while this one was loading.
+    */
+    if (
+      requestId !==
+      comparisonRequestId
+    ) {
+      return;
     }
+
+    /*
+      Same selected filters are applied
+      to comparison snapshot.
+    */
+    const comparisonFiltered =
+      filtered(
+        comparisonRows
+      );
+
+    const comparisonMetrics =
+      metrics(
+        comparisonFiltered
+      );
+
+    const labels =
+      bucketDefs.map(
+        item => item[0]
+      );
+
+    draw(
+      '#compareChart',
+      'bar',
+      labels,
+      [
+        {
+          label:
+            compareUpload
+              .outstanding_date,
+
+          data:
+            bucketDefs.map(
+              item =>
+                comparisonMetrics.bs[
+                  item[1]
+                ]
+            )
+        },
+
+        {
+          label:
+            activeUpload
+              .outstanding_date,
+
+          data:
+            bucketDefs.map(
+              item =>
+                currentMetrics.bs[
+                  item[1]
+                ]
+            )
+        }
+      ],
+      {
+        legend: true
+      }
+    );
+
+    const comparisonTable = [
+      {
+        metric:
+          'Total Outstanding',
+
+        previous:
+          comparisonMetrics.total,
+
+        current:
+          currentMetrics.total,
+
+        count:
+          false
+      },
+
+      {
+        metric:
+          'Total Customers',
+
+        previous:
+          comparisonMetrics.customers,
+
+        current:
+          currentMetrics.customers,
+
+        count:
+          true
+      },
+
+      {
+        metric:
+          'PDC Amount',
+
+        previous:
+          comparisonMetrics.pdc,
+
+        current:
+          currentMetrics.pdc,
+
+        count:
+          false
+      },
+
+      {
+        metric:
+          'Over 90 Days',
+
+        previous:
+          comparisonMetrics.over90,
+
+        current:
+          currentMetrics.over90,
+
+        count:
+          false
+      },
+
+      {
+        metric:
+          'Over 150 Days',
+
+        previous:
+          comparisonMetrics.over150,
+
+        current:
+          currentMetrics.over150,
+
+        count:
+          false
+      }
+    ];
+
+    if ($('#summaryCompare')) {
+      $('#summaryCompare')
+        .innerHTML =
+          simpleTable(
+            comparisonTable,
+            [
+              {
+                label:
+                  'Metric',
+
+                key:
+                  'metric'
+              },
+
+              {
+                label:
+                  compareUpload
+                    .outstanding_date,
+
+                num:
+                  true,
+
+                render:
+                  row =>
+                    row.count
+                      ? Number(
+                          row.previous
+                        )
+                          .toLocaleString(
+                            'en-IN'
+                          )
+                      : money(
+                          row.previous
+                        )
+              },
+
+              {
+                label:
+                  activeUpload
+                    .outstanding_date,
+
+                num:
+                  true,
+
+                render:
+                  row =>
+                    row.count
+                      ? Number(
+                          row.current
+                        )
+                          .toLocaleString(
+                            'en-IN'
+                          )
+                      : money(
+                          row.current
+                        )
+              }
+            ]
+          );
+    }
+
+  } catch (error) {
+    console.error(
+      'Comparison error:',
+      error
+    );
 
     if (
-        !/^\d{4}-\d{2}-\d{2}$/
-            .test(date)
+      requestId !==
+      comparisonRequestId
     ) {
-
-        toast(
-            'Date format must be YYYY-MM-DD.'
-        );
-
-        if ($('#fileInput')) {
-            $('#fileInput').value = '';
-        }
-
-        return;
+      return;
     }
 
-    toast(
-        'Reading CSV file...'
-    );
-
-    Papa.parse(
-        file,
-        {
-            header: true,
-
-            skipEmptyLines:
-                'greedy',
-
-            transformHeader:
-                normalizeHeader,
-
-            complete:
-                async result => {
-
-                    try {
-
-                        if (
-                            result.errors &&
-                            result.errors.length
-                        ) {
-                            console.warn(
-                                'CSV warnings:',
-                                result.errors
-                            );
-                        }
-
-                        const requiredColumns = [
-                            'Party',
-                            'Balance',
-                            '15',
-                            '30',
-                            '45',
-                            '60',
-                            '75',
-                            '90',
-                            '120',
-                            '150',
-                            'PDC',
-                            'SM',
-                            'GrpName',
-                            'Division',
-                            'Area',
-                            'Order',
-                            'City',
-                            'Pincode'
-                        ];
-
-                        const actualColumns =
-                            result.meta?.fields ||
-                            [];
-
-                        const missing =
-                            requiredColumns
-                                .filter(
-                                    column =>
-                                        !actualColumns
-                                            .includes(
-                                                column
-                                            )
-                                );
-
-                        if (missing.length) {
-
-                            throw new Error(
-                                'Missing CSV columns: ' +
-                                missing.join(', ')
-                            );
-                        }
-
-                        const mapped =
-                            result.data
-
-                            .filter(row =>
-                                String(
-                                    row.Party ?? ''
-                                ).trim()
-                                ||
-                                num(
-                                    row.Balance
-                                ) !== 0
-                            )
-
-                            .map(row => ({
-                                party:
-                                    String(
-                                        row.Party ?? ''
-                                    ).trim(),
-
-                                balance:
-                                    num(
-                                        row.Balance
-                                    ),
-
-                                days_15:
-                                    num(
-                                        row['15']
-                                    ),
-
-                                days_30:
-                                    num(
-                                        row['30']
-                                    ),
-
-                                days_45:
-                                    num(
-                                        row['45']
-                                    ),
-
-                                days_60:
-                                    num(
-                                        row['60']
-                                    ),
-
-                                days_75:
-                                    num(
-                                        row['75']
-                                    ),
-
-                                days_90:
-                                    num(
-                                        row['90']
-                                    ),
-
-                                days_120:
-                                    num(
-                                        row['120']
-                                    ),
-
-                                days_150:
-                                    num(
-                                        row['150']
-                                    ),
-
-                                pdc:
-                                    num(
-                                        row.PDC
-                                    ),
-
-                                sm:
-                                    String(
-                                        row.SM ?? ''
-                                    ).trim(),
-
-                                grp_name:
-                                    String(
-                                        row.GrpName ?? ''
-                                    ).trim(),
-
-                                division:
-                                    String(
-                                        row.Division ?? ''
-                                    ).trim(),
-
-                                area:
-                                    String(
-                                        row.Area ?? ''
-                                    ).trim(),
-
-                                order_type:
-                                    String(
-                                        row.Order ?? ''
-                                    ).trim(),
-
-                                city:
-                                    String(
-                                        row.City ?? ''
-                                    ).trim(),
-
-                                pincode:
-                                    String(
-                                        row.Pincode ?? ''
-                                    ).trim()
-                            }));
-
-                        if (!mapped.length) {
-
-                            throw new Error(
-                                'CSV contains no usable rows.'
-                            );
-                        }
-
-                        let user = {};
-
-                        try {
-                            user =
-                                JSON.parse(
-                                    localStorage.getItem(
-                                        USER
-                                    ) || '{}'
-                                );
-                        } catch (e) {
-                            user = {};
-                        }
-
-                        toast(
-                            `Uploading ${mapped.length.toLocaleString('en-IN')} rows...`
-                        );
-
-                        await rpc(
-                            'raj_outstanding_upload_json',
-                            {
-                                p_outstanding_date:
-                                    date,
-
-                                p_file_name:
-                                    file.name,
-
-                                p_uploaded_by:
-                                    user.name
-                                    ||
-                                    user.username
-                                    ||
-                                    user.email
-                                    ||
-                                    'User',
-
-                                p_rows:
-                                    mapped
-                            }
-                        );
-
-                        if ($('#fileInput')) {
-                            $('#fileInput').value = '';
-                        }
-
-                        toast(
-                            `Upload successful: ${mapped.length.toLocaleString('en-IN')} rows`
-                        );
-
-                        await load();
-
-                    } catch (error) {
-
-                        console.error(
-                            'Upload error:',
-                            error
-                        );
-
-                        if ($('#fileInput')) {
-                            $('#fileInput').value = '';
-                        }
-
-                        toast(
-                            'Upload failed: ' +
-                            error.message
-                        );
-                    }
-                },
-
-            error:
-                error => {
-
-                    console.error(
-                        'CSV read error:',
-                        error
-                    );
-
-                    if ($('#fileInput')) {
-                        $('#fileInput').value = '';
-                    }
-
-                    toast(
-                        'CSV read failed: ' +
-                        error.message
-                    );
-                }
-        }
-    );
+    if ($('#summaryCompare')) {
+      $('#summaryCompare')
+        .innerHTML = `
+          <span class="muted">
+            Comparison unavailable:
+            ${esc(
+              error.message
+            )}
+          </span>
+        `;
+    }
+  }
 }
-
-
-/* =========================================================
-   START
-========================================================= */
-
-(async () => {
-
-    if (!await guard()) {
-        return;
-    }
-
-
-    /* UPLOAD */
-
-    if ($('#uploadBtn')) {
-
-        $('#uploadBtn').onclick =
-            () => {
-                $('#fileInput')?.click();
-            };
-    }
-
-
-    if ($('#uploadBtn2')) {
-
-        $('#uploadBtn2').onclick =
-            () => {
-                $('#fileInput')?.click();
-            };
-    }
-
-
-    /* FILE INPUT */
-
-    if ($('#fileInput')) {
-
-        $('#fileInput').onchange =
-            event => {
-
-                const file =
-                    event.target
-                        .files?.[0];
-
-                upload(file);
-            };
-    }
-
-
-    /* SNAPSHOT */
-
-    if ($('#snapshotSelect')) {
-
-        $('#snapshotSelect').onchange =
-            switchSnapshot;
-    }
-
-
-    /* RESET FILTERS */
-
-    if ($('#resetBtn')) {
-
-        $('#resetBtn').onclick =
-            () => {
-
-                $('#filters')
-                    ?.querySelectorAll(
-                        'select'
-                    )
-                    .forEach(
-                        select => {
-                            select.value = '';
-                        }
-                    );
-
-                if ($('#detailSearch')) {
-                    $('#detailSearch').value = '';
-                }
-
-                detailPage = 1;
-
-                render();
-            };
-    }
-
-
-    /* DETAIL SEARCH */
-
-    if ($('#detailSearch')) {
-
-        $('#detailSearch').oninput =
-            () => {
-
-                detailPage = 1;
-
-                renderDetails(
-                    filtered()
-                );
-            };
-    }
-
-
-    /* PREVIOUS PAGE */
-
-    if ($('#prevPage')) {
-
-        $('#prevPage').onclick =
-            () => {
-
-                if (detailPage > 1) {
-
-                    detailPage--;
-
-                    renderDetails(
-                        filtered()
-                    );
-                }
-            };
-    }
-
-
-    /* NEXT PAGE */
-
-    if ($('#nextPage')) {
-
-        $('#nextPage').onclick =
-            () => {
-
-                detailPage++;
-
-                renderDetails(
-                    filtered()
-                );
-            };
-    }
-
-
-    /* REFRESH */
-
-    if ($('#refreshBtn')) {
-
-        $('#refreshBtn').onclick =
-            () => {
-
-                load(
-                    activeUpload?.id ||
-                    null
-                );
-            };
-    }
-
-
-    /* VIEW DATA LOG */
-
-    if ($('#logsBtn')) {
-
-        $('#logsBtn').onclick =
-            () => {
-
-                $('#customerDetails')
-                    ?.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
-                    });
-            };
-    }
-
-
-    /* LOGOUT */
-
-    if ($('#logoutBtn')) {
-
-        $('#logoutBtn').onclick =
-            () => {
-
-                localStorage.removeItem(
-                    TOKEN
-                );
-
-                localStorage.removeItem(
-                    USER
-                );
-
-                location.href =
-                    'index.html';
-            };
-    }
-
-
-    /* INITIAL LOAD */
-
-    await load();
-
-})().catch(error => {
-
-    console.error(
-        'Outstanding dashboard error:',
-        error
-    );
-
-    toast(
-        'Dashboard error: ' +
-        error.message
-    );
-
-});
