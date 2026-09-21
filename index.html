@@ -1,140 +1,1320 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="en" class="raj-auth-pending">
+
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Outstanding Dashboard</title>
-  <link rel="stylesheet" href="outstanding.css">
+
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
+  <title>Sales Intelligence Dashboard</title>
+
+
+  <!-- =====================================================
+       AUTH FAIL-CLOSED
+       ===================================================== -->
+
+  <meta
+    http-equiv="Cache-Control"
+    content="no-cache, no-store, must-revalidate"
+  >
+
+  <meta
+    http-equiv="Pragma"
+    content="no-cache"
+  >
+
+  <meta
+    http-equiv="Expires"
+    content="0"
+  >
+
+
+  <style>
+
+    html.raj-auth-pending .topbar,
+    html.raj-auth-pending .container{
+      visibility:hidden !important;
+    }
+
+
+    .compare-controls{
+      display:grid;
+      grid-template-columns:
+        repeat(
+          auto-fit,
+          minmax(230px,1fr)
+        );
+      gap:16px;
+      margin-bottom:16px;
+    }
+
+
+    .compare-grid{
+      display:grid;
+      grid-template-columns:
+        repeat(
+          auto-fit,
+          minmax(180px,1fr)
+        );
+      gap:14px;
+      margin-top:14px;
+    }
+
+
+    .compare-card{
+      border:1px solid #e5e7eb;
+      border-radius:14px;
+      padding:14px;
+      background:#fff;
+    }
+
+
+    .compare-card span{
+      display:block;
+      color:#64748b;
+      font-size:12px;
+      margin-bottom:6px;
+    }
+
+
+    .compare-card strong{
+      font-size:20px;
+      line-height:1.3;
+    }
+
+
+    .compare-positive{
+      color:#15803d;
+    }
+
+
+    .compare-negative{
+      color:#b91c1c;
+    }
+
+
+    .compare-neutral{
+      color:#475569;
+    }
+
+
+    .avg-card{
+      border:1px solid #dbeafe;
+      background:#eff6ff;
+    }
+
+
+    .budget-overview-card{
+      border:1px solid #d1fae5;
+      background:#ecfdf5;
+    }
+
+
+    #tableHead th,
+    .summary-table thead th{
+      white-space:nowrap;
+    }
+
+
+    /* =====================================================
+       CLEAN UNIFIED TABLE FREEZE + ROW CONTROLS
+       ===================================================== */
+
+    .budget-head-actions{display:flex;align-items:flex-end;justify-content:flex-end;gap:12px;flex-wrap:wrap;}
+    .row-count{min-width:90px;}
+    .row-count label{margin-bottom:5px;}
+    .row-count select{min-width:88px;}
+
+    .freeze-table-wrap{
+      position:relative;
+      width:100%;
+      max-height:68vh;
+      overflow:auto !important;
+      overscroll-behavior:contain;
+      -webkit-overflow-scrolling:touch;
+      border-radius:14px;
+    }
+
+    .freeze-table{border-collapse:separate !important;border-spacing:0 !important;width:max-content;min-width:100%;}
+
+    .freeze-table thead th{
+      position:-webkit-sticky !important;
+      position:sticky !important;
+      top:0 !important;
+      z-index:30 !important;
+      background:#f1efff !important;
+      white-space:nowrap;
+      box-shadow:inset 0 -1px 0 rgba(102,87,245,.18);
+    }
+
+    .freeze-first-1 th:first-child,.freeze-first-1 td:first-child{
+      position:-webkit-sticky !important;position:sticky !important;left:0 !important;min-width:168px;max-width:280px;
+    }
+    .freeze-first-1 tbody td:first-child{z-index:20 !important;background:#fff !important;box-shadow:inset -1px 0 0 rgba(102,87,245,.14);}
+    .freeze-first-1 thead th:first-child{z-index:50 !important;background:#eae7ff !important;}
+
+    .freeze-first-2 th:nth-child(1),.freeze-first-2 td:nth-child(1){
+      position:-webkit-sticky !important;position:sticky !important;left:0 !important;min-width:90px;width:90px;max-width:90px;
+    }
+    .freeze-first-2 th:nth-child(2),.freeze-first-2 td:nth-child(2){
+      position:-webkit-sticky !important;position:sticky !important;left:90px !important;min-width:230px;max-width:320px;
+    }
+    .freeze-first-2 tbody td:nth-child(1),.freeze-first-2 tbody td:nth-child(2){z-index:20 !important;background:#fff !important;}
+    .freeze-first-2 tbody td:nth-child(2){box-shadow:inset -1px 0 0 rgba(102,87,245,.14);}
+    .freeze-first-2 thead th:nth-child(1),.freeze-first-2 thead th:nth-child(2){z-index:50 !important;background:#eae7ff !important;}
+
+    .analysis-pager{margin-top:12px;}
+
+    @media(max-width:700px){
+      .freeze-table-wrap{max-height:62vh;}
+      .freeze-first-1 th:first-child,.freeze-first-1 td:first-child{min-width:145px;max-width:210px;}
+      .freeze-first-2 th:nth-child(1),.freeze-first-2 td:nth-child(1){min-width:78px;width:78px;max-width:78px;}
+      .freeze-first-2 th:nth-child(2),.freeze-first-2 td:nth-child(2){left:78px !important;min-width:185px;max-width:235px;}
+    }
+
+
+  </style>
+
+
+  <link
+    rel="stylesheet"
+    href="style.css?v=online38"
+  >
+
+  <link
+    rel="stylesheet"
+    href="visual-style.css?v=online38"
+  >
+
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    crossorigin=""
+  >
+
+
 </head>
+
+
 <body>
-<div class="od-shell">
-  <aside class="sidebar">
-    <div class="od-brand">
-      <strong>RAJ</strong>
-      <small>Sales & Distribution</small>
+
+
+<header class="topbar">
+
+  <div class="brand">
+
+    <div class="logo">
+      R
     </div>
 
-    <nav class="side-nav">
-      <a href="index.html">← Sales Dashboard</a>
-      <a class="active" href="outstanding.html">Outstanding Dashboard</a>
-    </nav>
+    <div>
 
-    <div class="spacer"></div>
-    <button class="side-logout" id="logoutBtn">Logout</button>
-  </aside>
+      <h1>
+        Sales Intelligence
+      </h1>
 
-  <main class="main">
-    <header class="topbar">
+      <p>
+        Customer • Product • Group • SM • Division • Pincode
+      </p>
+
+    </div>
+
+  </div>
+
+
+  <div style="display:flex;gap:10px;align-items:center"><a href="outstanding.html" style="text-decoration:none;background:#6657f5;color:#fff;padding:10px 14px;border-radius:10px;font-weight:700">Outstanding Dashboard</a>
+  <div class="live">
+    ● Supabase Online
+  </div></div>
+
+</header>
+
+
+
+<main class="container">
+
+
+  <!-- ======================================================
+       HERO
+       ====================================================== -->
+
+  <section class="hero">
+
+    <div>
+
+      <span class="eyebrow">
+        Business Overview
+      </span>
+
+      <h2>
+        Sales Performance Dashboard
+      </h2>
+
+      <p>
+        Sales, Taxable comparison, Customer Budget and Target tracking.
+      </p>
+
+    </div>
+
+
+    <button
+      id="clearFilters"
+      class="clear-btn"
+    >
+      Clear All Filters
+    </button>
+
+  </section>
+
+
+
+  <!-- ======================================================
+       TOP SUMMARY
+       ====================================================== -->
+
+  <section class="summary-grid five">
+
+    <article class="summary-card">
+
+      <span>
+        Total Qty
+      </span>
+
+      <strong id="totalQty">
+        0
+      </strong>
+
+      <small>
+        Filtered quantity
+      </small>
+
+    </article>
+
+
+    <article class="summary-card">
+
+      <span>
+        Total Taxable
+      </span>
+
+      <strong id="totalTaxable">
+        ₹0
+      </strong>
+
+      <small>
+        Filtered taxable value
+      </small>
+
+    </article>
+
+
+    <article class="summary-card">
+
+      <span>
+        Total Sale
+      </span>
+
+      <strong id="totalSale">
+        ₹0
+      </strong>
+
+      <small>
+        Filtered invoice amount
+      </small>
+
+    </article>
+
+
+    <article class="summary-card">
+
+      <span>
+        Products Sold
+      </span>
+
+      <strong id="productsSold">
+        0
+      </strong>
+
+      <small>
+        Distinct item codes
+      </small>
+
+    </article>
+
+
+    <article class="summary-card">
+
+      <span>
+        Customers Billed
+      </span>
+
+      <strong id="customersBilled">
+        0
+      </strong>
+
+      <small>
+        Actual sales customers
+      </small>
+
+    </article>
+
+
+    <article class="summary-card">
+
+      <span>
+        Matching Records
+      </span>
+
+      <strong id="recordCount">
+        0
+      </strong>
+
+      <small>
+        Rows after filters
+      </small>
+
+    </article>
+
+  </section>
+
+
+
+  <!-- ======================================================
+       FILTERS
+       ====================================================== -->
+
+  <section class="panel">
+
+    <div class="panel-head">
+
       <div>
-        <h1>Outstanding Dashboard</h1>
-        <p>Customer outstanding, ageing analysis, comparison and collection tracking</p>
+
+        <h3>
+          Filters
+        </h3>
+
+        <p>
+          All selected filters work together.
+        </p>
+
       </div>
 
-      <div class="head-actions">
-        <select id="snapshotSelect" title="Outstanding snapshot"></select>
-        <button class="btn primary admin-upload" id="uploadBtn">Upload Outstanding</button>
-        <input id="fileInput" type="file" accept=".csv,text/csv" hidden>
+    </div>
+
+
+    <div class="search-grid">
+
+
+      <div class="field wide">
+
+        <label>
+          Global Search
+        </label>
+
+        <input
+          id="search"
+          type="search"
+          placeholder="Search party, product, code, group, SM, OD / Order, area, division, city, pincode..."
+        >
+
       </div>
-    </header>
 
-    <section class="kpis" id="kpis"></section>
 
-    <section class="card">
-      <div class="card-title">
-        <div>
-          <b>Filters</b>
-          <span>Filter the complete dashboard</span>
+      <div class="field">
+
+        <label>
+          Month
+        </label>
+
+
+        <div
+          class="multi"
+          id="multi_month"
+        >
+
+          <button
+            type="button"
+            class="multi-btn"
+            data-open="month"
+          >
+
+            <span id="label_month">
+              All Months / Total
+            </span>
+
+            <span>
+              ▾
+            </span>
+
+          </button>
+
+
+          <div class="multi-menu">
+
+            <input
+              class="multi-search"
+              id="search_month"
+              placeholder="Search month..."
+            >
+
+            <div
+              class="multi-options"
+              id="options_month"
+            ></div>
+
+          </div>
+
         </div>
-        <button class="text-btn" id="resetBtn">Reset Filters</button>
-      </div>
-      <div class="filters" id="filters"></div>
-    </section>
 
-    <section class="grid two">
-      <div class="card">
-        <div class="card-title"><div><b>Ageing Analysis</b><span>Amount (₹)</span></div></div>
-        <div class="chartbox"><canvas id="ageChart"></canvas></div>
-      </div>
-      <div class="card">
-        <div class="card-title"><div><b>Outstanding Breakup</b><span>By amount</span></div></div>
-        <div class="chartbox"><canvas id="donutChart"></canvas></div>
-      </div>
-    </section>
 
-    <section class="grid three">
-      <div class="card">
-        <div class="card-title"><div><b>Amount Range Wise Customer Count</b></div></div>
-        <div class="chartbox small"><canvas id="rangeChart"></canvas></div>
-      </div>
-      <div class="card">
-        <div class="card-title"><div><b>Top 5 Customers by Outstanding</b></div></div>
-        <div class="table-wrap" id="topCustomers"></div>
-      </div>
-      <div class="card">
-        <div class="card-title"><div><b>Top 5 Overdue Customers (&gt;150 Days)</b></div></div>
-        <div class="table-wrap" id="overdueCustomers"></div>
-      </div>
-    </section>
+        <div
+          class="selected-chips"
+          id="chips_month"
+        ></div>
 
-    <section class="grid two">
-      <div class="card">
-        <div class="card-title compare-title">
-          <div><b>Outstanding Comparison</b><span>Same selected filters are applied to both snapshots</span></div>
-          <div class="compare-picker"><label for="compareSnapshotSelect">Compare With</label><select id="compareSnapshotSelect"></select></div>
+      </div>
+
+
+      <div class="field">
+
+        <label>
+          Product Sale
+        </label>
+
+        <select id="productSaleStatus">
+
+          <option value="All">
+            All Products
+          </option>
+
+          <option value="Sold">
+            Only Sold Products
+          </option>
+
+          <option value="NoSale">
+            No Sale Products
+          </option>
+
+        </select>
+
+      </div>
+
+    </div>
+
+
+    <div
+      id="filterGrid"
+      class="filters"
+    ></div>
+
+
+    <div class="budget-filter-title">
+      Customer Budget / Target Filters
+    </div>
+
+
+    <div class="budget-filters">
+
+
+      <div class="field">
+
+        <label>
+          Sales / Budget Status
+        </label>
+
+        <select id="budgetStatus">
+
+          <option value="all">
+            All
+          </option>
+
+          <option value="zero_sales">
+            Zero Sales
+          </option>
+
+          <option value="below_budget">
+            Below Budget
+          </option>
+
+          <option value="achieved">
+            Budget Achieved
+          </option>
+
+        </select>
+
+      </div>
+
+
+      <div class="field">
+
+        <label>
+          Budget Target
+        </label>
+
+        <select id="budgetTarget">
+
+          <option value="all">
+            All Customers
+          </option>
+
+          <option value="target">
+            Target Customers
+          </option>
+
+          <option value="non_target">
+            Non-Target Customers
+          </option>
+
+        </select>
+
+      </div>
+
+
+    </div>
+
+  </section>
+
+
+
+  <!-- ======================================================
+       SALES COMPARISON
+       ====================================================== -->
+
+  <section class="panel">
+
+    <div class="panel-head">
+
+      <div>
+
+        <h3>
+          Sales Comparison
+        </h3>
+
+        <p>
+          Comparison uses Taxable Sales.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div class="compare-controls">
+
+
+      <div class="field">
+
+        <label>
+          Compare Months
+        </label>
+
+
+        <div
+          class="multi"
+          id="multi_compareMonths"
+        >
+
+          <button
+            type="button"
+            class="multi-btn"
+            data-open="compareMonths"
+          >
+
+            <span id="label_compareMonths">
+              Select Compare Months
+            </span>
+
+            <span>
+              ▾
+            </span>
+
+          </button>
+
+
+          <div class="multi-menu">
+
+            <input
+              class="multi-search"
+              id="search_compareMonths"
+              placeholder="Search month..."
+            >
+
+            <div
+              class="multi-options"
+              id="options_compareMonths"
+            ></div>
+
+          </div>
+
         </div>
-        <div class="chartbox"><canvas id="compareChart"></canvas></div>
-      </div>
-      <div class="card">
-        <div class="card-title"><div><b>Summary Comparison</b></div></div>
-        <div class="table-wrap" id="summaryCompare"></div>
-      </div>
-    </section>
 
-    <section class="card">
-      <div class="card-title">
-        <div>
-          <b>Customer Details</b>
-          <span>Click any column heading to sort A→Z / Z→A or low→high / high→low</span>
+
+        <div
+          class="selected-chips"
+          id="chips_compareMonths"
+        ></div>
+
+      </div>
+
+
+      <div class="field">
+
+        <label>
+          Actual Month
+        </label>
+
+        <select id="actualCompareMonth">
+
+          <option value="">
+            Select Actual Month
+          </option>
+
+        </select>
+
+      </div>
+
+    </div>
+
+
+    <div class="compare-grid">
+
+
+      <div class="compare-card">
+
+        <span>
+          Compare Months
+        </span>
+
+        <strong id="compareMonthsText">
+          Select months
+        </strong>
+
+      </div>
+
+
+      <div class="compare-card">
+
+        <span>
+          Compare Avg Taxable Sale
+        </span>
+
+        <strong id="compareAvgSale">
+          ₹0
+        </strong>
+
+      </div>
+
+
+      <div class="compare-card">
+
+        <span>
+          Actual Month
+        </span>
+
+        <strong id="compareActualMonth">
+          -
+        </strong>
+
+      </div>
+
+
+      <div class="compare-card">
+
+        <span>
+          Actual Month Taxable Sale
+        </span>
+
+        <strong id="compareActualSale">
+          ₹0
+        </strong>
+
+      </div>
+
+
+      <div class="compare-card">
+
+        <span>
+          Taxable Difference
+        </span>
+
+        <strong id="compareDifference">
+          ₹0
+        </strong>
+
+      </div>
+
+
+      <div class="compare-card">
+
+        <span>
+          Change %
+        </span>
+
+        <strong id="comparePercent">
+          0%
+        </strong>
+
+      </div>
+
+
+      <div class="compare-card">
+
+        <span>
+          Status
+        </span>
+
+        <strong
+          id="compareStatus"
+          class="compare-neutral"
+        >
+          Select months
+        </strong>
+
+      </div>
+
+    </div>
+
+  </section>
+
+
+
+  <!-- ======================================================
+       MONTH SUMMARY
+       ====================================================== -->
+
+  <section class="panel">
+
+    <div class="panel-head">
+
+      <div>
+
+        <h3>
+          Month-wise Summary
+        </h3>
+
+        <p>
+          Sales, Budget Customers, Total Budget and Zero Sales Budget.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div
+      id="monthlyCards"
+      class="monthly-grid"
+    ></div>
+
+  </section>
+
+
+
+  <!-- ======================================================
+       ANALYSIS VIEW
+       ====================================================== -->
+
+  <section class="panel">
+
+    <div class="panel-head">
+
+      <div>
+
+        <h3>
+          Analysis View
+        </h3>
+
+        <p>
+          Month-wise values use Taxable Sales. Click any column heading to sort.
+        </p>
+
+      </div>
+
+      <div class="row-count">
+        <label>Rows</label>
+        <select id="analysisPageSize">
+          <option value="25" selected>25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="500">500</option>
+          <option value="1000">1000</option>
+          <option value="5000">5000</option>
+          <option value="10000">10000</option>
+        </select>
+      </div>
+
+    </div>
+
+
+    <div
+      class="tabs"
+      id="viewTabs"
+    >
+
+      <button
+        data-view="Party"
+        class="active"
+      >
+        Customer Wise
+      </button>
+
+      <button data-view="MainGrp">
+        Company Wise
+      </button>
+
+      <button data-view="ItemName">
+        Product Wise
+      </button>
+
+      <button data-view="SM">
+        SM Wise
+      </button>
+
+      <button data-view="Division">
+        Division Wise
+      </button>
+
+      <button data-view="Area">
+        Area Wise
+      </button>
+
+      <button data-view="City">
+        City Wise
+      </button>
+
+      <button data-view="Pincode">
+        Pincode Wise
+      </button>
+
+    </div>
+
+
+    <div class="summary-table-wrap freeze-table-wrap">
+
+      <table class="summary-table freeze-table freeze-first-1">
+
+        <thead>
+
+          <tr>
+
+            <th id="viewLabel">
+              Customer / Party
+            </th>
+
+          </tr>
+
+        </thead>
+
+
+        <tbody
+          id="groupSummaryBody"
+        ></tbody>
+
+      </table>
+
+    </div>
+
+    <div class="pager analysis-pager">
+      <button id="analysisPrev">Previous</button>
+      <span id="analysisPageInfo">Page 1</span>
+      <button id="analysisNext">Next</button>
+    </div>
+
+  </section>
+
+
+
+
+  <!-- ======================================================
+       VISUAL ANALYSIS - GRAPH + INDIA PINCODE MAP
+       ====================================================== -->
+  <section class="panel" id="visualAnalysisPanel">
+
+    <div class="panel-head">
+      <div>
+        <h3>Visual Analysis</h3>
+        <p>
+          Same dashboard filters apply automatically. Graph follows the selected Analysis View.
+          India Map plots filtered Pincode-wise Taxable Sales.
+        </p>
+      </div>
+
+      <button type="button" id="visualRefresh" class="clear-btn">
+        Refresh Visuals
+      </button>
+    </div>
+
+    <div class="visual-mode-tabs">
+      <button type="button" class="visual-mode-btn active" data-visual-mode="graph">
+        📊 Graph View
+      </button>
+      <button type="button" class="visual-mode-btn" data-visual-mode="map">
+        🗺️ India Map
+      </button>
+    </div>
+
+    <div id="graphVisualPane" class="visual-pane active">
+
+      <div class="visual-controls">
+        <div class="field">
+          <label>Chart Type</label>
+          <select id="visualChartType">
+            <option value="bar">Bar Chart</option>
+            <option value="line">Line Chart</option>
+            <option value="doughnut">Donut Chart</option>
+          </select>
         </div>
-        <div class="detail-tools">
-          <input id="detailSearch" type="search" placeholder="Search customer / SM / city...">
-          <span id="detailCount"></span>
+
+        <div class="field">
+          <label>Top</label>
+          <select id="visualTopN">
+            <option value="10" selected>Top 10</option>
+            <option value="20">Top 20</option>
+            <option value="50">Top 50</option>
+            <option value="100">Top 100</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Metric</label>
+          <select id="visualMetric">
+            <option value="taxable" selected>Taxable Sales</option>
+            <option value="qty">Quantity</option>
+            <option value="customers">Customers Billed</option>
+            <option value="products">Products Sold</option>
+            <option value="records">Records</option>
+          </select>
         </div>
       </div>
-      <div class="table-wrap details-table" id="customerDetails"></div>
-      <div class="pager">
-        <button class="btn light" id="prevPage">Previous</button>
-        <span id="pageInfo"></span>
-        <button class="btn light" id="nextPage">Next</button>
-      </div>
-    </section>
 
-    <section class="grid two bottom">
-      <div class="card">
-        <div class="card-title">
-          <div><b>Snapshot History</b><span>Click headings to sort</span></div>
-          <button class="text-btn" id="refreshBtn">Refresh</button>
+      <div class="visual-kpis">
+        <article class="visual-kpi">
+          <span>Analysis</span>
+          <strong id="visualViewName">Customer Wise</strong>
+        </article>
+        <article class="visual-kpi">
+          <span>Groups</span>
+          <strong id="visualGroupCount">0</strong>
+        </article>
+        <article class="visual-kpi">
+          <span>Top Group</span>
+          <strong id="visualTopGroup">-</strong>
+        </article>
+        <article class="visual-kpi">
+          <span>Top Taxable Sale</span>
+          <strong id="visualTopSale">₹0</strong>
+        </article>
+      </div>
+
+      <div class="visual-chart-card">
+        <div class="visual-card-title">
+          <strong id="visualChartTitle">Top groups by Taxable Sales</strong>
+          <span id="visualChartNote">Uses current dashboard filters</span>
         </div>
-        <div class="table-wrap" id="history"></div>
-      </div>
-
-      <div class="card">
-        <div class="card-title"><div><b>Quick Actions</b></div></div>
-        <div class="actions">
-          <button class="btn primary admin-upload" id="uploadBtn2">Upload New File</button>
-          <button class="btn light" id="logsBtn">View Data Log</button>
+        <div class="visual-chart-box">
+          <canvas id="salesVisualChart"></canvas>
         </div>
       </div>
-    </section>
-  </main>
-</div>
 
-<div id="toast"></div>
+    </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <div id="mapVisualPane" class="visual-pane">
+
+      <div class="visual-controls">
+        <div class="field">
+          <label>Map Points</label>
+          <select id="visualMapLimit">
+            <option value="25">Top 25 Pincodes</option>
+            <option value="50" selected>Top 50 Pincodes</option>
+            <option value="100">Top 100 Pincodes</option>
+            <option value="250">Top 250 Pincodes</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Bubble Size</label>
+          <select id="visualMapMetric">
+            <option value="taxable" selected>Taxable Sales</option>
+            <option value="customers">Customers Billed</option>
+            <option value="qty">Quantity</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="visualMapStatus" class="visual-map-status">
+        Open India Map to load filtered Pincode sales.
+      </div>
+
+      <div id="salesIndiaMap"></div>
+
+      <div class="visual-map-foot">
+        Circle size represents the selected metric. Click a circle for Pincode, location,
+        Taxable Sales, Customers Billed and Quantity.
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- ======================================================
+       CUSTOMER BUDGET
+       ====================================================== -->
+
+  <section
+    class="panel"
+    id="budgetPanel"
+  >
+
+    <div class="panel-head budget-head">
+
+      <div>
+
+        <h3>
+          Customer Budget vs Actual Sales
+        </h3>
+
+        <p id="budgetNote">
+          Budget and actual sales customer comparison.
+        </p>
+
+      </div>
+
+
+      <div class="budget-head-actions">
+
+        <div class="budget-count">
+
+          Matching Customers:
+
+          <strong id="budgetCount">
+            0
+          </strong>
+
+        </div>
+
+        <div class="row-count">
+
+          <label>
+            Rows
+          </label>
+
+          <select id="budgetPageSize">
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="500">500</option>
+            <option value="1000">1000</option>
+            <option value="5000">5000</option>
+            <option value="10000">10000</option>
+          </select>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div
+      id="budgetLoading"
+      class="loading"
+    >
+      Loading budget report...
+    </div>
+
+
+    <div class="budget-table-wrap freeze-table-wrap">
+
+      <table class="budget-table freeze-table freeze-first-2">
+
+        <thead>
+
+          <tr id="budgetTableHead"></tr>
+
+        </thead>
+
+
+        <tbody
+          id="budgetTableBody"
+        ></tbody>
+
+      </table>
+
+    </div>
+
+
+    <div class="pager">
+
+      <button id="budgetPrev">
+        Previous
+      </button>
+
+      <span id="budgetPageInfo">
+        Page 1 of 1
+      </span>
+
+      <button id="budgetNext">
+        Next
+      </button>
+
+    </div>
+
+  </section>
+
+
+
+  <!-- ======================================================
+       DETAILED SALES DATA
+       ====================================================== -->
+
+  <section class="panel table-panel">
+
+    <div class="panel-head table-head">
+
+      <div>
+
+        <h3>
+          Detailed Sales Data
+        </h3>
+
+        <p>
+          Default Main Group A-Z. Click any column heading to change sorting.
+        </p>
+
+      </div>
+
+
+      <div class="row-count">
+
+        <label>
+          Rows
+        </label>
+
+        <select id="pageSize">
+
+          <option value="25" selected>25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="500">500</option>
+          <option value="1000">1000</option>
+          <option value="5000">5000</option>
+          <option value="10000">10000</option>
+
+        </select>
+
+      </div>
+
+    </div>
+
+
+    <div
+      id="loading"
+      class="loading"
+    >
+      Loading data...
+    </div>
+
+
+    <div class="table-wrap freeze-table-wrap">
+
+      <table class="freeze-table freeze-first-1">
+
+        <thead>
+
+          <tr id="tableHead"></tr>
+
+        </thead>
+
+
+        <tbody
+          id="tableBody"
+        ></tbody>
+
+      </table>
+
+    </div>
+
+
+    <div class="pager">
+
+      <button id="prevPage">
+        Previous
+      </button>
+
+      <span id="pageInfo">
+        Page 1 of 1
+      </span>
+
+      <button id="nextPage">
+        Next
+      </button>
+
+    </div>
+
+  </section>
+
+
+</main>
+
+
+
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-<script src="config.js"></script>
-<script src="outstanding.js"></script>
+<script
+  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  crossorigin=""
+></script>
+
+<!-- ========================================================
+     SUPABASE
+     ======================================================== -->
+
+<script
+  src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+></script>
+
+
+<script
+  src="config.js?v=online16"
+></script>
+
+
+<script
+  src="script.js?v=online38"
+></script>
+
+
+<script
+  src="sort-addon.js?v=online17"
+></script>
+
+
+<!-- Login / Session / Role Access -->
+<script
+  src="auth-addon.js?v=online28"
+></script>
+
+<script
+  src="admin-addon.js?v=online20"
+></script>
+
+<script
+  src="ui-fix-addon.js?v=online25"
+></script>
+
+
+<script
+  src="visual-addon.js?v=online46"
+></script>
+
+
+
 </body>
+
 </html>
