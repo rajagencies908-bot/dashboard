@@ -5,14 +5,23 @@ const sb = createClient(
     RAJ_CONFIG.supabasePublishableKey
 );
 
+/* =========================================================
+   CONFIG
+========================================================= */
+
 const TOKEN = 'raj_dashboard_session_token';
 const DEVICE = 'raj_dashboard_device_id';
 const USER = 'raj_dashboard_user';
+
+const RPC_PAGE_SIZE = 1000;
+const DETAIL_PAGE_SIZE = 50;
 
 let rows = [];
 let uploads = [];
 let activeUpload = null;
 let charts = {};
+
+let detailPage = 1;
 
 let detailSort = {
     key: 'party',
@@ -24,18 +33,27 @@ let historySort = {
     dir: 'desc'
 };
 
-let detailPage = 1;
 
-const PAGE_SIZE = 50;
+/* =========================================================
+   BASIC HELPERS
+========================================================= */
 
-const $ = s =>
-    document.querySelector(s);
+const $ = selector =>
+    document.querySelector(selector);
 
 
-const num = v => {
+function num(value) {
+
+    if (
+        value === null ||
+        value === undefined ||
+        value === ''
+    ) {
+        return 0;
+    }
 
     const n = Number(
-        String(v ?? '')
+        String(value)
             .replace(/,/g, '')
             .trim()
     );
@@ -43,57 +61,60 @@ const num = v => {
     return Number.isFinite(n)
         ? n
         : 0;
-};
+}
 
 
-const money = n =>
-    '₹ ' +
-    Math.round(
-        num(n)
-    ).toLocaleString('en-IN');
+function money(value) {
+
+    return '₹ ' +
+        Math.round(
+            num(value)
+        ).toLocaleString('en-IN');
+}
 
 
-const esc = s =>
-    String(s ?? '').replace(
-        /[&<>"']/g,
-        c => ({
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#39;'
-        }[c])
-    );
+function esc(value) {
 
+    return String(value ?? '')
+        .replace(
+            /[&<>"']/g,
+            char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char])
+        );
+}
 
-/* =====================================
-   TOAST
-===================================== */
 
 function toast(message) {
 
-    const e = $('#toast');
+    const element = $('#toast');
 
-    if (!e) return;
+    if (!element) {
+        return;
+    }
 
-    e.textContent = message;
+    element.textContent = message;
 
-    e.style.display = 'block';
+    element.style.display = 'block';
 
-    clearTimeout(toast._t);
+    clearTimeout(toast.timer);
 
-    toast._t = setTimeout(
+    toast.timer = setTimeout(
         () => {
-            e.style.display = 'none';
+            element.style.display = 'none';
         },
-        3200
+        3500
     );
 }
 
 
-/* =====================================
-   AUTH / SUPABASE RPC
-===================================== */
+/* =========================================================
+   AUTH / RPC
+========================================================= */
 
 function authArgs(extra = {}) {
 
@@ -111,7 +132,7 @@ function authArgs(extra = {}) {
 
 
 async function rpc(
-    name,
+    functionName,
     args = {}
 ) {
 
@@ -119,7 +140,7 @@ async function rpc(
         data,
         error
     } = await sb.rpc(
-        name,
+        functionName,
         authArgs(args)
     );
 
@@ -131,18 +152,20 @@ async function rpc(
 }
 
 
+/* =========================================================
+   SESSION CHECK
+========================================================= */
+
 async function guard() {
 
     if (
         !localStorage.getItem(TOKEN)
     ) {
 
-        location.href =
-            'index.html';
+        location.href = 'index.html';
 
         return false;
     }
-
 
     try {
 
@@ -154,151 +177,292 @@ async function guard() {
             authArgs()
         );
 
-
         if (
             error ||
             !data ||
             data.success !== true
         ) {
 
-            location.href =
-                'index.html';
+            location.href = 'index.html';
 
             return false;
         }
 
-
         return true;
 
+    } catch (error) {
 
-    } catch (e) {
+        console.error(
+            'Session validation failed:',
+            error
+        );
 
-        location.href =
-            'index.html';
+        location.href = 'index.html';
 
         return false;
     }
 }
 
 
-/* =====================================
-   AGEING CALCULATION
+/* =========================================================
+   IMPORTANT:
+   LOAD ALL ROWS FROM RPC
 
-   CSV columns:
-   15, 30, 45, 60...
-   are cumulative overdue amounts.
+   Supabase may return maximum 1000 rows per request.
+   This function keeps requesting:
+   0-999
+   1000-1999
+   2000-2999
+   ...
+   until all rows are loaded.
+========================================================= */
 
-   Example:
-   16-30 = 15 - 30
-   31-45 = 30 - 45
-   >150  = 150
-===================================== */
+async function getAllOutstandingRows(uploadId) {
+
+    const allRows = [];
+
+    let from = 0;
+
+    while (true) {
+
+        const to =
+            from +
+            RPC_PAGE_SIZE -
+            1;
+
+        const {
+            data,
+            error
+        } = await sb
+            .rpc(
+                'raj_outstanding_get_rows',
+                authArgs({
+                    p_upload_id: uploadId
+                })
+            )
+            .range(
+                from,
+                to
+            );
+
+        if (error) {
+            throw error;
+        }
+
+        const page =
+            Array.isArray(data)
+                ? data
+                : [];
+
+        allRows.push(
+            ...page
+        );
+
+        console.log(
+            `Outstanding loaded: ${allRows.length} rows`
+        );
+
+        /*
+           Last page reached.
+        */
+
+        if (
+            page.length <
+            RPC_PAGE_SIZE
+        ) {
+            break;
+        }
+
+        from +=
+            RPC_PAGE_SIZE;
+
+        /*
+           Safety guard.
+        */
+
+        if (
+            from >
+            100000
+        ) {
+
+            throw new Error(
+                'Too many outstanding rows returned.'
+            );
+        }
+    }
+
+    console.log(
+        'FINAL OUTSTANDING ROW COUNT:',
+        allRows.length
+    );
+
+    return allRows;
+}
+
+
+/* =========================================================
+   AGEING LOGIC
+
+   Your CSV columns:
+   15
+   30
+   45
+   60
+   75
+   90
+   120
+   150
+
+   are cumulative ageing values.
+
+   Therefore:
+
+   0-15      = Balance - >15 - PDC
+   16-30     = >15 - >30
+   31-45     = >30 - >45
+   46-60     = >45 - >60
+   61-75     = >60 - >75
+   76-90     = >75 - >90
+   91-120    = >90 - >120
+   121-150   = >120 - >150
+   >150      = CSV 150
+========================================================= */
 
 const bucketDefs = [
 
-    ['0-15', 'days_15'],
+    [
+        '0-15',
+        'days_15'
+    ],
 
-    ['16-30', 'days_30'],
+    [
+        '16-30',
+        'days_30'
+    ],
 
-    ['31-45', 'days_45'],
+    [
+        '31-45',
+        'days_45'
+    ],
 
-    ['46-60', 'days_60'],
+    [
+        '46-60',
+        'days_60'
+    ],
 
-    ['61-75', 'days_75'],
+    [
+        '61-75',
+        'days_75'
+    ],
 
-    ['76-90', 'days_90'],
+    [
+        '76-90',
+        'days_90'
+    ],
 
-    ['91-120', 'days_120'],
+    [
+        '91-120',
+        'days_120'
+    ],
 
-    ['121-150', 'days_150'],
+    [
+        '121-150',
+        'days_150'
+    ],
 
-    ['>150', 'over150'],
+    [
+        '>150',
+        'over150'
+    ],
 
-    ['PDC', 'pdc']
+    [
+        'PDC',
+        'pdc'
+    ]
 ];
 
 
-function bucket(r) {
+function bucket(row) {
 
     return {
 
         days_15:
             Math.max(
                 0,
-                num(r.balance) -
-                num(r.days_15) -
-                num(r.pdc)
+                num(row.balance) -
+                num(row.days_15) -
+                num(row.pdc)
             ),
 
         days_30:
             Math.max(
                 0,
-                num(r.days_15) -
-                num(r.days_30)
+                num(row.days_15) -
+                num(row.days_30)
             ),
 
         days_45:
             Math.max(
                 0,
-                num(r.days_30) -
-                num(r.days_45)
+                num(row.days_30) -
+                num(row.days_45)
             ),
 
         days_60:
             Math.max(
                 0,
-                num(r.days_45) -
-                num(r.days_60)
+                num(row.days_45) -
+                num(row.days_60)
             ),
 
         days_75:
             Math.max(
                 0,
-                num(r.days_60) -
-                num(r.days_75)
+                num(row.days_60) -
+                num(row.days_75)
             ),
 
         days_90:
             Math.max(
                 0,
-                num(r.days_75) -
-                num(r.days_90)
+                num(row.days_75) -
+                num(row.days_90)
             ),
 
         days_120:
             Math.max(
                 0,
-                num(r.days_90) -
-                num(r.days_120)
+                num(row.days_90) -
+                num(row.days_120)
             ),
 
         days_150:
             Math.max(
                 0,
-                num(r.days_120) -
-                num(r.days_150)
+                num(row.days_120) -
+                num(row.days_150)
             ),
 
         over150:
             Math.max(
                 0,
-                num(r.days_150)
+                num(row.days_150)
             ),
 
         pdc:
             Math.max(
                 0,
-                num(r.pdc)
+                num(row.pdc)
             )
     };
 }
 
 
-/* =====================================
-   FILTERS
+/* =========================================================
+   FILTER DEFINITIONS
 
-   GrpName INCLUDED
-===================================== */
+   GrpName IS INCLUDED
+========================================================= */
 
 const filterMap = [
 
@@ -344,23 +508,31 @@ const filterMap = [
 ];
 
 
+/* =========================================================
+   FILTER DATA
+========================================================= */
+
 function filtered() {
 
     return rows.filter(
-        r =>
+        row =>
 
             filterMap.every(
                 ([key]) => {
 
-                    const v =
-                        $(`#f_${key}`)
-                            ?.value || '';
+                    const select =
+                        $(`#f_${key}`);
+
+                    const selected =
+                        select
+                            ? select.value
+                            : '';
 
                     return (
-                        !v ||
+                        !selected ||
                         String(
-                            r[key] ?? ''
-                        ) === v
+                            row[key] ?? ''
+                        ) === selected
                     );
                 }
             )
@@ -368,15 +540,20 @@ function filtered() {
 }
 
 
+/* =========================================================
+   CREATE FILTERS
+========================================================= */
+
 function makeFilters() {
 
-    const box =
+    const container =
         $('#filters');
 
-    if (!box) return;
+    if (!container) {
+        return;
+    }
 
-    box.innerHTML = '';
-
+    container.innerHTML = '';
 
     filterMap.forEach(
         ([key, label]) => {
@@ -387,9 +564,9 @@ function makeFilters() {
 
                     rows
                         .map(
-                            r =>
+                            row =>
                                 String(
-                                    r[key] ?? ''
+                                    row[key] ?? ''
                                 ).trim()
                         )
                         .filter(Boolean)
@@ -407,60 +584,73 @@ function makeFilters() {
                     )
             );
 
+            const wrapper =
+                document.createElement(
+                    'div'
+                );
 
-            box.insertAdjacentHTML(
-                'beforeend',
-                `
-                <div class="field">
+            wrapper.className =
+                'field';
 
-                    <label>
-                        ${esc(label)}
-                    </label>
+            wrapper.innerHTML = `
 
-                    <select id="f_${key}">
+                <label>
+                    ${esc(label)}
+                </label>
 
-                        <option value="">
-                            All ${esc(label)}
-                        </option>
+                <select id="f_${key}">
 
-                        ${
-                            values
-                                .map(
-                                    v =>
-                                        `<option value="${esc(v)}">${esc(v)}</option>`
-                                )
-                                .join('')
-                        }
+                    <option value="">
+                        All ${esc(label)}
+                    </option>
 
-                    </select>
+                    ${
+                        values
+                            .map(
+                                value => `
 
-                </div>
-                `
+                                <option value="${esc(value)}">
+                                    ${esc(value)}
+                                </option>
+
+                                `
+                            )
+                            .join('')
+                    }
+
+                </select>
+            `;
+
+            container.appendChild(
+                wrapper
             );
         }
     );
 
-
-    box
-        .querySelectorAll('select')
+    container
+        .querySelectorAll(
+            'select'
+        )
         .forEach(
             select => {
 
-                select.onchange =
+                select.addEventListener(
+                    'change',
                     () => {
 
                         detailPage = 1;
 
                         render();
-                    };
+                    }
+                );
             }
         );
 }
 
 
-/* =====================================
-   CALCULATIONS
-===================================== */
+/* =========================================================
+   TOTAL HELPERS
+========================================================= */
 
 function sum(
     data,
@@ -468,9 +658,14 @@ function sum(
 ) {
 
     return data.reduce(
-        (total, row) =>
+        (
+            total,
+            row
+        ) =>
             total +
-            num(row[key]),
+            num(
+                row[key]
+            ),
         0
     );
 }
@@ -478,24 +673,25 @@ function sum(
 
 function metrics(data) {
 
-    const bs =
-        Object.fromEntries(
+    const bucketSums = {};
 
-            bucketDefs.map(
-                ([label, key]) => [
+    bucketDefs.forEach(
+        ([label, key]) => {
 
-                    key,
+            bucketSums[key] =
+                data.reduce(
+                    (
+                        total,
+                        row
+                    ) =>
 
-                    data.reduce(
-                        (total, row) =>
-                            total +
-                            bucket(row)[key],
-                        0
-                    )
-                ]
-            )
-        );
+                        total +
+                        bucket(row)[key],
 
+                    0
+                );
+        }
+    );
 
     return {
 
@@ -509,7 +705,10 @@ function metrics(data) {
             new Set(
                 data
                     .map(
-                        r => r.party
+                        row =>
+                            String(
+                                row.party ?? ''
+                            ).trim()
                     )
                     .filter(Boolean)
             ).size,
@@ -520,11 +719,19 @@ function metrics(data) {
                 'pdc'
             ),
 
+        /*
+           CSV 90 means amount OVER 90 DAYS.
+        */
+
         over90:
             sum(
                 data,
                 'days_90'
             ),
+
+        /*
+           CSV 150 means amount OVER 150 DAYS.
+        */
 
         over150:
             sum(
@@ -532,39 +739,40 @@ function metrics(data) {
                 'days_150'
             ),
 
-        bs
+        bs:
+            bucketSums
     };
 }
 
 
-/* =====================================
-   CHARTS
-===================================== */
+/* =========================================================
+   CHART
+========================================================= */
 
 function draw(
-    id,
+    selector,
     type,
     labels,
     datasets,
-    opts = {}
+    options = {}
 ) {
 
     if (
-        charts[id]
+        charts[selector]
     ) {
 
-        charts[id].destroy();
+        charts[selector]
+            .destroy();
     }
 
-
     const canvas =
-        $(id);
+        $(selector);
 
+    if (!canvas) {
+        return;
+    }
 
-    if (!canvas) return;
-
-
-    charts[id] =
+    charts[selector] =
         new Chart(
             canvas,
             {
@@ -578,22 +786,22 @@ function draw(
                     datasets
                 },
 
-
                 options: {
 
-                    responsive: true,
+                    responsive:
+                        true,
 
                     maintainAspectRatio:
                         false,
 
                     interaction: {
 
-                        mode: 'index',
+                        mode:
+                            'index',
 
                         intersect:
                             false
                     },
-
 
                     plugins: {
 
@@ -602,34 +810,36 @@ function draw(
                             display:
                                 type ===
                                     'doughnut' ||
-                                !!opts.legend
+                                !!options.legend
                         },
-
 
                         tooltip: {
 
                             callbacks: {
 
                                 label:
-                                    ctx => {
+                                    context => {
 
                                         const value =
-                                            ctx.raw ?? 0;
+                                            context.raw ??
+                                            0;
+
+                                        const prefix =
+                                            context.dataset
+                                                .label
+                                                ? context.dataset
+                                                    .label +
+                                                  ': '
+                                                : '';
 
                                         return (
-                                            (
-                                                ctx.dataset.label
-                                                    ? ctx.dataset.label +
-                                                      ': '
-                                                    : ''
-                                            ) +
+                                            prefix +
                                             money(value)
                                         );
                                     }
                             }
                         }
                     },
-
 
                     scales:
 
@@ -657,7 +867,9 @@ function draw(
                                             value => {
 
                                                 const n =
-                                                    Number(value);
+                                                    Number(
+                                                        value
+                                                    );
 
                                                 if (
                                                     Math.abs(n) >=
@@ -667,10 +879,11 @@ function draw(
                                                     return (
                                                         n /
                                                         10000000
-                                                    ).toFixed(1) +
+                                                    ).toFixed(
+                                                        1
+                                                    ) +
                                                     ' Cr';
                                                 }
-
 
                                                 if (
                                                     Math.abs(n) >=
@@ -680,10 +893,11 @@ function draw(
                                                     return (
                                                         n /
                                                         100000
-                                                    ).toFixed(1) +
+                                                    ).toFixed(
+                                                        1
+                                                    ) +
                                                     ' L';
                                                 }
-
 
                                                 if (
                                                     Math.abs(n) >=
@@ -693,16 +907,16 @@ function draw(
                                                     return (
                                                         n /
                                                         1000
-                                                    ).toFixed(0) +
+                                                    ).toFixed(
+                                                        0
+                                                    ) +
                                                     ' K';
                                                 }
-
 
                                                 return n;
                                             }
                                     }
                                 },
-
 
                                 x: {
 
@@ -719,13 +933,13 @@ function draw(
 }
 
 
-/* =====================================
+/* =========================================================
    SIMPLE TABLE
-===================================== */
+========================================================= */
 
 function simpleTable(
     items,
-    cols
+    columns
 ) {
 
     return `
@@ -737,12 +951,15 @@ function simpleTable(
                 <tr>
 
                     ${
-                        cols
+                        columns
                             .map(
-                                c =>
-                                    `<th class="${c.num ? 'num' : ''}">
-                                        ${esc(c.l)}
-                                    </th>`
+                                column => `
+
+                                <th class="${column.num ? 'num' : ''}">
+                                    ${esc(column.label)}
+                                </th>
+
+                                `
                             )
                             .join('')
                     }
@@ -751,7 +968,6 @@ function simpleTable(
 
             </thead>
 
-
             <tbody>
 
                 ${
@@ -759,25 +975,32 @@ function simpleTable(
 
                         ? items
                             .map(
-                                (r, i) => `
+                                (
+                                    row,
+                                    index
+                                ) => `
 
                                 <tr>
 
                                     ${
-                                        cols
+                                        columns
                                             .map(
-                                                c => `
+                                                column => `
 
-                                                <td class="${c.num ? 'num' : ''}">
+                                                <td class="${column.num ? 'num' : ''}">
 
                                                     ${
-                                                        c.f
-                                                            ? c.f(
-                                                                r,
-                                                                i
+                                                        column.render
+
+                                                            ? column.render(
+                                                                row,
+                                                                index
                                                             )
+
                                                             : esc(
-                                                                r[c.k] ??
+                                                                row[
+                                                                    column.key
+                                                                ] ??
                                                                 ''
                                                             )
                                                     }
@@ -800,7 +1023,7 @@ function simpleTable(
                         <tr>
 
                             <td
-                                colspan="${cols.length}"
+                                colspan="${columns.length}"
                                 class="muted"
                             >
                                 No data
@@ -818,9 +1041,9 @@ function simpleTable(
 }
 
 
-/* =====================================
+/* =========================================================
    SORT HELPERS
-===================================== */
+========================================================= */
 
 function compareValues(
     a,
@@ -828,38 +1051,53 @@ function compareValues(
     key
 ) {
 
-    const av =
+    const aValue =
         a?.[key] ?? '';
 
-    const bv =
+    const bValue =
         b?.[key] ?? '';
 
+    /*
+       Known numeric fields
+    */
 
-    const an =
-        Number(av);
-
-    const bn =
-        Number(bv);
-
+    const numericFields =
+        new Set([
+            'balance',
+            'days_15',
+            'days_30',
+            'days_45',
+            'days_60',
+            'days_75',
+            'days_90',
+            'days_120',
+            'days_150',
+            'pdc',
+            'total_customers',
+            'total_outstanding',
+            'total_pdc'
+        ]);
 
     if (
-        av !== '' &&
-        bv !== '' &&
-        Number.isFinite(an) &&
-        Number.isFinite(bn)
+        numericFields.has(key)
     ) {
 
-        return an - bn;
+        return (
+            num(aValue) -
+            num(bValue)
+        );
     }
 
-
-    return String(av)
+    return String(aValue)
         .localeCompare(
-            String(bv),
+            String(bValue),
             undefined,
             {
-                numeric: true,
-                sensitivity: 'base'
+                numeric:
+                    true,
+
+                sensitivity:
+                    'base'
             }
         );
 }
@@ -873,27 +1111,32 @@ function sortArrow(
     if (
         sort.key !== key
     ) {
-
         return '';
     }
 
-
-    return sort.dir === 'asc'
+    return (
+        sort.dir ===
+        'asc'
+    )
         ? ' ▲'
         : ' ▼';
 }
 
 
-
-
-
-/* =====================================
-   CUSTOMER DETAIL TABLE
-===================================== */
+/* =========================================================
+   CUSTOMER DETAILS
+========================================================= */
 
 function renderDetails(data) {
 
-    const q =
+    const container =
+        $('#customerDetails');
+
+    if (!container) {
+        return;
+    }
+
+    const search =
         (
             $('#detailSearch')
                 ?.value || ''
@@ -901,34 +1144,36 @@ function renderDetails(data) {
             .trim()
             .toLowerCase();
 
-
     let list =
-        q
+        [...data];
 
-            ? data.filter(
-                r =>
+    if (search) {
+
+        list =
+            list.filter(
+                row =>
 
                     [
-                        r.party,
-                        r.sm,
-                        r.grp_name,
-                        r.division,
-                        r.area,
-                        r.order_type,
-                        r.city,
-                        r.pincode
+                        row.party,
+                        row.sm,
+                        row.grp_name,
+                        row.division,
+                        row.area,
+                        row.order_type,
+                        row.city,
+                        row.pincode
                     ].some(
                         value =>
                             String(
                                 value ?? ''
                             )
                                 .toLowerCase()
-                                .includes(q)
+                                .includes(
+                                    search
+                                )
                     )
-            )
-
-            : [...data];
-
+            );
+    }
 
     list.sort(
         (a, b) => {
@@ -949,16 +1194,14 @@ function renderDetails(data) {
         }
     );
 
-
-    const pages =
+    const totalPages =
         Math.max(
             1,
             Math.ceil(
                 list.length /
-                PAGE_SIZE
+                DETAIL_PAGE_SIZE
             )
         );
-
 
     detailPage =
         Math.min(
@@ -966,24 +1209,24 @@ function renderDetails(data) {
                 1,
                 detailPage
             ),
-            pages
+            totalPages
         );
-
 
     const start =
         (
-            detailPage - 1
-        ) * PAGE_SIZE;
-
+            detailPage -
+            1
+        ) *
+        DETAIL_PAGE_SIZE;
 
     const pageRows =
         list.slice(
             start,
-            start + PAGE_SIZE
+            start +
+            DETAIL_PAGE_SIZE
         );
 
-
-    const cols = [
+    const columns = [
 
         [
             'party',
@@ -1094,9 +1337,7 @@ function renderDetails(data) {
         ]
     ];
 
-
-    $('#customerDetails')
-        .innerHTML = `
+    container.innerHTML = `
 
         <table>
 
@@ -1105,36 +1346,35 @@ function renderDetails(data) {
                 <tr>
 
                     ${
-                        cols.map(
-                            (
-                                [
+                        columns
+                            .map(
+                                ([
                                     key,
                                     label,
-                                    isNum
-                                ]
-                            ) => `
+                                    numeric
+                                ]) => `
 
-                            <th
-                                class="sortable ${isNum ? 'num' : ''}"
-                                data-detail-sort="${key}"
-                            >
+                                <th
+                                    class="sortable ${numeric ? 'num' : ''}"
+                                    data-detail-sort="${key}"
+                                >
 
-                                ${esc(label)}
-                                ${sortArrow(
-                                    detailSort,
-                                    key
-                                )}
+                                    ${esc(label)}
+                                    ${sortArrow(
+                                        detailSort,
+                                        key
+                                    )}
 
-                            </th>
+                                </th>
 
-                            `
-                        ).join('')
+                                `
+                            )
+                            .join('')
                     }
 
                 </tr>
 
             </thead>
-
 
             <tbody>
 
@@ -1143,37 +1383,39 @@ function renderDetails(data) {
 
                         ? pageRows
                             .map(
-                                r => `
+                                row => `
 
                                 <tr>
 
                                     ${
-                                        cols.map(
-                                            (
-                                                [
+                                        columns
+                                            .map(
+                                                ([
                                                     key,
                                                     label,
-                                                    isNum
-                                                ]
-                                            ) => `
+                                                    numeric
+                                                ]) => `
 
-                                            <td class="${isNum ? 'num' : ''}">
+                                                <td class="${numeric ? 'num' : ''}">
 
-                                                ${
-                                                    isNum
-                                                        ? money(
-                                                            r[key]
-                                                        )
-                                                        : esc(
-                                                            r[key] ??
-                                                            ''
-                                                        )
-                                                }
+                                                    ${
+                                                        numeric
 
-                                            </td>
+                                                            ? money(
+                                                                row[key]
+                                                            )
 
-                                            `
-                                        ).join('')
+                                                            : esc(
+                                                                row[key] ??
+                                                                ''
+                                                            )
+                                                    }
+
+                                                </td>
+
+                                                `
+                                            )
+                                            .join('')
                                     }
 
                                 </tr>
@@ -1187,7 +1429,7 @@ function renderDetails(data) {
                         <tr>
 
                             <td
-                                colspan="${cols.length}"
+                                colspan="${columns.length}"
                                 class="muted"
                             >
                                 No matching data
@@ -1203,41 +1445,58 @@ function renderDetails(data) {
         </table>
     `;
 
+    if (
+        $('#detailCount')
+    ) {
 
-    $('#detailCount')
-        .textContent =
+        $('#detailCount')
+            .textContent =
+
             `${list.length.toLocaleString('en-IN')} rows`;
+    }
 
+    if (
+        $('#pageInfo')
+    ) {
 
-    $('#pageInfo')
-        .textContent =
-            `Page ${detailPage} of ${pages}`;
+        $('#pageInfo')
+            .textContent =
 
+            `Page ${detailPage} of ${totalPages}`;
+    }
 
-    $('#prevPage')
-        .disabled =
-            detailPage <= 1;
+    if (
+        $('#prevPage')
+    ) {
 
+        $('#prevPage')
+            .disabled =
+                detailPage <= 1;
+    }
 
-    $('#nextPage')
-        .disabled =
-            detailPage >= pages;
+    if (
+        $('#nextPage')
+    ) {
 
+        $('#nextPage')
+            .disabled =
+                detailPage >=
+                totalPages;
+    }
 
     document
         .querySelectorAll(
             '[data-detail-sort]'
         )
         .forEach(
-            th => {
+            heading => {
 
-                th.onclick =
+                heading.onclick =
                     () => {
 
                         const key =
-                            th.dataset
+                            heading.dataset
                                 .detailSort;
-
 
                         if (
                             detailSort.key ===
@@ -1247,9 +1506,7 @@ function renderDetails(data) {
                             detailSort.dir =
                                 detailSort.dir ===
                                 'asc'
-
                                     ? 'desc'
-
                                     : 'asc';
 
                         } else {
@@ -1263,9 +1520,7 @@ function renderDetails(data) {
                             };
                         }
 
-
                         detailPage = 1;
-
 
                         renderDetails(
                             filtered()
@@ -1276,99 +1531,119 @@ function renderDetails(data) {
 }
 
 
-/* =====================================
+/* =========================================================
    MAIN DASHBOARD RENDER
-===================================== */
+========================================================= */
 
 function render() {
 
     const data =
         filtered();
 
-
     const m =
         metrics(data);
 
+    /* ================= KPI ================= */
 
-    /* KPI CARDS */
+    const kpis =
+        $('#kpis');
 
-    $('#kpis').innerHTML = [
+    if (kpis) {
 
-        [
-            'Total Outstanding',
-            money(m.total)
-        ],
+        kpis.innerHTML = [
 
-        [
-            'Total Customers',
-            m.customers
-                .toLocaleString(
-                    'en-IN'
+            [
+                'Total Outstanding',
+                money(
+                    m.total
                 )
-        ],
+            ],
 
-        [
-            'PDC Amount',
-            money(m.pdc)
-        ],
+            [
+                'Total Customers',
+                m.customers
+                    .toLocaleString(
+                        'en-IN'
+                    )
+            ],
 
-        [
-            'Over 90 Days',
-            money(m.over90)
-        ],
+            [
+                'PDC Amount',
+                money(
+                    m.pdc
+                )
+            ],
 
-        [
-            'Over 150 Days',
-            money(m.over150)
+            [
+                'Over 90 Days',
+                money(
+                    m.over90
+                )
+            ],
+
+            [
+                'Over 150 Days',
+                money(
+                    m.over150
+                )
+            ]
+
         ]
+            .map(
+                ([
+                    label,
+                    value
+                ]) => `
 
-    ].map(
-        ([label, value]) => `
+                <article class="kpi">
 
-            <article class="kpi">
+                    <span>
+                        ${label}
+                    </span>
 
-                <span>
-                    ${label}
-                </span>
+                    <strong>
+                        ${value}
+                    </strong>
 
-                <strong>
-                    ${value}
-                </strong>
+                    <small>
+                        Current snapshot
+                    </small>
 
-                <small>
-                    Current snapshot
-                </small>
+                </article>
 
-            </article>
-        `
-    ).join('');
+                `
+            )
+            .join('');
+    }
 
 
-    /* AGEING */
+    /* ================= AGEING ================= */
 
-    const labels =
+    const ageingLabels =
         bucketDefs.map(
-            x => x[0]
+            item =>
+                item[0]
         );
 
-
-    const values =
+    const ageingValues =
         bucketDefs.map(
-            x => m.bs[x[1]]
+            item =>
+                m.bs[
+                    item[1]
+                ]
         );
-
 
     draw(
         '#ageChart',
         'bar',
-        labels,
+        ageingLabels,
         [
             {
                 label:
                     'Amount',
 
                 data:
-                    values,
+                    ageingValues,
 
                 borderRadius:
                     6
@@ -1377,19 +1652,19 @@ function render() {
     );
 
 
-    /* DONUT */
+    /* ================= DONUT ================= */
 
     draw(
         '#donutChart',
         'doughnut',
-        labels,
+        ageingLabels,
         [
             {
                 label:
                     'Amount',
 
                 data:
-                    values,
+                    ageingValues,
 
                 borderWidth:
                     0
@@ -1402,53 +1677,83 @@ function render() {
     );
 
 
-    /* AMOUNT RANGE */
+    /* ================= AMOUNT RANGE ================= */
 
     const ranges = [
 
-        [
-            '< 1,000',
-            0,
-            1000
-        ],
+        {
+            label:
+                '< 1,000',
 
-        [
-            '1,000-5,000',
-            1000,
-            5000
-        ],
+            min:
+                0,
 
-        [
-            '5,000-10,000',
-            5000,
-            10000
-        ],
+            max:
+                1000
+        },
 
-        [
-            '10,000-50,000',
-            10000,
-            50000
-        ],
+        {
+            label:
+                '1,000-5,000',
 
-        [
-            '50,000-1,00,000',
-            50000,
-            100000
-        ],
+            min:
+                1000,
 
-        [
-            '>1,00,000',
-            100000,
-            Infinity
-        ]
+            max:
+                5000
+        },
+
+        {
+            label:
+                '5,000-10,000',
+
+            min:
+                5000,
+
+            max:
+                10000
+        },
+
+        {
+            label:
+                '10,000-50,000',
+
+            min:
+                10000,
+
+            max:
+                50000
+        },
+
+        {
+            label:
+                '50,000-1,00,000',
+
+            min:
+                50000,
+
+            max:
+                100000
+        },
+
+        {
+            label:
+                '>1,00,000',
+
+            min:
+                100000,
+
+            max:
+                Infinity
+        }
     ];
-
 
     draw(
         '#rangeChart',
         'bar',
         ranges.map(
-            x => x[0]
+            range =>
+                range.label
         ),
         [
             {
@@ -1457,30 +1762,25 @@ function render() {
 
                 data:
                     ranges.map(
-                        range => {
+                        range =>
 
-                            const min =
-                                range[1];
+                            data.filter(
+                                row => {
 
-                            const max =
-                                range[2];
+                                    const balance =
+                                        num(
+                                            row.balance
+                                        );
 
-
-                            return data.filter(
-                                r =>
-
-                                    num(
-                                        r.balance
-                                    ) >= min
-
-                                    &&
-
-                                    num(
-                                        r.balance
-                                    ) < max
-
-                            ).length;
-                        }
+                                    return (
+                                        balance >=
+                                            range.min
+                                        &&
+                                        balance <
+                                            range.max
+                                    );
+                                }
+                            ).length
                     ),
 
                 borderRadius:
@@ -1490,9 +1790,9 @@ function render() {
     );
 
 
-    /* TOP 5 CUSTOMERS */
+    /* ================= TOP CUSTOMERS ================= */
 
-    const top =
+    const topCustomers =
         [...data]
             .sort(
                 (a, b) =>
@@ -1508,58 +1808,65 @@ function render() {
                 5
             );
 
+    if (
+        $('#topCustomers')
+    ) {
 
-    $('#topCustomers')
-        .innerHTML =
-            simpleTable(
-                top,
-                [
+        $('#topCustomers')
+            .innerHTML =
+                simpleTable(
+                    topCustomers,
+                    [
 
-                    {
-                        l: '#',
+                        {
+                            label:
+                                '#',
 
-                        f:
-                            (r, i) =>
-                                i + 1
-                    },
+                            render:
+                                (
+                                    row,
+                                    index
+                                ) =>
+                                    index +
+                                    1
+                        },
 
-                    {
-                        l:
-                            'Party Name',
+                        {
+                            label:
+                                'Party Name',
 
-                        k:
-                            'party'
-                    },
+                            key:
+                                'party'
+                        },
 
-                    {
-                        l:
-                            'Balance',
+                        {
+                            label:
+                                'Balance',
 
-                        num:
-                            1,
+                            num:
+                                true,
 
-                        f:
-                            r =>
-                                money(
-                                    r.balance
-                                )
-                    }
-                ]
-            );
+                            render:
+                                row =>
+                                    money(
+                                        row.balance
+                                    )
+                        }
+                    ]
+                );
+    }
 
 
-    /* TOP 5 >150 DAYS */
+    /* ================= TOP >150 ================= */
 
-    const overdue =
-        data
-
+    const overdueCustomers =
+        [...data]
             .filter(
-                r =>
+                row =>
                     num(
-                        r.days_150
+                        row.days_150
                     ) > 0
             )
-
             .sort(
                 (a, b) =>
                     num(
@@ -1569,74 +1876,82 @@ function render() {
                         a.days_150
                     )
             )
-
             .slice(
                 0,
                 5
             );
 
+    if (
+        $('#overdueCustomers')
+    ) {
 
-    $('#overdueCustomers')
-        .innerHTML =
-            simpleTable(
-                overdue,
-                [
+        $('#overdueCustomers')
+            .innerHTML =
+                simpleTable(
+                    overdueCustomers,
+                    [
 
-                    {
-                        l: '#',
+                        {
+                            label:
+                                '#',
 
-                        f:
-                            (r, i) =>
-                                i + 1
-                    },
+                            render:
+                                (
+                                    row,
+                                    index
+                                ) =>
+                                    index +
+                                    1
+                        },
 
-                    {
-                        l:
-                            'Party Name',
+                        {
+                            label:
+                                'Party Name',
 
-                        k:
-                            'party'
-                    },
+                            key:
+                                'party'
+                        },
 
-                    {
-                        l:
-                            '>150 Days',
+                        {
+                            label:
+                                '>150 Days',
 
-                        num:
-                            1,
+                            num:
+                                true,
 
-                        f:
-                            r =>
-                                money(
-                                    r.days_150
-                                )
-                    },
+                            render:
+                                row =>
+                                    money(
+                                        row.days_150
+                                    )
+                        },
 
-                    {
-                        l:
-                            'Balance',
+                        {
+                            label:
+                                'Balance',
 
-                        num:
-                            1,
+                            num:
+                                true,
 
-                        f:
-                            r =>
-                                money(
-                                    r.balance
-                                )
-                    }
-                ]
-            );
+                            render:
+                                row =>
+                                    money(
+                                        row.balance
+                                    )
+                        }
+                    ]
+                );
+    }
 
 
-    /* DETAIL TABLE */
+    /* ================= DETAILS ================= */
 
     renderDetails(
         data
     );
 
 
-    /* COMPARISON */
+    /* ================= COMPARISON ================= */
 
     renderCompare(
         m
@@ -1644,47 +1959,51 @@ function render() {
 }
 
 
-/* =====================================
+/* =========================================================
    SNAPSHOT COMPARISON
-===================================== */
+========================================================= */
 
 async function renderCompare(
-    current
+    currentMetrics
 ) {
 
     if (
         !activeUpload
     ) {
-
         return;
     }
 
-
     const currentIndex =
         uploads.findIndex(
-            u =>
-                u.id ===
+            upload =>
+                upload.id ===
                 activeUpload.id
         );
 
-
-    const previous =
+    const previousUpload =
         currentIndex >= 0
             ? uploads[
-                currentIndex + 1
+                currentIndex +
+                1
             ]
             : null;
 
-
     if (
-        !previous
+        !previousUpload
     ) {
 
-        $('#summaryCompare')
-            .innerHTML =
+        if (
+            $('#summaryCompare')
+        ) {
 
-            '<span class="muted">Upload another older snapshot to compare.</span>';
+            $('#summaryCompare')
+                .innerHTML = `
 
+                <span class="muted">
+                    Upload another older snapshot to compare.
+                </span>
+            `;
+        }
 
         draw(
             '#compareChart',
@@ -1693,34 +2012,32 @@ async function renderCompare(
             []
         );
 
-
         return;
     }
 
-
     try {
 
+        /*
+           IMPORTANT:
+           Previous snapshot also loads ALL rows,
+           not only first 1000.
+        */
+
         const previousRows =
-            await rpc(
-                'raj_outstanding_get_rows',
-                {
-                    p_upload_id:
-                        previous.id
-                }
-            ) || [];
+            await getAllOutstandingRows(
+                previousUpload.id
+            );
 
-
-        const pm =
+        const previousMetrics =
             metrics(
                 previousRows
             );
 
-
         const labels =
             bucketDefs.map(
-                x => x[0]
+                item =>
+                    item[0]
             );
-
 
         draw(
             '#compareChart',
@@ -1730,14 +2047,14 @@ async function renderCompare(
 
                 {
                     label:
-                        previous
+                        previousUpload
                             .outstanding_date,
 
                     data:
                         bucketDefs.map(
-                            x =>
-                                pm.bs[
-                                    x[1]
+                            item =>
+                                previousMetrics.bs[
+                                    item[1]
                                 ]
                         )
                 },
@@ -1749,9 +2066,9 @@ async function renderCompare(
 
                     data:
                         bucketDefs.map(
-                            x =>
-                                current.bs[
-                                    x[1]
+                            item =>
+                                currentMetrics.bs[
+                                    item[1]
                                 ]
                         )
                 }
@@ -1763,155 +2080,209 @@ async function renderCompare(
             }
         );
 
-
         const comparisonRows = [
 
-            [
-                'Total Outstanding',
-                pm.total,
-                current.total
-            ],
+            {
+                metric:
+                    'Total Outstanding',
 
-            [
-                'Total Customers',
-                pm.customers,
-                current.customers
-            ],
+                previous:
+                    previousMetrics.total,
 
-            [
-                'PDC Amount',
-                pm.pdc,
-                current.pdc
-            ],
+                current:
+                    currentMetrics.total,
 
-            [
-                'Over 90 Days',
-                pm.over90,
-                current.over90
-            ],
+                customer:
+                    false
+            },
 
-            [
-                'Over 150 Days',
-                pm.over150,
-                current.over150
-            ]
+            {
+                metric:
+                    'Total Customers',
+
+                previous:
+                    previousMetrics.customers,
+
+                current:
+                    currentMetrics.customers,
+
+                customer:
+                    true
+            },
+
+            {
+                metric:
+                    'PDC Amount',
+
+                previous:
+                    previousMetrics.pdc,
+
+                current:
+                    currentMetrics.pdc,
+
+                customer:
+                    false
+            },
+
+            {
+                metric:
+                    'Over 90 Days',
+
+                previous:
+                    previousMetrics.over90,
+
+                current:
+                    currentMetrics.over90,
+
+                customer:
+                    false
+            },
+
+            {
+                metric:
+                    'Over 150 Days',
+
+                previous:
+                    previousMetrics.over150,
+
+                current:
+                    currentMetrics.over150,
+
+                customer:
+                    false
+            }
         ];
 
+        if (
+            $('#summaryCompare')
+        ) {
 
-        $('#summaryCompare')
-            .innerHTML =
-                simpleTable(
-                    comparisonRows,
-                    [
+            $('#summaryCompare')
+                .innerHTML =
+                    simpleTable(
+                        comparisonRows,
+                        [
 
-                        {
-                            l:
-                                'Metric',
+                            {
+                                label:
+                                    'Metric',
 
-                            f:
-                                r =>
-                                    esc(
-                                        r[0]
-                                    )
-                        },
+                                key:
+                                    'metric'
+                            },
 
-                        {
-                            l:
-                                previous
-                                    .outstanding_date,
+                            {
+                                label:
+                                    previousUpload
+                                        .outstanding_date,
 
-                            num:
-                                1,
+                                num:
+                                    true,
 
-                            f:
-                                r =>
-                                    r[0] ===
-                                    'Total Customers'
+                                render:
+                                    row =>
 
-                                        ? Number(
-                                            r[1]
-                                        ).toLocaleString(
-                                            'en-IN'
-                                        )
+                                        row.customer
 
-                                        : money(
-                                            r[1]
-                                        )
-                        },
+                                            ? Number(
+                                                row.previous
+                                            )
+                                                .toLocaleString(
+                                                    'en-IN'
+                                                )
 
-                        {
-                            l:
-                                activeUpload
-                                    .outstanding_date,
+                                            : money(
+                                                row.previous
+                                            )
+                            },
 
-                            num:
-                                1,
+                            {
+                                label:
+                                    activeUpload
+                                        .outstanding_date,
 
-                            f:
-                                r =>
-                                    r[0] ===
-                                    'Total Customers'
+                                num:
+                                    true,
 
-                                        ? Number(
-                                            r[2]
-                                        ).toLocaleString(
-                                            'en-IN'
-                                        )
+                                render:
+                                    row =>
 
-                                        : money(
-                                            r[2]
-                                        )
-                        }
-                    ]
-                );
+                                        row.customer
 
+                                            ? Number(
+                                                row.current
+                                            )
+                                                .toLocaleString(
+                                                    'en-IN'
+                                                )
 
-    } catch (e) {
+                                            : money(
+                                                row.current
+                                            )
+                            }
+                        ]
+                    );
+        }
 
-        console.error(e);
+    } catch (error) {
 
+        console.error(
+            'Comparison error:',
+            error
+        );
 
-        $('#summaryCompare')
-            .innerHTML =
+        if (
+            $('#summaryCompare')
+        ) {
 
-            '<span class="muted">Comparison unavailable.</span>';
+            $('#summaryCompare')
+                .innerHTML = `
+
+                <span class="muted">
+                    Comparison unavailable.
+                </span>
+            `;
+        }
     }
 }
 
 
-
-
-
-/* =====================================
-   SNAPSHOT HISTORY
-===================================== */
+/* =========================================================
+   HISTORY
+========================================================= */
 
 function renderHistory() {
 
+    const container =
+        $('#history');
+
+    if (!container) {
+        return;
+    }
+
     const list =
-        [...uploads]
-            .sort(
-                (a, b) => {
+        [...uploads];
 
-                    const result =
-                        compareValues(
-                            a,
-                            b,
-                            historySort.key
-                        );
+    list.sort(
+        (a, b) => {
 
+            const result =
+                compareValues(
+                    a,
+                    b,
+                    historySort.key
+                );
 
-                    return (
-                        historySort.dir ===
-                        'asc'
-                    )
-                        ? result
-                        : -result;
-                }
-            );
+            return (
+                historySort.dir ===
+                'asc'
+            )
+                ? result
+                : -result;
+        }
+    );
 
-
-    const cols = [
+    const columns = [
 
         [
             'outstanding_date',
@@ -1944,9 +2315,7 @@ function renderHistory() {
         ]
     ];
 
-
-    $('#history')
-        .innerHTML = `
+    container.innerHTML = `
 
         <table>
 
@@ -1955,36 +2324,35 @@ function renderHistory() {
                 <tr>
 
                     ${
-                        cols.map(
-                            (
-                                [
+                        columns
+                            .map(
+                                ([
                                     key,
                                     label,
-                                    isNum
-                                ]
-                            ) => `
+                                    numeric
+                                ]) => `
 
-                            <th
-                                class="sortable ${isNum ? 'num' : ''}"
-                                data-history-sort="${key}"
-                            >
+                                <th
+                                    class="sortable ${numeric ? 'num' : ''}"
+                                    data-history-sort="${key}"
+                                >
 
-                                ${esc(label)}
-                                ${sortArrow(
-                                    historySort,
-                                    key
-                                )}
+                                    ${esc(label)}
+                                    ${sortArrow(
+                                        historySort,
+                                        key
+                                    )}
 
-                            </th>
+                                </th>
 
-                            `
-                        ).join('')
+                                `
+                            )
+                            .join('')
                     }
 
                 </tr>
 
             </thead>
-
 
             <tbody>
 
@@ -1997,25 +2365,24 @@ function renderHistory() {
                                 50
                             )
                             .map(
-                                r => `
+                                row => `
 
                                 <tr>
 
                                     <td>
                                         ${esc(
-                                            r.outstanding_date
+                                            row.outstanding_date
                                         )}
                                     </td>
-
 
                                     <td>
 
                                         ${
-                                            r.uploaded_at
+                                            row.uploaded_at
 
                                                 ? esc(
                                                     new Date(
-                                                        r.uploaded_at
+                                                        row.uploaded_at
                                                     )
                                                         .toLocaleString(
                                                             'en-IN'
@@ -2027,19 +2394,17 @@ function renderHistory() {
 
                                     </td>
 
-
                                     <td>
                                         ${esc(
-                                            r.uploaded_by
+                                            row.uploaded_by
                                         )}
                                     </td>
-
 
                                     <td class="num">
 
                                         ${
                                             num(
-                                                r.total_customers
+                                                row.total_customers
                                             )
                                                 .toLocaleString(
                                                     'en-IN'
@@ -2048,12 +2413,11 @@ function renderHistory() {
 
                                     </td>
 
-
                                     <td class="num">
 
                                         ${
                                             money(
-                                                r.total_outstanding
+                                                row.total_outstanding
                                             )
                                         }
 
@@ -2086,21 +2450,19 @@ function renderHistory() {
         </table>
     `;
 
-
     document
         .querySelectorAll(
             '[data-history-sort]'
         )
         .forEach(
-            th => {
+            heading => {
 
-                th.onclick =
+                heading.onclick =
                     () => {
 
                         const key =
-                            th.dataset
+                            heading.dataset
                                 .historySort;
-
 
                         if (
                             historySort.key ===
@@ -2110,9 +2472,7 @@ function renderHistory() {
                             historySort.dir =
                                 historySort.dir ===
                                 'asc'
-
                                     ? 'desc'
-
                                     : 'asc';
 
                         } else {
@@ -2126,7 +2486,6 @@ function renderHistory() {
                             };
                         }
 
-
                         renderHistory();
                     };
             }
@@ -2134,82 +2493,98 @@ function renderHistory() {
 }
 
 
-/* =====================================
-   LOAD OUTSTANDING DATA
-===================================== */
+/* =========================================================
+   LOAD SNAPSHOTS + CURRENT DATA
+========================================================= */
 
 async function load(
     preferredId = null
 ) {
+
+    toast(
+        'Loading outstanding data...'
+    );
 
     uploads =
         await rpc(
             'raj_outstanding_list_uploads'
         ) || [];
 
-
     /*
        Latest outstanding date first.
     */
 
     uploads.sort(
-        (a, b) =>
+        (a, b) => {
 
-            String(
-                b.outstanding_date
-            ).localeCompare(
+            const dateCompare =
                 String(
-                    a.outstanding_date
+                    b.outstanding_date ??
+                    ''
                 )
-            )
+                    .localeCompare(
+                        String(
+                            a.outstanding_date ??
+                            ''
+                        )
+                    );
 
-            ||
+            if (
+                dateCompare !==
+                0
+            ) {
+                return dateCompare;
+            }
 
-            String(
-                b.uploaded_at ?? ''
-            ).localeCompare(
-                String(
-                    a.uploaded_at ?? ''
-                )
+            return String(
+                b.uploaded_at ??
+                ''
             )
+                .localeCompare(
+                    String(
+                        a.uploaded_at ??
+                        ''
+                    )
+                );
+        }
     );
 
+    const snapshotSelect =
+        $('#snapshotSelect');
 
-    $('#snapshotSelect')
-        .innerHTML =
+    if (
+        snapshotSelect
+    ) {
 
-        uploads.length
+        snapshotSelect.innerHTML =
 
-            ? uploads
-                .map(
-                    u => `
+            uploads.length
 
-                    <option value="${esc(u.id)}">
+                ? uploads
+                    .map(
+                        upload => `
 
-                        ${esc(
-                            u.outstanding_date
-                        )}
+                        <option value="${esc(upload.id)}">
+                            ${esc(upload.outstanding_date)}
+                        </option>
 
-                    </option>
+                        `
+                    )
+                    .join('')
 
-                    `
-                )
-                .join('')
+                : `
 
-            : `
-
-            <option value="">
-                No snapshot
-            </option>
-
-            `;
-
+                <option value="">
+                    No snapshot
+                </option>
+                `;
+    }
 
     activeUpload =
 
         uploads.find(
-            u =>
-                u.id ===
+            upload =>
+                upload.id ===
                 preferredId
         )
 
@@ -2220,7 +2595,6 @@ async function load(
         ||
 
         null;
-
 
     if (
         !activeUpload
@@ -2234,24 +2608,35 @@ async function load(
 
         renderHistory();
 
+        toast(
+            'No outstanding snapshot found.'
+        );
+
         return;
     }
 
+    if (
+        snapshotSelect
+    ) {
 
-    $('#snapshotSelect')
-        .value =
+        snapshotSelect.value =
             activeUpload.id;
+    }
 
+    /*
+       IMPORTANT FIX:
+       Load every row, not first 1000.
+    */
 
     rows =
-        await rpc(
-            'raj_outstanding_get_rows',
-            {
-                p_upload_id:
-                    activeUpload.id
-            }
-        ) || [];
+        await getAllOutstandingRows(
+            activeUpload.id
+        );
 
+    console.log(
+        'Dashboard total rows:',
+        rows.length
+    );
 
     makeFilters();
 
@@ -2260,58 +2645,87 @@ async function load(
     render();
 
     renderHistory();
+
+    toast(
+        `${rows.length.toLocaleString('en-IN')} outstanding rows loaded`
+    );
 }
 
 
-/* =====================================
-   CHANGE SNAPSHOT
-===================================== */
+/* =========================================================
+   SWITCH SNAPSHOT
+========================================================= */
 
 async function switchSnapshot() {
 
-    activeUpload =
-        uploads.find(
-            x =>
-                x.id ===
-                $('#snapshotSelect')
-                    .value
+    try {
+
+        const selectedId =
+            $('#snapshotSelect')
+                ?.value;
+
+        activeUpload =
+            uploads.find(
+                upload =>
+                    upload.id ===
+                    selectedId
+            );
+
+        if (
+            !activeUpload
+        ) {
+            return;
+        }
+
+        toast(
+            'Loading selected snapshot...'
         );
 
+        /*
+           IMPORTANT FIX:
+           Again load ALL rows.
+        */
 
-    if (
-        !activeUpload
-    ) {
+        rows =
+            await getAllOutstandingRows(
+                activeUpload.id
+            );
 
-        return;
+        makeFilters();
+
+        detailPage = 1;
+
+        render();
+
+        toast(
+            `${rows.length.toLocaleString('en-IN')} rows loaded`
+        );
+
+    } catch (error) {
+
+        console.error(
+            error
+        );
+
+        toast(
+            'Snapshot load failed: ' +
+            error.message
+        );
     }
-
-
-    rows =
-        await rpc(
-            'raj_outstanding_get_rows',
-            {
-                p_upload_id:
-                    activeUpload.id
-            }
-        ) || [];
-
-
-    makeFilters();
-
-    detailPage = 1;
-
-    render();
 }
 
 
-/* =====================================
-   CSV HEADER CLEANUP
-===================================== */
+/* =========================================================
+   CSV HEADER NORMALIZER
+========================================================= */
 
-function normalizeHeader(s) {
+function normalizeHeader(
+    header
+) {
 
     return String(
-        s ?? ''
+        header ??
+        ''
     )
         .replace(
             /^\uFEFF/,
@@ -2321,23 +2735,15 @@ function normalizeHeader(s) {
 }
 
 
-/* =====================================
+/* =========================================================
    CSV UPLOAD
-===================================== */
+========================================================= */
 
 async function upload(file) {
 
-    if (
-        !file
-    ) {
-
+    if (!file) {
         return;
     }
-
-
-    /*
-       Only CSV accepted.
-    */
 
     if (
         !/\.csv$/i.test(
@@ -2349,16 +2755,16 @@ async function upload(file) {
             'Please select a CSV file.'
         );
 
-        $('#fileInput')
-            .value = '';
+        if (
+            $('#fileInput')
+        ) {
+
+            $('#fileInput')
+                .value = '';
+        }
 
         return;
     }
-
-
-    /*
-       Outstanding snapshot date.
-    */
 
     const date =
         prompt(
@@ -2371,21 +2777,18 @@ async function upload(file) {
                 )
         );
 
+    if (!date) {
 
-    if (
-        !date
-    ) {
+        if (
+            $('#fileInput')
+        ) {
 
-        $('#fileInput')
-            .value = '';
+            $('#fileInput')
+                .value = '';
+        }
 
         return;
     }
-
-
-    /*
-       Validate date format.
-    */
 
     if (
         !/^\d{4}-\d{2}-\d{2}$/
@@ -2396,17 +2799,20 @@ async function upload(file) {
             'Date format must be YYYY-MM-DD.'
         );
 
-        $('#fileInput')
-            .value = '';
+        if (
+            $('#fileInput')
+        ) {
+
+            $('#fileInput')
+                .value = '';
+        }
 
         return;
     }
 
-
     toast(
-        'Reading CSV file…'
+        'Reading CSV file...'
     );
-
 
     Papa.parse(
         file,
@@ -2421,81 +2827,58 @@ async function upload(file) {
             transformHeader:
                 normalizeHeader,
 
-
             complete:
                 async result => {
 
                     try {
 
                         if (
-                            result.errors
-                                ?.length
+                            result.errors &&
+                            result.errors.length
                         ) {
 
                             console.warn(
-                                'CSV parse warnings:',
+                                'CSV warnings:',
                                 result.errors
                             );
                         }
 
-
-                        /*
-                           Required CSV columns
-                        */
-
-                        const required = [
+                        const requiredColumns = [
 
                             'Party',
-
                             'Balance',
-
                             '15',
-
                             '30',
-
                             '45',
-
                             '60',
-
                             '75',
-
                             '90',
-
                             '120',
-
                             '150',
-
                             'PDC',
-
                             'SM',
-
                             'GrpName',
-
                             'Division',
-
                             'Area',
-
                             'Order',
-
                             'City',
-
                             'Pincode'
                         ];
 
-
-                        const fields =
+                        const actualColumns =
                             result.meta
-                                ?.fields || [];
-
+                                ?.fields ||
+                            [];
 
                         const missing =
-                            required.filter(
-                                heading =>
-                                    !fields.includes(
-                                        heading
-                                    )
-                            );
-
+                            requiredColumns
+                                .filter(
+                                    column =>
+                                        !actualColumns
+                                            .includes(
+                                                column
+                                            )
+                                );
 
                         if (
                             missing.length
@@ -2509,132 +2892,126 @@ async function upload(file) {
                             );
                         }
 
-
-                        /*
-                           Map CSV to Supabase fields.
-                        */
-
                         const mapped =
                             result.data
 
                                 .filter(
-                                    r =>
+                                    row =>
 
                                         String(
-                                            r.Party ??
+                                            row.Party ??
                                             ''
                                         ).trim()
 
                                         ||
 
                                         num(
-                                            r.Balance
+                                            row.Balance
                                         ) !== 0
                                 )
 
                                 .map(
-                                    r => ({
+                                    row => ({
 
                                         party:
                                             String(
-                                                r.Party ??
+                                                row.Party ??
                                                 ''
                                             ).trim(),
 
                                         balance:
                                             num(
-                                                r.Balance
+                                                row.Balance
                                             ),
 
                                         days_15:
                                             num(
-                                                r['15']
+                                                row['15']
                                             ),
 
                                         days_30:
                                             num(
-                                                r['30']
+                                                row['30']
                                             ),
 
                                         days_45:
                                             num(
-                                                r['45']
+                                                row['45']
                                             ),
 
                                         days_60:
                                             num(
-                                                r['60']
+                                                row['60']
                                             ),
 
                                         days_75:
                                             num(
-                                                r['75']
+                                                row['75']
                                             ),
 
                                         days_90:
                                             num(
-                                                r['90']
+                                                row['90']
                                             ),
 
                                         days_120:
                                             num(
-                                                r['120']
+                                                row['120']
                                             ),
 
                                         days_150:
                                             num(
-                                                r['150']
+                                                row['150']
                                             ),
 
                                         pdc:
                                             num(
-                                                r.PDC
+                                                row.PDC
                                             ),
 
                                         sm:
                                             String(
-                                                r.SM ??
+                                                row.SM ??
                                                 ''
                                             ).trim(),
 
                                         grp_name:
                                             String(
-                                                r.GrpName ??
+                                                row.GrpName ??
                                                 ''
                                             ).trim(),
 
                                         division:
                                             String(
-                                                r.Division ??
+                                                row.Division ??
                                                 ''
                                             ).trim(),
 
                                         area:
                                             String(
-                                                r.Area ??
+                                                row.Area ??
                                                 ''
                                             ).trim(),
 
                                         order_type:
                                             String(
-                                                r.Order ??
+                                                row.Order ??
                                                 ''
                                             ).trim(),
 
                                         city:
                                             String(
-                                                r.City ??
+                                                row.City ??
                                                 ''
                                             ).trim(),
 
                                         pincode:
                                             String(
-                                                r.Pincode ??
+                                                row.Pincode ??
                                                 ''
                                             ).trim()
                                     })
                                 );
-
 
                         if (
                             !mapped.length
@@ -2645,22 +3022,17 @@ async function upload(file) {
                             );
                         }
 
-
-                        /*
-                           Logged in user
-                        */
-
                         const user =
                             JSON.parse(
                                 localStorage.getItem(
                                     USER
-                                ) || '{}'
+                                ) ||
+                                '{}'
                             );
 
-
-                        /*
-                           Upload to Supabase
-                        */
+                        toast(
+                            `Uploading ${mapped.length.toLocaleString('en-IN')} rows...`
+                        );
 
                         await rpc(
                             'raj_outstanding_upload_json',
@@ -2693,60 +3065,57 @@ async function upload(file) {
                             }
                         );
 
+                        if (
+                            $('#fileInput')
+                        ) {
 
-                        /*
-                           Reset file input.
-                        */
-
-                        $('#fileInput')
-                            .value = '';
-
+                            $('#fileInput')
+                                .value = '';
+                        }
 
                         toast(
-                            'Outstanding uploaded successfully: ' +
-                            mapped.length
-                                .toLocaleString(
-                                    'en-IN'
-                                ) +
-                            ' rows'
+                            `Upload successful: ${mapped.length.toLocaleString('en-IN')} rows`
                         );
-
-
-                        /*
-                           Reload dashboard.
-                        */
 
                         await load();
 
+                    } catch (error) {
 
-                    } catch (e) {
+                        console.error(
+                            'Upload error:',
+                            error
+                        );
 
-                        console.error(e);
+                        if (
+                            $('#fileInput')
+                        ) {
 
-
-                        $('#fileInput')
-                            .value = '';
-
+                            $('#fileInput')
+                                .value = '';
+                        }
 
                         toast(
                             'Upload failed: ' +
-                            e.message
+                            error.message
                         );
                     }
                 },
-
 
             error:
                 error => {
 
                     console.error(
+                        'CSV read error:',
                         error
                     );
 
+                    if (
+                        $('#fileInput')
+                    ) {
 
-                    $('#fileInput')
-                        .value = '';
-
+                        $('#fileInput')
+                            .value = '';
+                    }
 
                     toast(
                         'CSV read failed: ' +
@@ -2758,229 +3127,292 @@ async function upload(file) {
 }
 
 
-/* =====================================
-   START PAGE
-===================================== */
+/* =========================================================
+   PAGE START
+========================================================= */
 
 (async () => {
 
     /*
-       Check login.
+       LOGIN CHECK
     */
 
     if (
         !await guard()
     ) {
-
         return;
     }
 
 
-    /*
-       HEADER UPLOAD
-    */
+    /* =====================================================
+       UPLOAD BUTTON
+    ===================================================== */
 
-    $('#uploadBtn')
-        ?.addEventListener(
-            'click',
-            () =>
-                $('#fileInput')
-                    .click()
-        );
+    if (
+        $('#uploadBtn')
+    ) {
 
+        $('#uploadBtn')
+            .onclick =
+                () => {
 
-    /*
-       QUICK ACTION UPLOAD
-    */
-
-    $('#uploadBtn2')
-        ?.addEventListener(
-            'click',
-            () =>
-                $('#fileInput')
-                    .click()
-        );
+                    $('#fileInput')
+                        ?.click();
+                };
+    }
 
 
-    /*
+    if (
+        $('#uploadBtn2')
+    ) {
+
+        $('#uploadBtn2')
+            .onclick =
+                () => {
+
+                    $('#fileInput')
+                        ?.click();
+                };
+    }
+
+
+    /* =====================================================
        FILE SELECT
-    */
+    ===================================================== */
 
-    $('#fileInput')
-        .onchange =
-            e =>
-                upload(
-                    e.target
-                        .files[0]
-                );
+    if (
+        $('#fileInput')
+    ) {
 
+        $('#fileInput')
+            .onchange =
+                event => {
 
-    /*
-       SNAPSHOT SELECT
-    */
+                    const file =
+                        event.target
+                            .files?.[0];
 
-    $('#snapshotSelect')
-        .onchange =
-            switchSnapshot;
-
-
-    /*
-       RESET FILTERS
-    */
-
-    $('#resetBtn')
-        .onclick =
-            () => {
-
-                $('#filters')
-                    .querySelectorAll(
-                        'select'
-                    )
-                    .forEach(
-                        x =>
-                            x.value = ''
+                    upload(
+                        file
                     );
+                };
+    }
 
 
-                if (
-                    $('#detailSearch')
-                ) {
+    /* =====================================================
+       SNAPSHOT
+    ===================================================== */
 
-                    $('#detailSearch')
-                        .value = '';
-                }
+    if (
+        $('#snapshotSelect')
+    ) {
 
-
-                detailPage = 1;
-
-                render();
-            };
-
-
-    /*
-       CUSTOMER SEARCH
-    */
-
-    $('#detailSearch')
-        .oninput =
-            () => {
-
-                detailPage = 1;
-
-                renderDetails(
-                    filtered()
-                );
-            };
+        $('#snapshotSelect')
+            .onchange =
+                switchSnapshot;
+    }
 
 
-    /*
-       PREVIOUS PAGE
-    */
+    /* =====================================================
+       RESET FILTERS
+    ===================================================== */
 
-    $('#prevPage')
-        .onclick =
-            () => {
+    if (
+        $('#resetBtn')
+    ) {
 
-                if (
-                    detailPage > 1
-                ) {
+        $('#resetBtn')
+            .onclick =
+                () => {
 
-                    detailPage--;
+                    $('#filters')
+                        ?.querySelectorAll(
+                            'select'
+                        )
+                        .forEach(
+                            select => {
+
+                                select.value =
+                                    '';
+                            }
+                        );
+
+                    if (
+                        $('#detailSearch')
+                    ) {
+
+                        $('#detailSearch')
+                            .value = '';
+                    }
+
+                    detailPage = 1;
+
+                    render();
+                };
+    }
+
+
+    /* =====================================================
+       DETAIL SEARCH
+    ===================================================== */
+
+    if (
+        $('#detailSearch')
+    ) {
+
+        $('#detailSearch')
+            .oninput =
+                () => {
+
+                    detailPage = 1;
 
                     renderDetails(
                         filtered()
                     );
-                }
-            };
+                };
+    }
 
 
-    /*
+    /* =====================================================
+       PREVIOUS PAGE
+    ===================================================== */
+
+    if (
+        $('#prevPage')
+    ) {
+
+        $('#prevPage')
+            .onclick =
+                () => {
+
+                    if (
+                        detailPage >
+                        1
+                    ) {
+
+                        detailPage--;
+
+                        renderDetails(
+                            filtered()
+                        );
+                    }
+                };
+    }
+
+
+    /* =====================================================
        NEXT PAGE
-    */
+    ===================================================== */
 
-    $('#nextPage')
-        .onclick =
-            () => {
+    if (
+        $('#nextPage')
+    ) {
 
-                detailPage++;
+        $('#nextPage')
+            .onclick =
+                () => {
 
-                renderDetails(
-                    filtered()
-                );
-            };
+                    detailPage++;
 
-
-    /*
-       REFRESH
-    */
-
-    $('#refreshBtn')
-        .onclick =
-            () =>
-                load(
-                    activeUpload
-                        ?.id ||
-                    null
-                );
-
-
-    /*
-       VIEW DATA LOG
-
-       Scrolls to Customer Details.
-    */
-
-    $('#logsBtn')
-        .onclick =
-            () =>
-
-                $('#customerDetails')
-                    ?.scrollIntoView(
-                        {
-                            behavior:
-                                'smooth',
-
-                            block:
-                                'start'
-                        }
+                    renderDetails(
+                        filtered()
                     );
+                };
+    }
 
 
-    /*
+    /* =====================================================
+       REFRESH
+    ===================================================== */
+
+    if (
+        $('#refreshBtn')
+    ) {
+
+        $('#refreshBtn')
+            .onclick =
+                () => {
+
+                    load(
+                        activeUpload
+                            ?.id ||
+                        null
+                    );
+                };
+    }
+
+
+    /* =====================================================
+       VIEW DATA LOG
+    ===================================================== */
+
+    if (
+        $('#logsBtn')
+    ) {
+
+        $('#logsBtn')
+            .onclick =
+                () => {
+
+                    $('#customerDetails')
+                        ?.scrollIntoView(
+                            {
+                                behavior:
+                                    'smooth',
+
+                                block:
+                                    'start'
+                            }
+                        );
+                };
+    }
+
+
+    /* =====================================================
        LOGOUT
-    */
+    ===================================================== */
 
-    $('#logoutBtn')
-        .onclick =
-            () => {
+    if (
+        $('#logoutBtn')
+    ) {
 
-                localStorage.removeItem(
-                    TOKEN
-                );
+        $('#logoutBtn')
+            .onclick =
+                () => {
 
-                localStorage.removeItem(
-                    USER
-                );
+                    localStorage
+                        .removeItem(
+                            TOKEN
+                        );
 
-                location.href =
-                    'index.html';
-            };
+                    localStorage
+                        .removeItem(
+                            USER
+                        );
+
+                    location.href =
+                        'index.html';
+                };
+    }
 
 
-    /*
+    /* =====================================================
        INITIAL LOAD
-    */
+    ===================================================== */
 
     await load();
 
-
 })().catch(
-    e => {
+    error => {
 
-        console.error(e);
+        console.error(
+            'Outstanding dashboard error:',
+            error
+        );
 
         toast(
-            e.message
+            'Dashboard error: ' +
+            error.message
         );
     }
 );
