@@ -43,7 +43,6 @@ const $ = selector =>
 
 
 function num(value) {
-
     if (
         value === null ||
         value === undefined ||
@@ -58,23 +57,18 @@ function num(value) {
             .trim()
     );
 
-    return Number.isFinite(n)
-        ? n
-        : 0;
+    return Number.isFinite(n) ? n : 0;
 }
 
 
 function money(value) {
-
     return '₹ ' +
-        Math.round(
-            num(value)
-        ).toLocaleString('en-IN');
+        Math.round(num(value))
+            .toLocaleString('en-IN');
 }
 
 
 function esc(value) {
-
     return String(value ?? '')
         .replace(
             /[&<>"']/g,
@@ -90,25 +84,18 @@ function esc(value) {
 
 
 function toast(message) {
-
     const element = $('#toast');
 
-    if (!element) {
-        return;
-    }
+    if (!element) return;
 
     element.textContent = message;
-
     element.style.display = 'block';
 
     clearTimeout(toast.timer);
 
-    toast.timer = setTimeout(
-        () => {
-            element.style.display = 'none';
-        },
-        3500
-    );
+    toast.timer = setTimeout(() => {
+        element.style.display = 'none';
+    }, 3500);
 }
 
 
@@ -117,9 +104,7 @@ function toast(message) {
 ========================================================= */
 
 function authArgs(extra = {}) {
-
     return {
-
         p_session_token:
             localStorage.getItem(TOKEN) || '',
 
@@ -131,15 +116,8 @@ function authArgs(extra = {}) {
 }
 
 
-async function rpc(
-    functionName,
-    args = {}
-) {
-
-    const {
-        data,
-        error
-    } = await sb.rpc(
+async function rpc(functionName, args = {}) {
+    const { data, error } = await sb.rpc(
         functionName,
         authArgs(args)
     );
@@ -157,22 +135,13 @@ async function rpc(
 ========================================================= */
 
 async function guard() {
-
-    if (
-        !localStorage.getItem(TOKEN)
-    ) {
-
+    if (!localStorage.getItem(TOKEN)) {
         location.href = 'index.html';
-
         return false;
     }
 
     try {
-
-        const {
-            data,
-            error
-        } = await sb.rpc(
+        const { data, error } = await sb.rpc(
             'raj_app_validate_session',
             authArgs()
         );
@@ -182,68 +151,58 @@ async function guard() {
             !data ||
             data.success !== true
         ) {
-
             location.href = 'index.html';
-
             return false;
         }
 
         return true;
 
     } catch (error) {
-
         console.error(
             'Session validation failed:',
             error
         );
 
         location.href = 'index.html';
-
         return false;
     }
 }
 
 
 /* =========================================================
-   IMPORTANT:
-   LOAD ALL ROWS FROM RPC
+   LOAD ALL OUTSTANDING ROWS
 
-   Supabase may return maximum 1000 rows per request.
-   This function keeps requesting:
+   IMPORTANT:
+   SQL RPC now accepts:
+   p_offset
+   p_limit
+
+   So rows load like:
    0-999
    1000-1999
    2000-2999
-   ...
-   until all rows are loaded.
+   3000-3999
+   4000-...
 ========================================================= */
 
 async function getAllOutstandingRows(uploadId) {
 
     const allRows = [];
 
-    let from = 0;
+    let offset = 0;
+
+    const pageSize = RPC_PAGE_SIZE;
 
     while (true) {
 
-        const to =
-            from +
-            RPC_PAGE_SIZE -
-            1;
-
-        const {
-            data,
-            error
-        } = await sb
-            .rpc(
-                'raj_outstanding_get_rows',
-                authArgs({
-                    p_upload_id: uploadId
-                })
-            )
-            .range(
-                from,
-                to
-            );
+        const { data, error } = await sb.rpc(
+            'raj_outstanding_get_rows',
+            authArgs({
+                p_upload_id: uploadId,
+                p_offset: offset,
+                p_limit: pageSize
+            })
+        );
 
         if (error) {
             throw error;
@@ -254,39 +213,21 @@ async function getAllOutstandingRows(uploadId) {
                 ? data
                 : [];
 
-        allRows.push(
-            ...page
-        );
+        allRows.push(...page);
 
         console.log(
-            `Outstanding loaded: ${allRows.length} rows`
+            `Loaded ${page.length} rows. Total: ${allRows.length}`
         );
 
-        /*
-           Last page reached.
-        */
-
-        if (
-            page.length <
-            RPC_PAGE_SIZE
-        ) {
+        if (page.length < pageSize) {
             break;
         }
 
-        from +=
-            RPC_PAGE_SIZE;
+        offset += pageSize;
 
-        /*
-           Safety guard.
-        */
-
-        if (
-            from >
-            100000
-        ) {
-
+        if (offset > 100000) {
             throw new Error(
-                'Too many outstanding rows returned.'
+                'Outstanding pagination safety limit reached.'
             );
         }
     }
@@ -303,89 +244,36 @@ async function getAllOutstandingRows(uploadId) {
 /* =========================================================
    AGEING LOGIC
 
-   Your CSV columns:
-   15
-   30
-   45
-   60
-   75
-   90
-   120
-   150
+   CSV columns 15,30,45...150 are cumulative.
 
-   are cumulative ageing values.
-
-   Therefore:
-
-   0-15      = Balance - >15 - PDC
-   16-30     = >15 - >30
-   31-45     = >30 - >45
-   46-60     = >45 - >60
-   61-75     = >60 - >75
-   76-90     = >75 - >90
-   91-120    = >90 - >120
-   121-150   = >120 - >150
-   >150      = CSV 150
+   0-15    = Balance - 15 - PDC
+   16-30   = 15 - 30
+   31-45   = 30 - 45
+   46-60   = 45 - 60
+   61-75   = 60 - 75
+   76-90   = 75 - 90
+   91-120  = 90 - 120
+   121-150 = 120 - 150
+   >150    = 150
+   PDC     = PDC
 ========================================================= */
 
 const bucketDefs = [
-
-    [
-        '0-15',
-        'days_15'
-    ],
-
-    [
-        '16-30',
-        'days_30'
-    ],
-
-    [
-        '31-45',
-        'days_45'
-    ],
-
-    [
-        '46-60',
-        'days_60'
-    ],
-
-    [
-        '61-75',
-        'days_75'
-    ],
-
-    [
-        '76-90',
-        'days_90'
-    ],
-
-    [
-        '91-120',
-        'days_120'
-    ],
-
-    [
-        '121-150',
-        'days_150'
-    ],
-
-    [
-        '>150',
-        'over150'
-    ],
-
-    [
-        'PDC',
-        'pdc'
-    ]
+    ['0-15', 'days_15'],
+    ['16-30', 'days_30'],
+    ['31-45', 'days_45'],
+    ['46-60', 'days_60'],
+    ['61-75', 'days_75'],
+    ['76-90', 'days_90'],
+    ['91-120', 'days_120'],
+    ['121-150', 'days_150'],
+    ['>150', 'over150'],
+    ['PDC', 'pdc']
 ];
 
 
 function bucket(row) {
-
     return {
-
         days_15:
             Math.max(
                 0,
@@ -459,83 +347,34 @@ function bucket(row) {
 
 
 /* =========================================================
-   FILTER DEFINITIONS
-
-   GrpName IS INCLUDED
+   FILTERS
 ========================================================= */
 
 const filterMap = [
-
-    [
-        'party',
-        'Customer / Party'
-    ],
-
-    [
-        'sm',
-        'SM'
-    ],
-
-    [
-        'grp_name',
-        'GrpName'
-    ],
-
-    [
-        'division',
-        'Division'
-    ],
-
-    [
-        'area',
-        'Area'
-    ],
-
-    [
-        'order_type',
-        'OD / Order'
-    ],
-
-    [
-        'city',
-        'City'
-    ],
-
-    [
-        'pincode',
-        'Pincode'
-    ]
+    ['party', 'Customer / Party'],
+    ['sm', 'SM'],
+    ['grp_name', 'GrpName'],
+    ['division', 'Division'],
+    ['area', 'Area'],
+    ['order_type', 'OD / Order'],
+    ['city', 'City'],
+    ['pincode', 'Pincode']
 ];
 
 
-/* =========================================================
-   FILTER DATA
-========================================================= */
-
 function filtered() {
+    return rows.filter(row =>
+        filterMap.every(([key]) => {
+            const select = $(`#f_${key}`);
 
-    return rows.filter(
-        row =>
+            const selected =
+                select ? select.value : '';
 
-            filterMap.every(
-                ([key]) => {
-
-                    const select =
-                        $(`#f_${key}`);
-
-                    const selected =
-                        select
-                            ? select.value
-                            : '';
-
-                    return (
-                        !selected ||
-                        String(
-                            row[key] ?? ''
-                        ) === selected
-                    );
-                }
-            )
+            return (
+                !selected ||
+                String(row[key] ?? '') === selected
+            );
+        })
     );
 }
 
@@ -546,105 +385,72 @@ function filtered() {
 
 function makeFilters() {
 
-    const container =
-        $('#filters');
+    const container = $('#filters');
 
-    if (!container) {
-        return;
-    }
+    if (!container) return;
 
     container.innerHTML = '';
 
-    filterMap.forEach(
-        ([key, label]) => {
+    filterMap.forEach(([key, label]) => {
 
-            const values = [
-
-                ...new Set(
-
-                    rows
-                        .map(
-                            row =>
-                                String(
-                                    row[key] ?? ''
-                                ).trim()
-                        )
-                        .filter(Boolean)
-                )
-
-            ].sort(
-                (a, b) =>
-                    a.localeCompare(
-                        b,
-                        undefined,
-                        {
-                            numeric: true,
-                            sensitivity: 'base'
-                        }
+        const values = [
+            ...new Set(
+                rows
+                    .map(row =>
+                        String(
+                            row[key] ?? ''
+                        ).trim()
                     )
-            );
+                    .filter(Boolean)
+            )
+        ].sort((a, b) =>
+            a.localeCompare(
+                b,
+                undefined,
+                {
+                    numeric: true,
+                    sensitivity: 'base'
+                }
+            )
+        );
 
-            const wrapper =
-                document.createElement(
-                    'div'
-                );
+        const wrapper =
+            document.createElement('div');
 
-            wrapper.className =
-                'field';
+        wrapper.className = 'field';
 
-            wrapper.innerHTML = `
+        wrapper.innerHTML = `
+            <label>${esc(label)}</label>
 
-                <label>
-                    ${esc(label)}
-                </label>
+            <select id="f_${key}">
+                <option value="">
+                    All ${esc(label)}
+                </option>
 
-                <select id="f_${key}">
-
-                    <option value="">
-                        All ${esc(label)}
+                ${values.map(value => `
+                    <option value="${esc(value)}">
+                        ${esc(value)}
                     </option>
+                `).join('')}
+            </select>
+        `;
 
-                    ${
-                        values
-                            .map(
-                                value => `
-
-                                <option value="${esc(value)}">
-                                    ${esc(value)}
-                                </option>
-
-                                `
-                            )
-                            .join('')
-                    }
-
-                </select>
-            `;
-
-            container.appendChild(
-                wrapper
-            );
-        }
-    );
+        container.appendChild(wrapper);
+    });
 
     container
-        .querySelectorAll(
-            'select'
-        )
-        .forEach(
-            select => {
+        .querySelectorAll('select')
+        .forEach(select => {
 
-                select.addEventListener(
-                    'change',
-                    () => {
+            select.addEventListener(
+                'change',
+                () => {
+                    detailPage = 1;
+                    render();
+                }
+            );
 
-                        detailPage = 1;
-
-                        render();
-                    }
-                );
-            }
-        );
+        });
 }
 
 
@@ -652,20 +458,10 @@ function makeFilters() {
    TOTAL HELPERS
 ========================================================= */
 
-function sum(
-    data,
-    key
-) {
-
+function sum(data, key) {
     return data.reduce(
-        (
-            total,
-            row
-        ) =>
-            total +
-            num(
-                row[key]
-            ),
+        (total, row) =>
+            total + num(row[key]),
         0
     );
 }
@@ -675,69 +471,40 @@ function metrics(data) {
 
     const bucketSums = {};
 
-    bucketDefs.forEach(
-        ([label, key]) => {
+    bucketDefs.forEach(([label, key]) => {
 
-            bucketSums[key] =
-                data.reduce(
-                    (
-                        total,
-                        row
-                    ) =>
+        bucketSums[key] =
+            data.reduce(
+                (total, row) =>
+                    total + bucket(row)[key],
+                0
+            );
 
-                        total +
-                        bucket(row)[key],
-
-                    0
-                );
-        }
-    );
+    });
 
     return {
-
         total:
-            sum(
-                data,
-                'balance'
-            ),
+            sum(data, 'balance'),
 
         customers:
             new Set(
                 data
-                    .map(
-                        row =>
-                            String(
-                                row.party ?? ''
-                            ).trim()
+                    .map(row =>
+                        String(
+                            row.party ?? ''
+                        ).trim()
                     )
                     .filter(Boolean)
             ).size,
 
         pdc:
-            sum(
-                data,
-                'pdc'
-            ),
-
-        /*
-           CSV 90 means amount OVER 90 DAYS.
-        */
+            sum(data, 'pdc'),
 
         over90:
-            sum(
-                data,
-                'days_90'
-            ),
-
-        /*
-           CSV 150 means amount OVER 150 DAYS.
-        */
+            sum(data, 'days_90'),
 
         over150:
-            sum(
-                data,
-                'days_150'
-            ),
+            sum(data, 'days_150'),
 
         bs:
             bucketSums
@@ -757,179 +524,119 @@ function draw(
     options = {}
 ) {
 
-    if (
-        charts[selector]
-    ) {
-
-        charts[selector]
-            .destroy();
+    if (charts[selector]) {
+        charts[selector].destroy();
     }
 
-    const canvas =
-        $(selector);
+    const canvas = $(selector);
 
-    if (!canvas) {
-        return;
-    }
+    if (!canvas) return;
 
-    charts[selector] =
-        new Chart(
-            canvas,
-            {
+    charts[selector] = new Chart(
+        canvas,
+        {
+            type,
 
-                type,
+            data: {
+                labels,
+                datasets
+            },
 
-                data: {
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
 
-                    labels,
-
-                    datasets
+                interaction: {
+                    mode: 'index',
+                    intersect: false
                 },
 
-                options: {
-
-                    responsive:
-                        true,
-
-                    maintainAspectRatio:
-                        false,
-
-                    interaction: {
-
-                        mode:
-                            'index',
-
-                        intersect:
-                            false
+                plugins: {
+                    legend: {
+                        display:
+                            type === 'doughnut' ||
+                            !!options.legend
                     },
 
-                    plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: context => {
 
-                        legend: {
+                                const value =
+                                    context.raw ?? 0;
 
-                            display:
-                                type ===
-                                    'doughnut' ||
-                                !!options.legend
-                        },
+                                const prefix =
+                                    context.dataset.label
+                                        ? context.dataset.label + ': '
+                                        : '';
 
-                        tooltip: {
-
-                            callbacks: {
-
-                                label:
-                                    context => {
-
-                                        const value =
-                                            context.raw ??
-                                            0;
-
-                                        const prefix =
-                                            context.dataset
-                                                .label
-                                                ? context.dataset
-                                                    .label +
-                                                  ': '
-                                                : '';
-
-                                        return (
-                                            prefix +
-                                            money(value)
-                                        );
-                                    }
+                                return (
+                                    prefix +
+                                    money(value)
+                                );
                             }
                         }
-                    },
+                    }
+                },
 
-                    scales:
+                scales:
+                    type === 'doughnut'
+                        ? {}
+                        : {
+                            y: {
+                                beginAtZero: true,
 
-                        type ===
-                        'doughnut'
-
-                            ? {}
-
-                            : {
-
-                                y: {
-
-                                    beginAtZero:
-                                        true,
-
-                                    grid: {
-
-                                        color:
-                                            '#eef1f7'
-                                    },
-
-                                    ticks: {
-
-                                        callback:
-                                            value => {
-
-                                                const n =
-                                                    Number(
-                                                        value
-                                                    );
-
-                                                if (
-                                                    Math.abs(n) >=
-                                                    10000000
-                                                ) {
-
-                                                    return (
-                                                        n /
-                                                        10000000
-                                                    ).toFixed(
-                                                        1
-                                                    ) +
-                                                    ' Cr';
-                                                }
-
-                                                if (
-                                                    Math.abs(n) >=
-                                                    100000
-                                                ) {
-
-                                                    return (
-                                                        n /
-                                                        100000
-                                                    ).toFixed(
-                                                        1
-                                                    ) +
-                                                    ' L';
-                                                }
-
-                                                if (
-                                                    Math.abs(n) >=
-                                                    1000
-                                                ) {
-
-                                                    return (
-                                                        n /
-                                                        1000
-                                                    ).toFixed(
-                                                        0
-                                                    ) +
-                                                    ' K';
-                                                }
-
-                                                return n;
-                                            }
-                                    }
+                                grid: {
+                                    color: '#eef1f7'
                                 },
 
-                                x: {
+                                ticks: {
+                                    callback: value => {
 
-                                    grid: {
+                                        const n =
+                                            Number(value);
 
-                                        display:
-                                            false
+                                        if (
+                                            Math.abs(n) >=
+                                            10000000
+                                        ) {
+                                            return (
+                                                n / 10000000
+                                            ).toFixed(1) + ' Cr';
+                                        }
+
+                                        if (
+                                            Math.abs(n) >=
+                                            100000
+                                        ) {
+                                            return (
+                                                n / 100000
+                                            ).toFixed(1) + ' L';
+                                        }
+
+                                        if (
+                                            Math.abs(n) >=
+                                            1000
+                                        ) {
+                                            return (
+                                                n / 1000
+                                            ).toFixed(0) + ' K';
+                                        }
+
+                                        return n;
                                     }
                                 }
+                            },
+
+                            x: {
+                                grid: {
+                                    display: false
+                                }
                             }
-                }
+                        }
             }
-        );
+        }
+    );
 }
 
 
@@ -937,35 +644,19 @@ function draw(
    SIMPLE TABLE
 ========================================================= */
 
-function simpleTable(
-    items,
-    columns
-) {
+function simpleTable(items, columns) {
 
     return `
-
         <table>
 
             <thead>
-
                 <tr>
-
-                    ${
-                        columns
-                            .map(
-                                column => `
-
-                                <th class="${column.num ? 'num' : ''}">
-                                    ${esc(column.label)}
-                                </th>
-
-                                `
-                            )
-                            .join('')
-                    }
-
+                    ${columns.map(column => `
+                        <th class="${column.num ? 'num' : ''}">
+                            ${esc(column.label)}
+                        </th>
+                    `).join('')}
                 </tr>
-
             </thead>
 
             <tbody>
@@ -973,65 +664,35 @@ function simpleTable(
                 ${
                     items.length
 
-                        ? items
-                            .map(
-                                (
-                                    row,
-                                    index
-                                ) => `
-
-                                <tr>
-
-                                    ${
-                                        columns
-                                            .map(
-                                                column => `
-
-                                                <td class="${column.num ? 'num' : ''}">
-
-                                                    ${
-                                                        column.render
-
-                                                            ? column.render(
-                                                                row,
-                                                                index
-                                                            )
-
-                                                            : esc(
-                                                                row[
-                                                                    column.key
-                                                                ] ??
-                                                                ''
-                                                            )
-                                                    }
-
-                                                </td>
-
-                                                `
-                                            )
-                                            .join('')
-                                    }
-
-                                </tr>
-
-                                `
-                            )
-                            .join('')
-
-                        : `
-
+                    ? items.map((row, index) => `
                         <tr>
+                            ${columns.map(column => `
+                                <td class="${column.num ? 'num' : ''}">
+                                    ${
+                                        column.render
+                                            ? column.render(
+                                                row,
+                                                index
+                                            )
+                                            : esc(
+                                                row[column.key] ?? ''
+                                            )
+                                    }
+                                </td>
+                            `).join('')}
+                        </tr>
+                    `).join('')
 
+                    : `
+                        <tr>
                             <td
                                 colspan="${columns.length}"
                                 class="muted"
                             >
                                 No data
                             </td>
-
                         </tr>
-
-                        `
+                    `
                 }
 
             </tbody>
@@ -1045,21 +706,10 @@ function simpleTable(
    SORT HELPERS
 ========================================================= */
 
-function compareValues(
-    a,
-    b,
-    key
-) {
+function compareValues(a, b, key) {
 
-    const aValue =
-        a?.[key] ?? '';
-
-    const bValue =
-        b?.[key] ?? '';
-
-    /*
-       Known numeric fields
-    */
+    const aValue = a?.[key] ?? '';
+    const bValue = b?.[key] ?? '';
 
     const numericFields =
         new Set([
@@ -1078,10 +728,7 @@ function compareValues(
             'total_pdc'
         ]);
 
-    if (
-        numericFields.has(key)
-    ) {
-
+    if (numericFields.has(key)) {
         return (
             num(aValue) -
             num(bValue)
@@ -1093,31 +740,20 @@ function compareValues(
             String(bValue),
             undefined,
             {
-                numeric:
-                    true,
-
-                sensitivity:
-                    'base'
+                numeric: true,
+                sensitivity: 'base'
             }
         );
 }
 
 
-function sortArrow(
-    sort,
-    key
-) {
+function sortArrow(sort, key) {
 
-    if (
-        sort.key !== key
-    ) {
+    if (sort.key !== key) {
         return '';
     }
 
-    return (
-        sort.dir ===
-        'asc'
-    )
+    return sort.dir === 'asc'
         ? ' ▲'
         : ' ▼';
 }
@@ -1132,67 +768,52 @@ function renderDetails(data) {
     const container =
         $('#customerDetails');
 
-    if (!container) {
-        return;
-    }
+    if (!container) return;
 
     const search =
         (
-            $('#detailSearch')
-                ?.value || ''
+            $('#detailSearch')?.value ||
+            ''
         )
-            .trim()
-            .toLowerCase();
+        .trim()
+        .toLowerCase();
 
-    let list =
-        [...data];
+    let list = [...data];
 
     if (search) {
 
-        list =
-            list.filter(
-                row =>
+        list = list.filter(row =>
+            [
+                row.party,
+                row.sm,
+                row.grp_name,
+                row.division,
+                row.area,
+                row.order_type,
+                row.city,
+                row.pincode
+            ].some(value =>
+                String(value ?? '')
+                    .toLowerCase()
+                    .includes(search)
+            )
+        );
 
-                    [
-                        row.party,
-                        row.sm,
-                        row.grp_name,
-                        row.division,
-                        row.area,
-                        row.order_type,
-                        row.city,
-                        row.pincode
-                    ].some(
-                        value =>
-                            String(
-                                value ?? ''
-                            )
-                                .toLowerCase()
-                                .includes(
-                                    search
-                                )
-                    )
-            );
     }
 
-    list.sort(
-        (a, b) => {
+    list.sort((a, b) => {
 
-            const result =
-                compareValues(
-                    a,
-                    b,
-                    detailSort.key
-                );
+        const result =
+            compareValues(
+                a,
+                b,
+                detailSort.key
+            );
 
-            return (
-                detailSort.dir ===
-                'asc'
-            )
-                ? result
-                : -result;
-        }
-    );
+        return detailSort.dir === 'asc'
+            ? result
+            : -result;
+    });
 
     const totalPages =
         Math.max(
@@ -1213,167 +834,55 @@ function renderDetails(data) {
         );
 
     const start =
-        (
-            detailPage -
-            1
-        ) *
+        (detailPage - 1) *
         DETAIL_PAGE_SIZE;
 
     const pageRows =
         list.slice(
             start,
-            start +
-            DETAIL_PAGE_SIZE
+            start + DETAIL_PAGE_SIZE
         );
 
     const columns = [
-
-        [
-            'party',
-            'Party',
-            false
-        ],
-
-        [
-            'balance',
-            'Balance',
-            true
-        ],
-
-        [
-            'days_15',
-            '>15',
-            true
-        ],
-
-        [
-            'days_30',
-            '>30',
-            true
-        ],
-
-        [
-            'days_45',
-            '>45',
-            true
-        ],
-
-        [
-            'days_60',
-            '>60',
-            true
-        ],
-
-        [
-            'days_75',
-            '>75',
-            true
-        ],
-
-        [
-            'days_90',
-            '>90',
-            true
-        ],
-
-        [
-            'days_120',
-            '>120',
-            true
-        ],
-
-        [
-            'days_150',
-            '>150',
-            true
-        ],
-
-        [
-            'pdc',
-            'PDC',
-            true
-        ],
-
-        [
-            'sm',
-            'SM',
-            false
-        ],
-
-        [
-            'grp_name',
-            'GrpName',
-            false
-        ],
-
-        [
-            'division',
-            'Division',
-            false
-        ],
-
-        [
-            'area',
-            'Area',
-            false
-        ],
-
-        [
-            'order_type',
-            'OD / Order',
-            false
-        ],
-
-        [
-            'city',
-            'City',
-            false
-        ],
-
-        [
-            'pincode',
-            'Pincode',
-            false
-        ]
+        ['party', 'Party', false],
+        ['balance', 'Balance', true],
+        ['days_15', '>15', true],
+        ['days_30', '>30', true],
+        ['days_45', '>45', true],
+        ['days_60', '>60', true],
+        ['days_75', '>75', true],
+        ['days_90', '>90', true],
+        ['days_120', '>120', true],
+        ['days_150', '>150', true],
+        ['pdc', 'PDC', true],
+        ['sm', 'SM', false],
+        ['grp_name', 'GrpName', false],
+        ['division', 'Division', false],
+        ['area', 'Area', false],
+        ['order_type', 'OD / Order', false],
+        ['city', 'City', false],
+        ['pincode', 'Pincode', false]
     ];
 
     container.innerHTML = `
-
         <table>
 
             <thead>
-
                 <tr>
-
-                    ${
-                        columns
-                            .map(
-                                ([
-                                    key,
-                                    label,
-                                    numeric
-                                ]) => `
-
-                                <th
-                                    class="sortable ${numeric ? 'num' : ''}"
-                                    data-detail-sort="${key}"
-                                >
-
-                                    ${esc(label)}
-                                    ${sortArrow(
-                                        detailSort,
-                                        key
-                                    )}
-
-                                </th>
-
-                                `
-                            )
-                            .join('')
-                    }
-
+                    ${columns.map(
+                        ([key, label, numeric]) => `
+                        <th
+                            class="sortable ${numeric ? 'num' : ''}"
+                            data-detail-sort="${key}"
+                        >
+                            ${esc(label)}
+                            ${sortArrow(
+                                detailSort,
+                                key
+                            )}
+                        </th>
+                    `).join('')}
                 </tr>
-
             </thead>
 
             <tbody>
@@ -1381,63 +890,31 @@ function renderDetails(data) {
                 ${
                     pageRows.length
 
-                        ? pageRows
-                            .map(
-                                row => `
-
-                                <tr>
-
-                                    ${
-                                        columns
-                                            .map(
-                                                ([
-                                                    key,
-                                                    label,
-                                                    numeric
-                                                ]) => `
-
-                                                <td class="${numeric ? 'num' : ''}">
-
-                                                    ${
-                                                        numeric
-
-                                                            ? money(
-                                                                row[key]
-                                                            )
-
-                                                            : esc(
-                                                                row[key] ??
-                                                                ''
-                                                            )
-                                                    }
-
-                                                </td>
-
-                                                `
-                                            )
-                                            .join('')
-                                    }
-
-                                </tr>
-
-                                `
-                            )
-                            .join('')
-
-                        : `
-
+                    ? pageRows.map(row => `
                         <tr>
+                            ${columns.map(
+                                ([key, label, numeric]) => `
+                                <td class="${numeric ? 'num' : ''}">
+                                    ${
+                                        numeric
+                                            ? money(row[key])
+                                            : esc(row[key] ?? '')
+                                    }
+                                </td>
+                            `).join('')}
+                        </tr>
+                    `).join('')
 
+                    : `
+                        <tr>
                             <td
                                 colspan="${columns.length}"
                                 class="muted"
                             >
                                 No matching data
                             </td>
-
                         </tr>
-
-                        `
+                    `
                 }
 
             </tbody>
@@ -1445,192 +922,132 @@ function renderDetails(data) {
         </table>
     `;
 
-    if (
-        $('#detailCount')
-    ) {
-
-        $('#detailCount')
-            .textContent =
-
+    if ($('#detailCount')) {
+        $('#detailCount').textContent =
             `${list.length.toLocaleString('en-IN')} rows`;
     }
 
-    if (
-        $('#pageInfo')
-    ) {
-
-        $('#pageInfo')
-            .textContent =
-
+    if ($('#pageInfo')) {
+        $('#pageInfo').textContent =
             `Page ${detailPage} of ${totalPages}`;
     }
 
-    if (
-        $('#prevPage')
-    ) {
-
-        $('#prevPage')
-            .disabled =
-                detailPage <= 1;
+    if ($('#prevPage')) {
+        $('#prevPage').disabled =
+            detailPage <= 1;
     }
 
-    if (
-        $('#nextPage')
-    ) {
-
-        $('#nextPage')
-            .disabled =
-                detailPage >=
-                totalPages;
+    if ($('#nextPage')) {
+        $('#nextPage').disabled =
+            detailPage >= totalPages;
     }
 
     document
         .querySelectorAll(
             '[data-detail-sort]'
         )
-        .forEach(
-            heading => {
+        .forEach(heading => {
 
-                heading.onclick =
-                    () => {
+            heading.onclick = () => {
 
-                        const key =
-                            heading.dataset
-                                .detailSort;
+                const key =
+                    heading.dataset.detailSort;
 
-                        if (
-                            detailSort.key ===
-                            key
-                        ) {
+                if (
+                    detailSort.key === key
+                ) {
+                    detailSort.dir =
+                        detailSort.dir === 'asc'
+                            ? 'desc'
+                            : 'asc';
 
-                            detailSort.dir =
-                                detailSort.dir ===
-                                'asc'
-                                    ? 'desc'
-                                    : 'asc';
-
-                        } else {
-
-                            detailSort = {
-
-                                key,
-
-                                dir:
-                                    'asc'
-                            };
-                        }
-
-                        detailPage = 1;
-
-                        renderDetails(
-                            filtered()
-                        );
+                } else {
+                    detailSort = {
+                        key,
+                        dir: 'asc'
                     };
-            }
-        );
+                }
+
+                detailPage = 1;
+
+                renderDetails(
+                    filtered()
+                );
+            };
+
+        });
 }
 
 
 /* =========================================================
-   MAIN DASHBOARD RENDER
+   MAIN DASHBOARD
 ========================================================= */
 
 function render() {
 
-    const data =
-        filtered();
+    const data = filtered();
 
-    const m =
-        metrics(data);
+    const m = metrics(data);
 
-    /* ================= KPI ================= */
+    /* KPI */
 
-    const kpis =
-        $('#kpis');
+    const kpis = $('#kpis');
 
     if (kpis) {
 
         kpis.innerHTML = [
-
             [
                 'Total Outstanding',
-                money(
-                    m.total
-                )
+                money(m.total)
             ],
-
             [
                 'Total Customers',
-                m.customers
-                    .toLocaleString(
-                        'en-IN'
-                    )
+                m.customers.toLocaleString(
+                    'en-IN'
+                )
             ],
-
             [
                 'PDC Amount',
-                money(
-                    m.pdc
-                )
+                money(m.pdc)
             ],
-
             [
                 'Over 90 Days',
-                money(
-                    m.over90
-                )
+                money(m.over90)
             ],
-
             [
                 'Over 150 Days',
-                money(
-                    m.over150
-                )
+                money(m.over150)
             ]
-
         ]
-            .map(
-                ([
-                    label,
-                    value
-                ]) => `
+        .map(([label, value]) => `
+            <article class="kpi">
 
-                <article class="kpi">
+                <span>
+                    ${label}
+                </span>
 
-                    <span>
-                        ${label}
-                    </span>
+                <strong>
+                    ${value}
+                </strong>
 
-                    <strong>
-                        ${value}
-                    </strong>
+                <small>
+                    Current snapshot
+                </small>
 
-                    <small>
-                        Current snapshot
-                    </small>
-
-                </article>
-
-                `
-            )
-            .join('');
+            </article>
+        `)
+        .join('');
     }
 
 
-    /* ================= AGEING ================= */
+    /* AGEING */
 
     const ageingLabels =
-        bucketDefs.map(
-            item =>
-                item[0]
-        );
+        bucketDefs.map(item => item[0]);
 
     const ageingValues =
         bucketDefs.map(
-            item =>
-                m.bs[
-                    item[1]
-                ]
+            item => m.bs[item[1]]
         );
 
     draw(
@@ -1639,20 +1056,15 @@ function render() {
         ageingLabels,
         [
             {
-                label:
-                    'Amount',
-
-                data:
-                    ageingValues,
-
-                borderRadius:
-                    6
+                label: 'Amount',
+                data: ageingValues,
+                borderRadius: 6
             }
         ]
     );
 
 
-    /* ================= DONUT ================= */
+    /* DONUT */
 
     draw(
         '#donutChart',
@@ -1660,91 +1072,49 @@ function render() {
         ageingLabels,
         [
             {
-                label:
-                    'Amount',
-
-                data:
-                    ageingValues,
-
-                borderWidth:
-                    0
+                label: 'Amount',
+                data: ageingValues,
+                borderWidth: 0
             }
         ],
         {
-            legend:
-                true
+            legend: true
         }
     );
 
 
-    /* ================= AMOUNT RANGE ================= */
+    /* AMOUNT RANGE */
 
     const ranges = [
-
         {
-            label:
-                '< 1,000',
-
-            min:
-                0,
-
-            max:
-                1000
+            label: '< 1,000',
+            min: 0,
+            max: 1000
         },
-
         {
-            label:
-                '1,000-5,000',
-
-            min:
-                1000,
-
-            max:
-                5000
+            label: '1,000-5,000',
+            min: 1000,
+            max: 5000
         },
-
         {
-            label:
-                '5,000-10,000',
-
-            min:
-                5000,
-
-            max:
-                10000
+            label: '5,000-10,000',
+            min: 5000,
+            max: 10000
         },
-
         {
-            label:
-                '10,000-50,000',
-
-            min:
-                10000,
-
-            max:
-                50000
+            label: '10,000-50,000',
+            min: 10000,
+            max: 50000
         },
-
         {
-            label:
-                '50,000-1,00,000',
-
-            min:
-                50000,
-
-            max:
-                100000
+            label: '50,000-1,00,000',
+            min: 50000,
+            max: 100000
         },
-
         {
-            label:
-                '>1,00,000',
-
-            min:
-                100000,
-
-            max:
-                Infinity
+            label: '>1,00,000',
+            min: 100000,
+            max: Infinity
         }
     ];
 
@@ -1752,210 +1122,130 @@ function render() {
         '#rangeChart',
         'bar',
         ranges.map(
-            range =>
-                range.label
+            range => range.label
         ),
         [
             {
-                label:
-                    'Customers',
+                label: 'Customers',
 
                 data:
-                    ranges.map(
-                        range =>
+                    ranges.map(range =>
+                        data.filter(row => {
 
-                            data.filter(
-                                row => {
+                            const balance =
+                                num(row.balance);
 
-                                    const balance =
-                                        num(
-                                            row.balance
-                                        );
+                            return (
+                                balance >= range.min &&
+                                balance < range.max
+                            );
 
-                                    return (
-                                        balance >=
-                                            range.min
-                                        &&
-                                        balance <
-                                            range.max
-                                    );
-                                }
-                            ).length
+                        }).length
                     ),
 
-                borderRadius:
-                    6
+                borderRadius: 6
             }
         ]
     );
 
 
-    /* ================= TOP CUSTOMERS ================= */
+    /* TOP 5 CUSTOMERS */
 
     const topCustomers =
         [...data]
             .sort(
                 (a, b) =>
-                    num(
-                        b.balance
-                    ) -
-                    num(
-                        a.balance
-                    )
+                    num(b.balance) -
+                    num(a.balance)
             )
-            .slice(
-                0,
-                5
+            .slice(0, 5);
+
+    if ($('#topCustomers')) {
+
+        $('#topCustomers').innerHTML =
+            simpleTable(
+                topCustomers,
+                [
+                    {
+                        label: '#',
+                        render:
+                            (row, index) =>
+                                index + 1
+                    },
+                    {
+                        label: 'Party Name',
+                        key: 'party'
+                    },
+                    {
+                        label: 'Balance',
+                        num: true,
+                        render:
+                            row =>
+                                money(row.balance)
+                    }
+                ]
             );
-
-    if (
-        $('#topCustomers')
-    ) {
-
-        $('#topCustomers')
-            .innerHTML =
-                simpleTable(
-                    topCustomers,
-                    [
-
-                        {
-                            label:
-                                '#',
-
-                            render:
-                                (
-                                    row,
-                                    index
-                                ) =>
-                                    index +
-                                    1
-                        },
-
-                        {
-                            label:
-                                'Party Name',
-
-                            key:
-                                'party'
-                        },
-
-                        {
-                            label:
-                                'Balance',
-
-                            num:
-                                true,
-
-                            render:
-                                row =>
-                                    money(
-                                        row.balance
-                                    )
-                        }
-                    ]
-                );
     }
 
 
-    /* ================= TOP >150 ================= */
+    /* TOP 5 >150 */
 
     const overdueCustomers =
         [...data]
             .filter(
                 row =>
-                    num(
-                        row.days_150
-                    ) > 0
+                    num(row.days_150) > 0
             )
             .sort(
                 (a, b) =>
-                    num(
-                        b.days_150
-                    ) -
-                    num(
-                        a.days_150
-                    )
+                    num(b.days_150) -
+                    num(a.days_150)
             )
-            .slice(
-                0,
-                5
+            .slice(0, 5);
+
+    if ($('#overdueCustomers')) {
+
+        $('#overdueCustomers').innerHTML =
+            simpleTable(
+                overdueCustomers,
+                [
+                    {
+                        label: '#',
+                        render:
+                            (row, index) =>
+                                index + 1
+                    },
+                    {
+                        label: 'Party Name',
+                        key: 'party'
+                    },
+                    {
+                        label: '>150 Days',
+                        num: true,
+                        render:
+                            row =>
+                                money(row.days_150)
+                    },
+                    {
+                        label: 'Balance',
+                        num: true,
+                        render:
+                            row =>
+                                money(row.balance)
+                    }
+                ]
             );
-
-    if (
-        $('#overdueCustomers')
-    ) {
-
-        $('#overdueCustomers')
-            .innerHTML =
-                simpleTable(
-                    overdueCustomers,
-                    [
-
-                        {
-                            label:
-                                '#',
-
-                            render:
-                                (
-                                    row,
-                                    index
-                                ) =>
-                                    index +
-                                    1
-                        },
-
-                        {
-                            label:
-                                'Party Name',
-
-                            key:
-                                'party'
-                        },
-
-                        {
-                            label:
-                                '>150 Days',
-
-                            num:
-                                true,
-
-                            render:
-                                row =>
-                                    money(
-                                        row.days_150
-                                    )
-                        },
-
-                        {
-                            label:
-                                'Balance',
-
-                            num:
-                                true,
-
-                            render:
-                                row =>
-                                    money(
-                                        row.balance
-                                    )
-                        }
-                    ]
-                );
     }
 
 
-    /* ================= DETAILS ================= */
+    /* DETAILS */
 
-    renderDetails(
-        data
-    );
+    renderDetails(data);
 
 
-    /* ================= COMPARISON ================= */
+    /* COMPARISON */
 
-    renderCompare(
-        m
-    );
+    renderCompare(m);
 }
 
 
@@ -1967,38 +1257,24 @@ async function renderCompare(
     currentMetrics
 ) {
 
-    if (
-        !activeUpload
-    ) {
-        return;
-    }
+    if (!activeUpload) return;
 
     const currentIndex =
         uploads.findIndex(
             upload =>
-                upload.id ===
-                activeUpload.id
+                upload.id === activeUpload.id
         );
 
     const previousUpload =
         currentIndex >= 0
-            ? uploads[
-                currentIndex +
-                1
-            ]
+            ? uploads[currentIndex + 1]
             : null;
 
-    if (
-        !previousUpload
-    ) {
+    if (!previousUpload) {
 
-        if (
-            $('#summaryCompare')
-        ) {
+        if ($('#summaryCompare')) {
 
-            $('#summaryCompare')
-                .innerHTML = `
-
+            $('#summaryCompare').innerHTML = `
                 <span class="muted">
                     Upload another older snapshot to compare.
                 </span>
@@ -2017,26 +1293,43 @@ async function renderCompare(
 
     try {
 
-        /*
-           IMPORTANT:
-           Previous snapshot also loads ALL rows,
-           not only first 1000.
-        */
-
         const previousRows =
             await getAllOutstandingRows(
                 previousUpload.id
             );
 
-        const previousMetrics =
-            metrics(
-                previousRows
+        /*
+           Apply same dashboard filters
+           to previous snapshot too.
+        */
+
+        const previousFiltered =
+            previousRows.filter(row =>
+                filterMap.every(([key]) => {
+
+                    const select =
+                        $(`#f_${key}`);
+
+                    const selected =
+                        select
+                            ? select.value
+                            : '';
+
+                    return (
+                        !selected ||
+                        String(
+                            row[key] ?? ''
+                        ) === selected
+                    );
+                })
             );
+
+        const previousMetrics =
+            metrics(previousFiltered);
 
         const labels =
             bucketDefs.map(
-                item =>
-                    item[0]
+                item => item[0]
             );
 
         draw(
@@ -2044,7 +1337,6 @@ async function renderCompare(
             'bar',
             labels,
             [
-
                 {
                     label:
                         previousUpload
@@ -2058,7 +1350,6 @@ async function renderCompare(
                                 ]
                         )
                 },
-
                 {
                     label:
                         activeUpload
@@ -2072,16 +1363,13 @@ async function renderCompare(
                                 ]
                         )
                 }
-
             ],
             {
-                legend:
-                    true
+                legend: true
             }
         );
 
         const comparisonRows = [
-
             {
                 metric:
                     'Total Outstanding',
@@ -2095,7 +1383,6 @@ async function renderCompare(
                 customer:
                     false
             },
-
             {
                 metric:
                     'Total Customers',
@@ -2109,7 +1396,6 @@ async function renderCompare(
                 customer:
                     true
             },
-
             {
                 metric:
                     'PDC Amount',
@@ -2123,7 +1409,6 @@ async function renderCompare(
                 customer:
                     false
             },
-
             {
                 metric:
                     'Over 90 Days',
@@ -2137,7 +1422,6 @@ async function renderCompare(
                 customer:
                     false
             },
-
             {
                 metric:
                     'Over 150 Days',
@@ -2153,75 +1437,56 @@ async function renderCompare(
             }
         ];
 
-        if (
-            $('#summaryCompare')
-        ) {
+        if ($('#summaryCompare')) {
 
-            $('#summaryCompare')
-                .innerHTML =
-                    simpleTable(
-                        comparisonRows,
-                        [
+            $('#summaryCompare').innerHTML =
+                simpleTable(
+                    comparisonRows,
+                    [
+                        {
+                            label: 'Metric',
+                            key: 'metric'
+                        },
+                        {
+                            label:
+                                previousUpload
+                                    .outstanding_date,
 
-                            {
-                                label:
-                                    'Metric',
+                            num: true,
 
-                                key:
-                                    'metric'
-                            },
+                            render:
+                                row =>
+                                    row.customer
+                                        ? Number(
+                                            row.previous
+                                        ).toLocaleString(
+                                            'en-IN'
+                                        )
+                                        : money(
+                                            row.previous
+                                        )
+                        },
+                        {
+                            label:
+                                activeUpload
+                                    .outstanding_date,
 
-                            {
-                                label:
-                                    previousUpload
-                                        .outstanding_date,
+                            num: true,
 
-                                num:
-                                    true,
-
-                                render:
-                                    row =>
-
-                                        row.customer
-
-                                            ? Number(
-                                                row.previous
-                                            )
-                                                .toLocaleString(
-                                                    'en-IN'
-                                                )
-
-                                            : money(
-                                                row.previous
-                                            )
-                            },
-
-                            {
-                                label:
-                                    activeUpload
-                                        .outstanding_date,
-
-                                num:
-                                    true,
-
-                                render:
-                                    row =>
-
-                                        row.customer
-
-                                            ? Number(
-                                                row.current
-                                            )
-                                                .toLocaleString(
-                                                    'en-IN'
-                                                )
-
-                                            : money(
-                                                row.current
-                                            )
-                            }
-                        ]
-                    );
+                            render:
+                                row =>
+                                    row.customer
+                                        ? Number(
+                                            row.current
+                                        ).toLocaleString(
+                                            'en-IN'
+                                        )
+                                        : money(
+                                            row.current
+                                        )
+                        }
+                    ]
+                );
         }
 
     } catch (error) {
@@ -2231,13 +1496,9 @@ async function renderCompare(
             error
         );
 
-        if (
-            $('#summaryCompare')
-        ) {
+        if ($('#summaryCompare')) {
 
-            $('#summaryCompare')
-                .innerHTML = `
-
+            $('#summaryCompare').innerHTML = `
                 <span class="muted">
                     Comparison unavailable.
                 </span>
@@ -2248,66 +1509,52 @@ async function renderCompare(
 
 
 /* =========================================================
-   HISTORY
+   SNAPSHOT HISTORY
 ========================================================= */
 
 function renderHistory() {
 
-    const container =
-        $('#history');
+    const container = $('#history');
 
-    if (!container) {
-        return;
-    }
+    if (!container) return;
 
-    const list =
-        [...uploads];
+    const list = [...uploads];
 
-    list.sort(
-        (a, b) => {
+    list.sort((a, b) => {
 
-            const result =
-                compareValues(
-                    a,
-                    b,
-                    historySort.key
-                );
+        const result =
+            compareValues(
+                a,
+                b,
+                historySort.key
+            );
 
-            return (
-                historySort.dir ===
-                'asc'
-            )
-                ? result
-                : -result;
-        }
-    );
+        return historySort.dir === 'asc'
+            ? result
+            : -result;
+    });
 
     const columns = [
-
         [
             'outstanding_date',
             'Date',
             false
         ],
-
         [
             'uploaded_at',
             'Uploaded On',
             false
         ],
-
         [
             'uploaded_by',
             'By',
             false
         ],
-
         [
             'total_customers',
             'Customers',
             true
         ],
-
         [
             'total_outstanding',
             'Outstanding',
@@ -2316,42 +1563,26 @@ function renderHistory() {
     ];
 
     container.innerHTML = `
-
         <table>
 
             <thead>
-
                 <tr>
 
-                    ${
-                        columns
-                            .map(
-                                ([
-                                    key,
-                                    label,
-                                    numeric
-                                ]) => `
-
-                                <th
-                                    class="sortable ${numeric ? 'num' : ''}"
-                                    data-history-sort="${key}"
-                                >
-
-                                    ${esc(label)}
-                                    ${sortArrow(
-                                        historySort,
-                                        key
-                                    )}
-
-                                </th>
-
-                                `
-                            )
-                            .join('')
-                    }
+                    ${columns.map(
+                        ([key, label, numeric]) => `
+                        <th
+                            class="sortable ${numeric ? 'num' : ''}"
+                            data-history-sort="${key}"
+                        >
+                            ${esc(label)}
+                            ${sortArrow(
+                                historySort,
+                                key
+                            )}
+                        </th>
+                    `).join('')}
 
                 </tr>
-
             </thead>
 
             <tbody>
@@ -2359,90 +1590,69 @@ function renderHistory() {
                 ${
                     list.length
 
-                        ? list
-                            .slice(
-                                0,
-                                50
-                            )
-                            .map(
-                                row => `
+                    ? list.slice(0, 50)
+                        .map(row => `
+                            <tr>
 
-                                <tr>
+                                <td>
+                                    ${esc(
+                                        row.outstanding_date
+                                    )}
+                                </td>
 
-                                    <td>
-                                        ${esc(
-                                            row.outstanding_date
-                                        )}
-                                    </td>
-
-                                    <td>
-
-                                        ${
-                                            row.uploaded_at
-
-                                                ? esc(
-                                                    new Date(
-                                                        row.uploaded_at
-                                                    )
-                                                        .toLocaleString(
-                                                            'en-IN'
-                                                        )
+                                <td>
+                                    ${
+                                        row.uploaded_at
+                                            ? esc(
+                                                new Date(
+                                                    row.uploaded_at
                                                 )
-
-                                                : ''
-                                        }
-
-                                    </td>
-
-                                    <td>
-                                        ${esc(
-                                            row.uploaded_by
-                                        )}
-                                    </td>
-
-                                    <td class="num">
-
-                                        ${
-                                            num(
-                                                row.total_customers
-                                            )
                                                 .toLocaleString(
                                                     'en-IN'
                                                 )
-                                        }
-
-                                    </td>
-
-                                    <td class="num">
-
-                                        ${
-                                            money(
-                                                row.total_outstanding
                                             )
-                                        }
+                                            : ''
+                                    }
+                                </td>
 
-                                    </td>
+                                <td>
+                                    ${esc(
+                                        row.uploaded_by
+                                    )}
+                                </td>
 
-                                </tr>
+                                <td class="num">
+                                    ${
+                                        num(
+                                            row.total_customers
+                                        )
+                                        .toLocaleString(
+                                            'en-IN'
+                                        )
+                                    }
+                                </td>
 
-                                `
-                            )
-                            .join('')
+                                <td class="num">
+                                    ${
+                                        money(
+                                            row.total_outstanding
+                                        )
+                                    }
+                                </td>
 
-                        : `
+                            </tr>
+                        `).join('')
 
+                    : `
                         <tr>
-
                             <td
                                 colspan="5"
                                 class="muted"
                             >
                                 No snapshots
                             </td>
-
                         </tr>
-
-                        `
+                    `
                 }
 
             </tbody>
@@ -2454,47 +1664,37 @@ function renderHistory() {
         .querySelectorAll(
             '[data-history-sort]'
         )
-        .forEach(
-            heading => {
+        .forEach(heading => {
 
-                heading.onclick =
-                    () => {
+            heading.onclick = () => {
 
-                        const key =
-                            heading.dataset
-                                .historySort;
+                const key =
+                    heading.dataset.historySort;
 
-                        if (
-                            historySort.key ===
-                            key
-                        ) {
+                if (
+                    historySort.key === key
+                ) {
+                    historySort.dir =
+                        historySort.dir === 'asc'
+                            ? 'desc'
+                            : 'asc';
 
-                            historySort.dir =
-                                historySort.dir ===
-                                'asc'
-                                    ? 'desc'
-                                    : 'asc';
-
-                        } else {
-
-                            historySort = {
-
-                                key,
-
-                                dir:
-                                    'asc'
-                            };
-                        }
-
-                        renderHistory();
+                } else {
+                    historySort = {
+                        key,
+                        dir: 'asc'
                     };
-            }
-        );
+                }
+
+                renderHistory();
+            };
+
+        });
 }
 
 
 /* =========================================================
-   LOAD SNAPSHOTS + CURRENT DATA
+   LOAD DASHBOARD
 ========================================================= */
 
 async function load(
@@ -2510,102 +1710,71 @@ async function load(
             'raj_outstanding_list_uploads'
         ) || [];
 
-    /*
-       Latest outstanding date first.
-    */
+    uploads.sort((a, b) => {
 
-    uploads.sort(
-        (a, b) => {
-
-            const dateCompare =
-                String(
-                    b.outstanding_date ??
-                    ''
-                )
-                    .localeCompare(
-                        String(
-                            a.outstanding_date ??
-                            ''
-                        )
-                    );
-
-            if (
-                dateCompare !==
-                0
-            ) {
-                return dateCompare;
-            }
-
-            return String(
-                b.uploaded_at ??
-                ''
+        const dateCompare =
+            String(
+                b.outstanding_date ?? ''
             )
-                .localeCompare(
-                    String(
-                        a.uploaded_at ??
-                        ''
-                    )
-                );
+            .localeCompare(
+                String(
+                    a.outstanding_date ?? ''
+                )
+            );
+
+        if (dateCompare !== 0) {
+            return dateCompare;
         }
-    );
+
+        return String(
+            b.uploaded_at ?? ''
+        )
+        .localeCompare(
+            String(
+                a.uploaded_at ?? ''
+            )
+        );
+    });
 
     const snapshotSelect =
         $('#snapshotSelect');
 
-    if (
-        snapshotSelect
-    ) {
+    if (snapshotSelect) {
 
         snapshotSelect.innerHTML =
-
             uploads.length
 
-                ? uploads
-                    .map(
-                        upload => `
-
-                        <option value="${esc(upload.id)}">
-                            ${esc(upload.outstanding_date)}
-                        </option>
-
-                        `
-                    )
-                    .join('')
+                ? uploads.map(upload => `
+                    <option value="${esc(upload.id)}">
+                        ${esc(
+                            upload.outstanding_date
+                        )}
+                    </option>
+                `).join('')
 
                 : `
-
-                <option value="">
-                    No snapshot
-                </option>
+                    <option value="">
+                        No snapshot
+                    </option>
                 `;
     }
 
     activeUpload =
-
         uploads.find(
             upload =>
-                upload.id ===
-                preferredId
+                upload.id === preferredId
         )
-
         ||
-
         uploads[0]
-
         ||
-
         null;
 
-    if (
-        !activeUpload
-    ) {
+    if (!activeUpload) {
 
         rows = [];
 
         makeFilters();
-
         render();
-
         renderHistory();
 
         toast(
@@ -2615,17 +1784,13 @@ async function load(
         return;
     }
 
-    if (
-        snapshotSelect
-    ) {
-
+    if (snapshotSelect) {
         snapshotSelect.value =
             activeUpload.id;
     }
 
     /*
-       IMPORTANT FIX:
-       Load every row, not first 1000.
+       FULL PAGINATED LOAD
     */
 
     rows =
@@ -2661,30 +1826,19 @@ async function switchSnapshot() {
     try {
 
         const selectedId =
-            $('#snapshotSelect')
-                ?.value;
+            $('#snapshotSelect')?.value;
 
         activeUpload =
             uploads.find(
                 upload =>
-                    upload.id ===
-                    selectedId
+                    upload.id === selectedId
             );
 
-        if (
-            !activeUpload
-        ) {
-            return;
-        }
+        if (!activeUpload) return;
 
         toast(
             'Loading selected snapshot...'
         );
-
-        /*
-           IMPORTANT FIX:
-           Again load ALL rows.
-        */
 
         rows =
             await getAllOutstandingRows(
@@ -2703,9 +1857,7 @@ async function switchSnapshot() {
 
     } catch (error) {
 
-        console.error(
-            error
-        );
+        console.error(error);
 
         toast(
             'Snapshot load failed: ' +
@@ -2716,17 +1868,12 @@ async function switchSnapshot() {
 
 
 /* =========================================================
-   CSV HEADER NORMALIZER
+   CSV HEADER
 ========================================================= */
 
-function normalizeHeader(
-    header
-) {
+function normalizeHeader(header) {
 
-    return String(
-        header ??
-        ''
-    )
+    return String(header ?? '')
         .replace(
             /^\uFEFF/,
             ''
@@ -2741,26 +1888,16 @@ function normalizeHeader(
 
 async function upload(file) {
 
-    if (!file) {
-        return;
-    }
+    if (!file) return;
 
-    if (
-        !/\.csv$/i.test(
-            file.name
-        )
-    ) {
+    if (!/\.csv$/i.test(file.name)) {
 
         toast(
             'Please select a CSV file.'
         );
 
-        if (
-            $('#fileInput')
-        ) {
-
-            $('#fileInput')
-                .value = '';
+        if ($('#fileInput')) {
+            $('#fileInput').value = '';
         }
 
         return;
@@ -2771,20 +1908,13 @@ async function upload(file) {
             'Outstanding date (YYYY-MM-DD):',
             new Date()
                 .toISOString()
-                .slice(
-                    0,
-                    10
-                )
+                .slice(0, 10)
         );
 
     if (!date) {
 
-        if (
-            $('#fileInput')
-        ) {
-
-            $('#fileInput')
-                .value = '';
+        if ($('#fileInput')) {
+            $('#fileInput').value = '';
         }
 
         return;
@@ -2799,12 +1929,8 @@ async function upload(file) {
             'Date format must be YYYY-MM-DD.'
         );
 
-        if (
-            $('#fileInput')
-        ) {
-
-            $('#fileInput')
-                .value = '';
+        if ($('#fileInput')) {
+            $('#fileInput').value = '';
         }
 
         return;
@@ -2817,9 +1943,7 @@ async function upload(file) {
     Papa.parse(
         file,
         {
-
-            header:
-                true,
+            header: true,
 
             skipEmptyLines:
                 'greedy',
@@ -2836,7 +1960,6 @@ async function upload(file) {
                             result.errors &&
                             result.errors.length
                         ) {
-
                             console.warn(
                                 'CSV warnings:',
                                 result.errors
@@ -2844,7 +1967,6 @@ async function upload(file) {
                         }
 
                         const requiredColumns = [
-
                             'Party',
                             'Balance',
                             '15',
@@ -2866,8 +1988,7 @@ async function upload(file) {
                         ];
 
                         const actualColumns =
-                            result.meta
-                                ?.fields ||
+                            result.meta?.fields ||
                             [];
 
                         const missing =
@@ -2880,155 +2001,138 @@ async function upload(file) {
                                             )
                                 );
 
-                        if (
-                            missing.length
-                        ) {
+                        if (missing.length) {
 
                             throw new Error(
                                 'Missing CSV columns: ' +
-                                missing.join(
-                                    ', '
-                                )
+                                missing.join(', ')
                             );
                         }
 
                         const mapped =
                             result.data
 
-                                .filter(
-                                    row =>
+                            .filter(row =>
+                                String(
+                                    row.Party ?? ''
+                                ).trim()
+                                ||
+                                num(
+                                    row.Balance
+                                ) !== 0
+                            )
 
-                                        String(
-                                            row.Party ??
-                                            ''
-                                        ).trim()
+                            .map(row => ({
+                                party:
+                                    String(
+                                        row.Party ?? ''
+                                    ).trim(),
 
-                                        ||
+                                balance:
+                                    num(
+                                        row.Balance
+                                    ),
 
-                                        num(
-                                            row.Balance
-                                        ) !== 0
-                                )
+                                days_15:
+                                    num(
+                                        row['15']
+                                    ),
 
-                                .map(
-                                    row => ({
+                                days_30:
+                                    num(
+                                        row['30']
+                                    ),
 
-                                        party:
-                                            String(
-                                                row.Party ??
-                                                ''
-                                            ).trim(),
+                                days_45:
+                                    num(
+                                        row['45']
+                                    ),
 
-                                        balance:
-                                            num(
-                                                row.Balance
-                                            ),
+                                days_60:
+                                    num(
+                                        row['60']
+                                    ),
 
-                                        days_15:
-                                            num(
-                                                row['15']
-                                            ),
+                                days_75:
+                                    num(
+                                        row['75']
+                                    ),
 
-                                        days_30:
-                                            num(
-                                                row['30']
-                                            ),
+                                days_90:
+                                    num(
+                                        row['90']
+                                    ),
 
-                                        days_45:
-                                            num(
-                                                row['45']
-                                            ),
+                                days_120:
+                                    num(
+                                        row['120']
+                                    ),
 
-                                        days_60:
-                                            num(
-                                                row['60']
-                                            ),
+                                days_150:
+                                    num(
+                                        row['150']
+                                    ),
 
-                                        days_75:
-                                            num(
-                                                row['75']
-                                            ),
+                                pdc:
+                                    num(
+                                        row.PDC
+                                    ),
 
-                                        days_90:
-                                            num(
-                                                row['90']
-                                            ),
+                                sm:
+                                    String(
+                                        row.SM ?? ''
+                                    ).trim(),
 
-                                        days_120:
-                                            num(
-                                                row['120']
-                                            ),
+                                grp_name:
+                                    String(
+                                        row.GrpName ?? ''
+                                    ).trim(),
 
-                                        days_150:
-                                            num(
-                                                row['150']
-                                            ),
+                                division:
+                                    String(
+                                        row.Division ?? ''
+                                    ).trim(),
 
-                                        pdc:
-                                            num(
-                                                row.PDC
-                                            ),
+                                area:
+                                    String(
+                                        row.Area ?? ''
+                                    ).trim(),
 
-                                        sm:
-                                            String(
-                                                row.SM ??
-                                                ''
-                                            ).trim(),
+                                order_type:
+                                    String(
+                                        row.Order ?? ''
+                                    ).trim(),
 
-                                        grp_name:
-                                            String(
-                                                row.GrpName ??
-                                                ''
-                                            ).trim(),
+                                city:
+                                    String(
+                                        row.City ?? ''
+                                    ).trim(),
 
-                                        division:
-                                            String(
-                                                row.Division ??
-                                                ''
-                                            ).trim(),
+                                pincode:
+                                    String(
+                                        row.Pincode ?? ''
+                                    ).trim()
+                            }));
 
-                                        area:
-                                            String(
-                                                row.Area ??
-                                                ''
-                                            ).trim(),
-
-                                        order_type:
-                                            String(
-                                                row.Order ??
-                                                ''
-                                            ).trim(),
-
-                                        city:
-                                            String(
-                                                row.City ??
-                                                ''
-                                            ).trim(),
-
-                                        pincode:
-                                            String(
-                                                row.Pincode ??
-                                                ''
-                                            ).trim()
-                                    })
-                                );
-
-                        if (
-                            !mapped.length
-                        ) {
+                        if (!mapped.length) {
 
                             throw new Error(
                                 'CSV contains no usable rows.'
                             );
                         }
 
-                        const user =
-                            JSON.parse(
-                                localStorage.getItem(
-                                    USER
-                                ) ||
-                                '{}'
-                            );
+                        let user = {};
+
+                        try {
+                            user =
+                                JSON.parse(
+                                    localStorage.getItem(
+                                        USER
+                                    ) || '{}'
+                                );
+                        } catch (e) {
+                            user = {};
+                        }
 
                         toast(
                             `Uploading ${mapped.length.toLocaleString('en-IN')} rows...`
@@ -3037,7 +2141,6 @@ async function upload(file) {
                         await rpc(
                             'raj_outstanding_upload_json',
                             {
-
                                 p_outstanding_date:
                                     date,
 
@@ -3045,19 +2148,12 @@ async function upload(file) {
                                     file.name,
 
                                 p_uploaded_by:
-
                                     user.name
-
                                     ||
-
                                     user.username
-
                                     ||
-
                                     user.email
-
                                     ||
-
                                     'User',
 
                                 p_rows:
@@ -3065,12 +2161,8 @@ async function upload(file) {
                             }
                         );
 
-                        if (
-                            $('#fileInput')
-                        ) {
-
-                            $('#fileInput')
-                                .value = '';
+                        if ($('#fileInput')) {
+                            $('#fileInput').value = '';
                         }
 
                         toast(
@@ -3086,12 +2178,8 @@ async function upload(file) {
                             error
                         );
 
-                        if (
-                            $('#fileInput')
-                        ) {
-
-                            $('#fileInput')
-                                .value = '';
+                        if ($('#fileInput')) {
+                            $('#fileInput').value = '';
                         }
 
                         toast(
@@ -3109,12 +2197,8 @@ async function upload(file) {
                         error
                     );
 
-                    if (
-                        $('#fileInput')
-                    ) {
-
-                        $('#fileInput')
-                            .value = '';
+                    if ($('#fileInput')) {
+                        $('#fileInput').value = '';
                     }
 
                     toast(
@@ -3128,291 +2212,206 @@ async function upload(file) {
 
 
 /* =========================================================
-   PAGE START
+   START
 ========================================================= */
 
 (async () => {
 
-    /*
-       LOGIN CHECK
-    */
-
-    if (
-        !await guard()
-    ) {
+    if (!await guard()) {
         return;
     }
 
 
-    /* =====================================================
-       UPLOAD BUTTON
-    ===================================================== */
+    /* UPLOAD */
 
-    if (
-        $('#uploadBtn')
-    ) {
+    if ($('#uploadBtn')) {
 
-        $('#uploadBtn')
-            .onclick =
-                () => {
-
-                    $('#fileInput')
-                        ?.click();
-                };
+        $('#uploadBtn').onclick =
+            () => {
+                $('#fileInput')?.click();
+            };
     }
 
 
-    if (
-        $('#uploadBtn2')
-    ) {
+    if ($('#uploadBtn2')) {
 
-        $('#uploadBtn2')
-            .onclick =
-                () => {
-
-                    $('#fileInput')
-                        ?.click();
-                };
+        $('#uploadBtn2').onclick =
+            () => {
+                $('#fileInput')?.click();
+            };
     }
 
 
-    /* =====================================================
-       FILE SELECT
-    ===================================================== */
+    /* FILE INPUT */
 
-    if (
-        $('#fileInput')
-    ) {
+    if ($('#fileInput')) {
 
-        $('#fileInput')
-            .onchange =
-                event => {
+        $('#fileInput').onchange =
+            event => {
 
-                    const file =
-                        event.target
-                            .files?.[0];
+                const file =
+                    event.target
+                        .files?.[0];
 
-                    upload(
-                        file
+                upload(file);
+            };
+    }
+
+
+    /* SNAPSHOT */
+
+    if ($('#snapshotSelect')) {
+
+        $('#snapshotSelect').onchange =
+            switchSnapshot;
+    }
+
+
+    /* RESET FILTERS */
+
+    if ($('#resetBtn')) {
+
+        $('#resetBtn').onclick =
+            () => {
+
+                $('#filters')
+                    ?.querySelectorAll(
+                        'select'
+                    )
+                    .forEach(
+                        select => {
+                            select.value = '';
+                        }
                     );
-                };
+
+                if ($('#detailSearch')) {
+                    $('#detailSearch').value = '';
+                }
+
+                detailPage = 1;
+
+                render();
+            };
     }
 
 
-    /* =====================================================
-       SNAPSHOT
-    ===================================================== */
+    /* DETAIL SEARCH */
 
-    if (
-        $('#snapshotSelect')
-    ) {
+    if ($('#detailSearch')) {
 
-        $('#snapshotSelect')
-            .onchange =
-                switchSnapshot;
+        $('#detailSearch').oninput =
+            () => {
+
+                detailPage = 1;
+
+                renderDetails(
+                    filtered()
+                );
+            };
     }
 
 
-    /* =====================================================
-       RESET FILTERS
-    ===================================================== */
+    /* PREVIOUS PAGE */
 
-    if (
-        $('#resetBtn')
-    ) {
+    if ($('#prevPage')) {
 
-        $('#resetBtn')
-            .onclick =
-                () => {
+        $('#prevPage').onclick =
+            () => {
 
-                    $('#filters')
-                        ?.querySelectorAll(
-                            'select'
-                        )
-                        .forEach(
-                            select => {
+                if (detailPage > 1) {
 
-                                select.value =
-                                    '';
-                            }
-                        );
-
-                    if (
-                        $('#detailSearch')
-                    ) {
-
-                        $('#detailSearch')
-                            .value = '';
-                    }
-
-                    detailPage = 1;
-
-                    render();
-                };
-    }
-
-
-    /* =====================================================
-       DETAIL SEARCH
-    ===================================================== */
-
-    if (
-        $('#detailSearch')
-    ) {
-
-        $('#detailSearch')
-            .oninput =
-                () => {
-
-                    detailPage = 1;
+                    detailPage--;
 
                     renderDetails(
                         filtered()
                     );
-                };
+                }
+            };
     }
 
 
-    /* =====================================================
-       PREVIOUS PAGE
-    ===================================================== */
+    /* NEXT PAGE */
 
-    if (
-        $('#prevPage')
-    ) {
+    if ($('#nextPage')) {
 
-        $('#prevPage')
-            .onclick =
-                () => {
+        $('#nextPage').onclick =
+            () => {
 
-                    if (
-                        detailPage >
-                        1
-                    ) {
+                detailPage++;
 
-                        detailPage--;
-
-                        renderDetails(
-                            filtered()
-                        );
-                    }
-                };
+                renderDetails(
+                    filtered()
+                );
+            };
     }
 
 
-    /* =====================================================
-       NEXT PAGE
-    ===================================================== */
+    /* REFRESH */
 
-    if (
-        $('#nextPage')
-    ) {
+    if ($('#refreshBtn')) {
 
-        $('#nextPage')
-            .onclick =
-                () => {
+        $('#refreshBtn').onclick =
+            () => {
 
-                    detailPage++;
-
-                    renderDetails(
-                        filtered()
-                    );
-                };
+                load(
+                    activeUpload?.id ||
+                    null
+                );
+            };
     }
 
 
-    /* =====================================================
-       REFRESH
-    ===================================================== */
+    /* VIEW DATA LOG */
 
-    if (
-        $('#refreshBtn')
-    ) {
+    if ($('#logsBtn')) {
 
-        $('#refreshBtn')
-            .onclick =
-                () => {
+        $('#logsBtn').onclick =
+            () => {
 
-                    load(
-                        activeUpload
-                            ?.id ||
-                        null
-                    );
-                };
+                $('#customerDetails')
+                    ?.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+            };
     }
 
 
-    /* =====================================================
-       VIEW DATA LOG
-    ===================================================== */
+    /* LOGOUT */
 
-    if (
-        $('#logsBtn')
-    ) {
+    if ($('#logoutBtn')) {
 
-        $('#logsBtn')
-            .onclick =
-                () => {
+        $('#logoutBtn').onclick =
+            () => {
 
-                    $('#customerDetails')
-                        ?.scrollIntoView(
-                            {
-                                behavior:
-                                    'smooth',
+                localStorage.removeItem(
+                    TOKEN
+                );
 
-                                block:
-                                    'start'
-                            }
-                        );
-                };
+                localStorage.removeItem(
+                    USER
+                );
+
+                location.href =
+                    'index.html';
+            };
     }
 
 
-    /* =====================================================
-       LOGOUT
-    ===================================================== */
-
-    if (
-        $('#logoutBtn')
-    ) {
-
-        $('#logoutBtn')
-            .onclick =
-                () => {
-
-                    localStorage
-                        .removeItem(
-                            TOKEN
-                        );
-
-                    localStorage
-                        .removeItem(
-                            USER
-                        );
-
-                    location.href =
-                        'index.html';
-                };
-    }
-
-
-    /* =====================================================
-       INITIAL LOAD
-    ===================================================== */
+    /* INITIAL LOAD */
 
     await load();
 
-})().catch(
-    error => {
+})().catch(error => {
 
-        console.error(
-            'Outstanding dashboard error:',
-            error
-        );
+    console.error(
+        'Outstanding dashboard error:',
+        error
+    );
 
-        toast(
-            'Dashboard error: ' +
-            error.message
-        );
-    }
-);
+    toast(
+        'Dashboard error: ' +
+        error.message
+    );
+
+});
