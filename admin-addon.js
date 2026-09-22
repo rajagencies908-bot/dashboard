@@ -2601,20 +2601,25 @@
           : [];
 
 
-      smOptions =
-        Array.isArray(
-          data?.sm_options
-        )
-          ? data.sm_options
-          : [];
+      /*
+         IMPORTANT:
+         raj_admin_list_users may not return access option lists.
+         Do not erase options already loaded by raj_admin_access_options.
+      */
+      if(
+        Array.isArray(data?.sm_options)
+        && data.sm_options.length
+      ){
+        smOptions = data.sm_options;
+      }
 
 
-      odOptions =
-        Array.isArray(
-          data?.od_options
-        )
-          ? data.od_options
-          : [];
+      if(
+        Array.isArray(data?.od_options)
+        && data.od_options.length
+      ){
+        odOptions = data.od_options;
+      }
 
 
       renderAccessOptions();

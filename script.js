@@ -4868,8 +4868,18 @@ document.addEventListener(
       panel.classList.toggle('sales-filter-open',open);
       document.body.classList.toggle('sales-filter-drawer-open',open);
     });
-    panel.addEventListener('click',e=>e.stopPropagation());
-    document.addEventListener('click',()=>{if(window.innerWidth<=1100) closeSalesFilterDrawer();});
+    /*
+      IMPORTANT:
+      Do not stop click propagation inside the filter panel.
+      Sales multi-select dropdowns (Month / SM / Party / etc.) are handled
+      by the dashboard's document-level delegated click listener.
+      Stopping propagation here prevented every dropdown from opening.
+    */
+    document.addEventListener('click',function(e){
+      if(window.innerWidth>1100) return;
+      if(panel.contains(e.target) || toggle.contains(e.target)) return;
+      closeSalesFilterDrawer();
+    });
     document.addEventListener('keydown',e=>{if(e.key==='Escape') closeSalesFilterDrawer();});
     window.addEventListener('resize',()=>{if(window.innerWidth>1100) closeSalesFilterDrawer();});
   }
