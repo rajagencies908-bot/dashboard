@@ -1395,39 +1395,16 @@ function render() {
 
   if (kpis) {
     const cards = [
-      [
-        'Total Outstanding',
-        money(
-          currentMetrics.total
-        )
-      ],
-
-      [
-        'Total Customers',
-        currentMetrics.customers
-          .toLocaleString('en-IN')
-      ],
-
-      [
-        'PDC Amount',
-        money(
-          currentMetrics.pdc
-        )
-      ],
-
-      [
-        'Over 90 Days',
-        money(
-          currentMetrics.over90
-        )
-      ],
-
-      [
-        'Over 150 Days',
-        money(
-          currentMetrics.over150
-        )
-      ]
+      ['Total Outstanding', money(currentMetrics.total)],
+      ['Total Customers', currentMetrics.customers.toLocaleString('en-IN')],
+      ['PDC Amount', money(currentMetrics.pdc)],
+      ['Over 30 Days', money(sum(data, 'days_30'))],
+      ['Over 45 Days', money(sum(data, 'days_45'))],
+      ['Over 60 Days', money(sum(data, 'days_60'))],
+      ['Over 75 Days', money(sum(data, 'days_75'))],
+      ['Over 90 Days', money(currentMetrics.over90)],
+      ['Over 120 Days', money(sum(data, 'days_120'))],
+      ['Over 150 Days', money(currentMetrics.over150)]
     ];
 
     kpis.innerHTML =
@@ -1990,6 +1967,10 @@ async function renderCompare(
           currentMetrics.pdc
       },
 
+      { metric: 'Over 30 Days', previous: sum(compareFiltered, 'days_30'), current: sum(filtered(), 'days_30') },
+      { metric: 'Over 45 Days', previous: sum(compareFiltered, 'days_45'), current: sum(filtered(), 'days_45') },
+      { metric: 'Over 60 Days', previous: sum(compareFiltered, 'days_60'), current: sum(filtered(), 'days_60') },
+      { metric: 'Over 75 Days', previous: sum(compareFiltered, 'days_75'), current: sum(filtered(), 'days_75') },
       {
         metric:
           'Over 90 Days',
@@ -2000,6 +1981,7 @@ async function renderCompare(
         current:
           currentMetrics.over90
       },
+      { metric: 'Over 120 Days', previous: sum(compareFiltered, 'days_120'), current: sum(filtered(), 'days_120') },
 
       {
         metric:

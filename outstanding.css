@@ -228,6 +228,15 @@ input:focus{
   border-top-color:#ff4d67;
 }
 
+
+
+/* Extra ageing KPI card accents */
+.kpi:nth-child(6){ border-top-color:#0ea5e9; }
+.kpi:nth-child(7){ border-top-color:#14b8a6; }
+.kpi:nth-child(8){ border-top-color:#ff8a34; }
+.kpi:nth-child(9){ border-top-color:#f59e0b; }
+.kpi:nth-child(10){ border-top-color:#ff4d67; }
+
 .kpi span{
   display:block;
   color:var(--muted);
