@@ -2,7 +2,8 @@
 'use strict';
 
 /* =========================================================
-   OUTSTANDING DASHBOARD - CLEAN VERSION
+   OUTSTANDING DASHBOARD
+   DIRECT SOURCE COLUMN VERSION
 ========================================================= */
 
 const $ = s => document.querySelector(s);
@@ -57,6 +58,12 @@ filterMap.forEach(([key]) => {
 
 /* =========================================================
    AGEING DEFINITIONS
+
+   IMPORTANT:
+   NO SUBTRACTION / DERIVED CALCULATION.
+
+   Each dashboard bucket uses the uploaded
+   source column directly.
 ========================================================= */
 
 const bucketDefs = [
@@ -68,7 +75,6 @@ const bucketDefs = [
   ['76-90', 'days_90'],
   ['91-120', 'days_120'],
   ['121-150', 'days_150'],
-  ['>150', 'over150'],
   ['PDC', 'pdc']
 ];
 
@@ -80,8 +86,7 @@ const customerBucketDefs = [
   ['61-75', 'days_75'],
   ['76-90', 'days_90'],
   ['91-120', 'days_120'],
-  ['121-150', 'days_150'],
-  ['>150', 'over150']
+  ['121-150', 'days_150']
 ];
 
 /* =========================================================
@@ -217,7 +222,7 @@ async function guard() {
 }
 
 /* =========================================================
-   LOAD ALL ROWS - 1000 AT A TIME
+   LOAD ALL ROWS - PAGINATION
 ========================================================= */
 
 async function getAllOutstandingRows(
@@ -274,71 +279,72 @@ async function getAllOutstandingRows(
 }
 
 /* =========================================================
-   CORRECT AGEING BUCKET CALCULATION
+   DIRECT SOURCE AGEING VALUES
 
-   Source columns are cumulative.
+   NO:
+   15 - 30
+   30 - 45
+   90 - 120
+   etc.
+
+   Whatever is stored in that column is used directly.
 ========================================================= */
 
 function bucket(row) {
   return {
-    days_15: Math.max(
-      0,
-      num(row.balance) -
-      num(row.days_15) -
-      num(row.pdc)
-    ),
+    days_15:
+      Math.max(
+        0,
+        num(row.days_15)
+      ),
 
-    days_30: Math.max(
-      0,
-      num(row.days_15) -
-      num(row.days_30)
-    ),
+    days_30:
+      Math.max(
+        0,
+        num(row.days_30)
+      ),
 
-    days_45: Math.max(
-      0,
-      num(row.days_30) -
-      num(row.days_45)
-    ),
+    days_45:
+      Math.max(
+        0,
+        num(row.days_45)
+      ),
 
-    days_60: Math.max(
-      0,
-      num(row.days_45) -
-      num(row.days_60)
-    ),
+    days_60:
+      Math.max(
+        0,
+        num(row.days_60)
+      ),
 
-    days_75: Math.max(
-      0,
-      num(row.days_60) -
-      num(row.days_75)
-    ),
+    days_75:
+      Math.max(
+        0,
+        num(row.days_75)
+      ),
 
-    days_90: Math.max(
-      0,
-      num(row.days_75) -
-      num(row.days_90)
-    ),
+    days_90:
+      Math.max(
+        0,
+        num(row.days_90)
+      ),
 
-    days_120: Math.max(
-      0,
-      num(row.days_90) -
-      num(row.days_120)
-    ),
+    days_120:
+      Math.max(
+        0,
+        num(row.days_120)
+      ),
 
-    days_150: Math.max(
-      0,
-      num(row.days_120) -
-      num(row.days_150)
-    ),
+    days_150:
+      Math.max(
+        0,
+        num(row.days_150)
+      ),
 
-    over150: Math.max(
-      0,
-      num(row.days_150)
-    ),
-
-    pdc: Math.max(
-      0,
-      num(row.pdc)
-    )
+    pdc:
+      Math.max(
+        0,
+        num(row.pdc)
+      )
   };
 }
 
@@ -367,30 +373,37 @@ function rowMatches(row, ignoreKey = null) {
 }
 
 function filtered(source = rows) {
-  return source.filter(row => rowMatches(row));
+  return source.filter(
+    row => rowMatches(row)
+  );
 }
 
 function availableValues(key) {
   return [
     ...new Set(
       rows
-        .filter(row =>
-          rowMatches(row, key)
+        .filter(
+          row =>
+            rowMatches(row, key)
         )
-        .map(row =>
-          String(row[key] ?? '').trim()
+        .map(
+          row =>
+            String(
+              row[key] ?? ''
+            ).trim()
         )
         .filter(Boolean)
     )
-  ].sort((a, b) =>
-    a.localeCompare(
-      b,
-      undefined,
-      {
-        numeric: true,
-        sensitivity: 'base'
-      }
-    )
+  ].sort(
+    (a, b) =>
+      a.localeCompare(
+        b,
+        undefined,
+        {
+          numeric: true,
+          sensitivity: 'base'
+        }
+      )
   );
 }
 
@@ -404,7 +417,9 @@ function pruneSelections() {
 
     for (const [key] of filterMap) {
       const available =
-        new Set(availableValues(key));
+        new Set(
+          availableValues(key)
+        );
 
       for (
         const value
@@ -445,29 +460,36 @@ function renderFilterOptions(key) {
   if (!box) return;
 
   const definition =
-    filterMap.find(x => x[0] === key);
+    filterMap.find(
+      x => x[0] === key
+    );
 
   if (!definition) return;
 
-  const label = definition[1];
+  const label =
+    definition[1];
 
   const search =
     String(
-      box.querySelector('.ms-search')
-        ?.value || ''
+      box.querySelector(
+        '.ms-search'
+      )?.value || ''
     )
       .trim()
       .toLowerCase();
 
   const values =
     availableValues(key)
-      .filter(v =>
-        v.toLowerCase()
-          .includes(search)
+      .filter(
+        v =>
+          v.toLowerCase()
+            .includes(search)
       );
 
   const options =
-    box.querySelector('.ms-options');
+    box.querySelector(
+      '.ms-options'
+    );
 
   if (!options) return;
 
@@ -485,7 +507,9 @@ function renderFilterOptions(key) {
                   : ''
               }
             >
-            <span>${esc(value)}</span>
+            <span>
+              ${esc(value)}
+            </span>
           </label>
         `).join('')
       : `
@@ -495,11 +519,16 @@ function renderFilterOptions(key) {
         `;
 
   const trigger =
-    box.querySelector('.ms-trigger');
+    box.querySelector(
+      '.ms-trigger'
+    );
 
   if (trigger) {
     trigger.textContent =
-      filterTitle(key, label);
+      filterTitle(
+        key,
+        label
+      );
   }
 
   options
@@ -522,85 +551,111 @@ function renderFilterOptions(key) {
 }
 
 function refreshFilters() {
-  filterMap.forEach(([key]) => {
-    renderFilterOptions(key);
-  });
+  filterMap.forEach(
+    ([key]) => {
+      renderFilterOptions(key);
+    }
+  );
 }
 
 function filtersChanged() {
   pruneSelections();
+
   detailPage = 1;
+
   refreshFilters();
+
   render();
 }
 
 function makeFilters() {
-  const container = $('#filters');
+  const container =
+    $('#filters');
 
   if (!container) return;
 
   container.innerHTML =
-    filterMap.map(([key, label]) => `
-      <div class="field">
-        <label>${esc(label)}</label>
+    filterMap.map(
+      ([key, label]) => `
+        <div class="field">
+          <label>
+            ${esc(label)}
+          </label>
 
-        <div
-          class="ms"
-          data-key="${key}"
-        >
-          <button
-            type="button"
-            class="ms-trigger"
+          <div
+            class="ms"
+            data-key="${key}"
           >
-            ${esc(
-              filterTitle(key, label)
-            )}
-          </button>
+            <button
+              type="button"
+              class="ms-trigger"
+            >
+              ${esc(
+                filterTitle(
+                  key,
+                  label
+                )
+              )}
+            </button>
 
-          <div class="ms-menu">
-            <div class="ms-search-wrap">
-              <input
-                class="ms-search"
-                type="search"
-                placeholder="Search ${esc(label)}..."
-              >
+            <div class="ms-menu">
+
+              <div class="ms-search-wrap">
+                <input
+                  class="ms-search"
+                  type="search"
+                  placeholder="Search ${esc(label)}..."
+                >
+              </div>
+
+              <div class="ms-actions">
+
+                <button
+                  type="button"
+                  data-act="all"
+                >
+                  Select visible
+                </button>
+
+                <button
+                  type="button"
+                  data-act="clear"
+                >
+                  Clear
+                </button>
+
+              </div>
+
+              <div
+                class="ms-options"
+              ></div>
+
             </div>
-
-            <div class="ms-actions">
-              <button
-                type="button"
-                data-act="all"
-              >
-                Select visible
-              </button>
-
-              <button
-                type="button"
-                data-act="clear"
-              >
-                Clear
-              </button>
-            </div>
-
-            <div class="ms-options"></div>
           </div>
         </div>
-      </div>
-    `).join('');
+      `
+    ).join('');
 
   container
     .querySelectorAll('.ms')
     .forEach(box => {
-      const key = box.dataset.key;
+      const key =
+        box.dataset.key;
 
       const trigger =
-        box.querySelector('.ms-trigger');
+        box.querySelector(
+          '.ms-trigger'
+        );
 
       const menu =
-        box.querySelector('.ms-menu');
+        box.querySelector(
+          '.ms-menu'
+        );
 
       const search =
-        box.querySelector('.ms-search');
+        box.querySelector(
+          '.ms-search'
+        );
 
       const all =
         box.querySelector(
@@ -612,60 +667,79 @@ function makeFilters() {
           '[data-act="clear"]'
         );
 
-      trigger.onclick = event => {
-        event.stopPropagation();
+      trigger.onclick =
+        event => {
+          event.stopPropagation();
 
-        document
-          .querySelectorAll('.ms.open')
-          .forEach(other => {
-            if (other !== box) {
-              other.classList
-                .remove('open');
-            }
-          });
+          document
+            .querySelectorAll(
+              '.ms.open'
+            )
+            .forEach(other => {
+              if (other !== box) {
+                other.classList
+                  .remove('open');
+              }
+            });
 
-        box.classList.toggle('open');
+          box.classList
+            .toggle('open');
 
-        renderFilterOptions(key);
+          renderFilterOptions(key);
 
-        if (
-          box.classList.contains('open')
-        ) {
-          setTimeout(
-            () => search?.focus(),
-            20
-          );
-        }
-      };
+          if (
+            box.classList
+              .contains('open')
+          ) {
+            setTimeout(
+              () =>
+                search?.focus(),
+              20
+            );
+          }
+        };
 
       menu.onclick =
-        event => event.stopPropagation();
+        event =>
+          event.stopPropagation();
 
       search.oninput =
-        () => renderFilterOptions(key);
+        () =>
+          renderFilterOptions(key);
 
-      clear.onclick = () => {
-        filterSelections[key].clear();
-        search.value = '';
-        filtersChanged();
-      };
+      clear.onclick =
+        () => {
+          filterSelections[key]
+            .clear();
 
-      all.onclick = () => {
-        const q =
-          String(search.value || '')
-            .trim()
-            .toLowerCase();
+          search.value = '';
 
-        availableValues(key)
-          .filter(v =>
-            v.toLowerCase().includes(q)
-          )
-          .forEach(v =>
-            filterSelections[key].add(v)
-          );
+          filtersChanged();
+        };
 
-        filtersChanged();
-      };
+      all.onclick =
+        () => {
+          const q =
+            String(
+              search.value || ''
+            )
+              .trim()
+              .toLowerCase();
+
+          availableValues(key)
+            .filter(
+              v =>
+                v.toLowerCase()
+                  .includes(q)
+            )
+            .forEach(
+              v =>
+                filterSelections[key]
+                  .add(v)
+            );
+
+          filtersChanged();
+        };
     });
 
   refreshFilters();
@@ -675,15 +749,19 @@ document.addEventListener(
   'click',
   () => {
     document
-      .querySelectorAll('.ms.open')
-      .forEach(box =>
-        box.classList.remove('open')
+      .querySelectorAll(
+        '.ms.open'
+      )
+      .forEach(
+        box =>
+          box.classList
+            .remove('open')
       );
   }
 );
 
 /* =========================================================
-   METRICS
+   METRICS - DIRECT COLUMN TOTALS
 ========================================================= */
 
 function sum(data, key) {
@@ -697,32 +775,42 @@ function sum(data, key) {
 function metrics(data) {
   const bs = {};
 
-  bucketDefs.forEach(([, key]) => {
-    bs[key] =
-      data.reduce(
-        (total, row) =>
-          total + bucket(row)[key],
-        0
-      );
-  });
+  bucketDefs.forEach(
+    ([, key]) => {
+      bs[key] =
+        data.reduce(
+          (total, row) =>
+            total +
+            bucket(row)[key],
+          0
+        );
+    }
+  );
 
   return {
-    total: sum(data, 'balance'),
+    total:
+      sum(data, 'balance'),
 
     customers:
       new Set(
         data
-          .map(row =>
-            String(row.party ?? '')
-              .trim()
+          .map(
+            row =>
+              String(
+                row.party ?? ''
+              ).trim()
           )
           .filter(Boolean)
       ).size,
 
-    pdc: sum(data, 'pdc'),
+    pdc:
+      sum(data, 'pdc'),
 
-    /* Source 90/150 columns are cumulative */
-    over90: sum(data, 'days_90'),
+    /*
+      Direct source column totals.
+    */
+    over90:
+      sum(data, 'days_90'),
 
     over150:
       sum(data, 'days_150'),
@@ -732,7 +820,7 @@ function metrics(data) {
 }
 
 /* =========================================================
-   CHARTS
+   CHART
 ========================================================= */
 
 function draw(
@@ -746,129 +834,149 @@ function draw(
     charts[selector].destroy();
   }
 
-  const canvas = $(selector);
+  const canvas =
+    $(selector);
 
   if (!canvas) return;
 
   charts[selector] =
-    new Chart(canvas, {
-      type,
+    new Chart(
+      canvas,
+      {
+        type,
 
-      data: {
-        labels,
-        datasets
-      },
-
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-
-        interaction: {
-          mode: 'index',
-          intersect: false
+        data: {
+          labels,
+          datasets
         },
 
-        plugins: {
-          legend: {
-            display:
-              type === 'doughnut' ||
-              !!options.legend
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+
+          interaction: {
+            mode: 'index',
+            intersect: false
           },
 
-          tooltip: {
-            callbacks: {
-              label(context) {
-                const prefix =
-                  context.dataset.label
-                    ? context.dataset.label +
-                      ': '
-                    : '';
+          plugins: {
+            legend: {
+              display:
+                type === 'doughnut' ||
+                !!options.legend
+            },
 
-                if (options.countChart) {
+            tooltip: {
+              callbacks: {
+                label(context) {
+                  const prefix =
+                    context.dataset
+                      .label
+                      ? context.dataset
+                          .label + ': '
+                      : '';
+
+                  if (
+                    options.countChart
+                  ) {
+                    return (
+                      prefix +
+                      Number(
+                        context.raw || 0
+                      ).toLocaleString(
+                        'en-IN'
+                      )
+                    );
+                  }
+
                   return (
                     prefix +
-                    Number(
+                    money(
                       context.raw || 0
-                    ).toLocaleString('en-IN')
+                    )
                   );
                 }
-
-                return (
-                  prefix +
-                  money(context.raw || 0)
-                );
               }
             }
-          }
-        },
+          },
 
-        scales:
-          type === 'doughnut'
-            ? {}
-            : {
-                y: {
-                  beginAtZero: true,
+          scales:
+            type === 'doughnut'
+              ? {}
+              : {
+                  y: {
+                    beginAtZero: true,
 
-                  ticks: {
-                    precision:
-                      options.countChart
-                        ? 0
-                        : undefined,
-
-                    callback(value) {
-                      const n = Number(value);
-
-                      if (
+                    ticks: {
+                      precision:
                         options.countChart
-                      ) {
-                        return n.toLocaleString(
-                          'en-IN'
-                        );
-                      }
+                          ? 0
+                          : undefined,
 
-                      if (
-                        Math.abs(n) >=
-                        10000000
-                      ) {
-                        return (
-                          n / 10000000
-                        ).toFixed(1) + ' Cr';
-                      }
+                      callback(value) {
+                        const n =
+                          Number(value);
 
-                      if (
-                        Math.abs(n) >=
-                        100000
-                      ) {
-                        return (
-                          n / 100000
-                        ).toFixed(1) + ' L';
-                      }
+                        if (
+                          options.countChart
+                        ) {
+                          return n
+                            .toLocaleString(
+                              'en-IN'
+                            );
+                        }
 
-                      if (
-                        Math.abs(n) >= 1000
-                      ) {
-                        return (
-                          n / 1000
-                        ).toFixed(0) + ' K';
-                      }
+                        if (
+                          Math.abs(n) >=
+                          10000000
+                        ) {
+                          return (
+                            n / 10000000
+                          ).toFixed(1) +
+                          ' Cr';
+                        }
 
-                      return n;
+                        if (
+                          Math.abs(n) >=
+                          100000
+                        ) {
+                          return (
+                            n / 100000
+                          ).toFixed(1) +
+                          ' L';
+                        }
+
+                        if (
+                          Math.abs(n) >=
+                          1000
+                        ) {
+                          return (
+                            n / 1000
+                          ).toFixed(0) +
+                          ' K';
+                        }
+
+                        return n;
+                      }
+                    }
+                  },
+
+                  x: {
+                    grid: {
+                      display: false
                     }
                   }
-                },
-
-                x: {
-                  grid: {
-                    display: false
-                  }
                 }
-              }
+        }
       }
-    });
+    );
 }
 
-/* =========================================================
-   TABLE HELPER
+
+
+
+ /* =========================================================
+   SIMPLE TABLE
 ========================================================= */
 
 function simpleTable(items, columns) {
@@ -876,11 +984,11 @@ function simpleTable(items, columns) {
     <table>
       <thead>
         <tr>
-          ${columns.map(c => `
+          ${columns.map(column => `
             <th class="${
-              c.num ? 'num' : ''
+              column.num ? 'num' : ''
             }">
-              ${esc(c.label)}
+              ${esc(column.label)}
             </th>
           `).join('')}
         </tr>
@@ -892,23 +1000,28 @@ function simpleTable(items, columns) {
             ? items.map(
                 (row, index) => `
                   <tr>
-                    ${columns.map(c => `
-                      <td class="${
-                        c.num ? 'num' : ''
-                      }">
-                        ${
-                          c.render
-                            ? c.render(
-                                row,
-                                index
-                              )
-                            : esc(
-                                row[c.key] ??
-                                ''
-                              )
-                        }
-                      </td>
-                    `).join('')}
+                    ${columns.map(
+                      column => `
+                        <td class="${
+                          column.num
+                            ? 'num'
+                            : ''
+                        }">
+                          ${
+                            column.render
+                              ? column.render(
+                                  row,
+                                  index
+                                )
+                              : esc(
+                                  row[
+                                    column.key
+                                  ] ?? ''
+                                )
+                          }
+                        </td>
+                      `
+                    ).join('')}
                   </tr>
                 `
               ).join('')
@@ -986,11 +1099,14 @@ function renderDetails(data) {
   const container =
     $('#customerDetails');
 
-  if (!container) return;
+  if (!container) {
+    return;
+  }
 
   const search =
     String(
-      $('#detailSearch')?.value || ''
+      $('#detailSearch')?.value ||
+      ''
     )
       .trim()
       .toLowerCase();
@@ -1008,8 +1124,8 @@ function renderDetails(data) {
         row.order_type,
         row.city,
         row.pincode
-      ].some(v =>
-        String(v ?? '')
+      ].some(value =>
+        String(value ?? '')
           .toLowerCase()
           .includes(search)
       )
@@ -1057,14 +1173,14 @@ function renderDetails(data) {
   const columns = [
     ['party', 'Party', false],
     ['balance', 'Balance', true],
-    ['days_15', '>15', true],
-    ['days_30', '>30', true],
-    ['days_45', '>45', true],
-    ['days_60', '>60', true],
-    ['days_75', '>75', true],
-    ['days_90', '>90', true],
-    ['days_120', '>120', true],
-    ['days_150', '>150', true],
+    ['days_15', '15', true],
+    ['days_30', '30', true],
+    ['days_45', '45', true],
+    ['days_60', '60', true],
+    ['days_75', '75', true],
+    ['days_90', '90', true],
+    ['days_120', '120', true],
+    ['days_150', '150', true],
     ['pdc', 'PDC', true],
     ['sm', 'SM', false],
     ['grp_name', 'GrpName', false],
@@ -1087,7 +1203,9 @@ function renderDetails(data) {
             ([key, label, numeric]) => `
               <th
                 class="sortable ${
-                  numeric ? 'num' : ''
+                  numeric
+                    ? 'num'
+                    : ''
                 }"
                 data-detail-sort="${key}"
               >
@@ -1110,11 +1228,15 @@ function renderDetails(data) {
                   ${columns.map(
                     ([key, , numeric]) => `
                       <td class="${
-                        numeric ? 'num' : ''
+                        numeric
+                          ? 'num'
+                          : ''
                       }">
                         ${
                           numeric
-                            ? money(row[key])
+                            ? money(
+                                row[key]
+                              )
                             : esc(
                                 row[key] ??
                                 ''
@@ -1141,15 +1263,17 @@ function renderDetails(data) {
   `;
 
   if ($('#detailCount')) {
-    $('#detailCount').textContent =
-      `${list.length.toLocaleString(
-        'en-IN'
-      )} rows`;
+    $('#detailCount')
+      .textContent =
+        `${list.length.toLocaleString(
+          'en-IN'
+        )} rows`;
   }
 
   if ($('#pageInfo')) {
-    $('#pageInfo').textContent =
-      `Page ${detailPage} of ${totalPages}`;
+    $('#pageInfo')
+      .textContent =
+        `Page ${detailPage} of ${totalPages}`;
   }
 
   if ($('#prevPage')) {
@@ -1171,7 +1295,9 @@ function renderDetails(data) {
         const key =
           th.dataset.detailSort;
 
-        if (detailSort.key === key) {
+        if (
+          detailSort.key === key
+        ) {
           detailSort.dir =
             detailSort.dir === 'asc'
               ? 'desc'
@@ -1185,105 +1311,167 @@ function renderDetails(data) {
 
         detailPage = 1;
 
-        renderDetails(filtered());
+        renderDetails(
+          filtered()
+        );
       };
     });
 }
 
 /* =========================================================
-   MAIN RENDER
+   MAIN DASHBOARD RENDER
 ========================================================= */
 
 function render() {
-  const data = filtered();
-  const m = metrics(data);
+  const data =
+    filtered();
 
-  /* KPI */
+  const currentMetrics =
+    metrics(data);
 
-  if ($('#kpis')) {
+  /* =====================================================
+     KPI CARDS
+  ===================================================== */
+
+  const kpis =
+    $('#kpis');
+
+  if (kpis) {
     const cards = [
       [
         'Total Outstanding',
-        money(m.total)
-      ],
-      [
-        'Total Customers',
-        m.customers.toLocaleString(
-          'en-IN'
+        money(
+          currentMetrics.total
         )
       ],
+
+      [
+        'Total Customers',
+        currentMetrics.customers
+          .toLocaleString('en-IN')
+      ],
+
       [
         'PDC Amount',
-        money(m.pdc)
+        money(
+          currentMetrics.pdc
+        )
       ],
+
       [
         'Over 90 Days',
-        money(m.over90)
+        money(
+          currentMetrics.over90
+        )
       ],
+
       [
         'Over 150 Days',
-        money(m.over150)
+        money(
+          currentMetrics.over150
+        )
       ]
     ];
 
-    $('#kpis').innerHTML =
-      cards.map(([label, value]) => `
-        <article class="kpi">
-          <span>${esc(label)}</span>
-          <strong>${esc(value)}</strong>
-          <small>Current snapshot</small>
-        </article>
-      `).join('');
+    kpis.innerHTML =
+      cards.map(
+        ([label, value]) => `
+          <article class="kpi">
+            <span>
+              ${esc(label)}
+            </span>
+
+            <strong>
+              ${esc(value)}
+            </strong>
+
+            <small>
+              Current snapshot
+            </small>
+          </article>
+        `
+      ).join('');
   }
 
-  /* AGEING AMOUNT */
+  /* =====================================================
+     AGEING ANALYSIS
+
+     IMPORTANT:
+     These are DIRECT uploaded column totals.
+     No subtraction is done here.
+  ===================================================== */
 
   const ageingLabels =
-    bucketDefs.map(x => x[0]);
+    bucketDefs.map(
+      item => item[0]
+    );
 
   const ageingValues =
     bucketDefs.map(
-      x => m.bs[x[1]]
+      item =>
+        currentMetrics.bs[
+          item[1]
+        ]
     );
 
   draw(
     '#ageChart',
     'bar',
     ageingLabels,
-    [{
-      label: 'Amount',
-      data: ageingValues,
-      borderRadius: 6
-    }]
+    [
+      {
+        label:
+          'Source Column Total',
+
+        data:
+          ageingValues,
+
+        borderRadius: 6
+      }
+    ]
   );
 
-  /* DONUT */
+  /* =====================================================
+     OUTSTANDING BREAKUP
+  ===================================================== */
 
   draw(
     '#donutChart',
     'doughnut',
     ageingLabels,
-    [{
-      label: 'Amount',
-      data: ageingValues,
-      borderWidth: 0
-    }],
+    [
+      {
+        label:
+          'Source Column Total',
+
+        data:
+          ageingValues,
+
+        borderWidth: 0
+      }
+    ],
     {
       legend: true
     }
   );
 
   /* =====================================================
-     AGEING WISE UNIQUE CUSTOMER COUNT
+     AGEING WISE CUSTOMER COUNT > ₹1,000
 
-     Only customer whose EXACT ageing bucket
-     amount is MORE THAN ₹1,000 is counted.
+     Here also NO ageing subtraction is done.
+
+     Example:
+     76-90 uses row.days_90 directly.
+
+     If that direct column value is > ₹1,000,
+     that customer is counted in the 76-90 bar.
   ===================================================== */
 
   const ageingCustomerCounts =
     customerBucketDefs.map(
-      ([, key]) => {
-        const parties = new Set();
+      ([label, key]) => {
+        const customers =
+          new Set();
 
         data.forEach(row => {
           const amount =
@@ -1296,12 +1484,14 @@ function render() {
               ).trim();
 
             if (party) {
-              parties.add(party);
+              customers.add(
+                party
+              );
             }
           }
         });
 
-        return parties.size;
+        return customers.size;
       }
     );
 
@@ -1309,21 +1499,29 @@ function render() {
     '#rangeChart',
     'bar',
     customerBucketDefs.map(
-      x => x[0]
+      item => item[0]
     ),
-    [{
-      label: 'Customers > ₹1,000',
-      data: ageingCustomerCounts,
-      borderRadius: 6
-    }],
+    [
+      {
+        label:
+          'Customers > ₹1,000',
+
+        data:
+          ageingCustomerCounts,
+
+        borderRadius: 6
+      }
+    ],
     {
       countChart: true
     }
   );
 
-  /* TOP 5 OUTSTANDING */
+  /* =====================================================
+     TOP 5 CUSTOMERS BY OUTSTANDING
+  ===================================================== */
 
-  const top =
+  const topCustomers =
     [...data]
       .sort(
         (a, b) =>
@@ -1333,94 +1531,150 @@ function render() {
       .slice(0, 5);
 
   if ($('#topCustomers')) {
-    $('#topCustomers').innerHTML =
-      simpleTable(top, [
-        {
-          label: '#',
-          render:
-            (row, i) => i + 1
-        },
-        {
-          label: 'Party Name',
-          key: 'party'
-        },
-        {
-          label: 'Balance',
-          num: true,
-          render:
-            row => money(row.balance)
-        }
-      ]);
+    $('#topCustomers')
+      .innerHTML =
+        simpleTable(
+          topCustomers,
+          [
+            {
+              label: '#',
+
+              render:
+                (row, index) =>
+                  index + 1
+            },
+
+            {
+              label:
+                'Party Name',
+
+              key:
+                'party'
+            },
+
+            {
+              label:
+                'Balance',
+
+              num: true,
+
+              render:
+                row =>
+                  money(
+                    row.balance
+                  )
+            }
+          ]
+        );
   }
 
-  /* TOP 5 >150 */
+  /* =====================================================
+     TOP 5 OVERDUE CUSTOMERS - 150 COLUMN
+  ===================================================== */
 
   const overdue =
     [...data]
       .filter(
         row =>
-          num(row.days_150) > 0
+          num(
+            row.days_150
+          ) > 0
       )
       .sort(
         (a, b) =>
-          num(b.days_150) -
-          num(a.days_150)
+          num(
+            b.days_150
+          ) -
+          num(
+            a.days_150
+          )
       )
       .slice(0, 5);
 
   if ($('#overdueCustomers')) {
     $('#overdueCustomers')
       .innerHTML =
-        simpleTable(overdue, [
-          {
-            label: '#',
-            render:
-              (row, i) => i + 1
-          },
-          {
-            label: 'Party Name',
-            key: 'party'
-          },
-          {
-            label: '>150 Days',
-            num: true,
-            render:
-              row =>
-                money(row.days_150)
-          },
-          {
-            label: 'Balance',
-            num: true,
-            render:
-              row =>
-                money(row.balance)
-          }
-        ]);
+        simpleTable(
+          overdue,
+          [
+            {
+              label: '#',
+
+              render:
+                (row, index) =>
+                  index + 1
+            },
+
+            {
+              label:
+                'Party Name',
+
+              key:
+                'party'
+            },
+
+            {
+              label:
+                '150',
+
+              num: true,
+
+              render:
+                row =>
+                  money(
+                    row.days_150
+                  )
+            },
+
+            {
+              label:
+                'Balance',
+
+              num: true,
+
+              render:
+                row =>
+                  money(
+                    row.balance
+                  )
+            }
+          ]
+        );
   }
+
+  /* CUSTOMER DETAILS */
 
   renderDetails(data);
 
-  renderCompare(m).catch(error => {
+  /* COMPARISON */
+
+  renderCompare(
+    currentMetrics
+  ).catch(error => {
     console.error(error);
   });
 }
 
 /* =========================================================
-   COMPARISON SELECTOR
+   COMPARISON SNAPSHOT SELECTOR
 ========================================================= */
 
 function populateCompareSelector() {
   const select =
     $('#compareSnapshotSelect');
 
-  if (!select) return;
+  if (!select) {
+    return;
+  }
 
-  const oldValue = select.value;
+  const oldValue =
+    select.value;
 
   const available =
     uploads.filter(
-      u =>
-        u.id !== activeUpload?.id
+      upload =>
+        upload.id !==
+        activeUpload?.id
     );
 
   select.innerHTML = `
@@ -1428,41 +1682,68 @@ function populateCompareSelector() {
       Select snapshot
     </option>
 
-    ${available.map(u => `
-      <option value="${esc(u.id)}">
-        ${esc(u.outstanding_date)}
-      </option>
-    `).join('')}
+    ${
+      available.map(
+        upload => `
+          <option
+            value="${esc(
+              upload.id
+            )}"
+          >
+            ${esc(
+              upload.outstanding_date
+            )}
+          </option>
+        `
+      ).join('')
+    }
   `;
 
   if (
     oldValue &&
     available.some(
-      u => u.id === oldValue
+      upload =>
+        upload.id ===
+        oldValue
     )
   ) {
-    select.value = oldValue;
+    select.value =
+      oldValue;
+
     return;
   }
 
   const currentIndex =
     uploads.findIndex(
-      u => u.id === activeUpload?.id
+      upload =>
+        upload.id ===
+        activeUpload?.id
     );
 
   const previous =
     currentIndex >= 0
-      ? uploads[currentIndex + 1]
+      ? uploads[
+          currentIndex + 1
+        ]
       : null;
 
   if (previous) {
-    select.value = previous.id;
+    select.value =
+      previous.id;
   }
 }
 
-async function comparisonRows(uploadId) {
+/* =========================================================
+   COMPARISON ROW CACHE
+========================================================= */
+
+async function getComparisonRows(
+  uploadId
+) {
   if (
-    snapshotCache.has(uploadId)
+    snapshotCache.has(
+      uploadId
+    )
   ) {
     return snapshotCache.get(
       uploadId
@@ -1487,15 +1768,21 @@ async function comparisonRows(uploadId) {
    COMPARISON
 ========================================================= */
 
-async function renderCompare(current) {
+async function renderCompare(
+  currentMetrics
+) {
   const select =
     $('#compareSnapshotSelect');
 
-  if (!select || !activeUpload) {
+  if (
+    !activeUpload ||
+    !select
+  ) {
     return;
   }
 
-  const compareId = select.value;
+  const compareId =
+    select.value;
 
   const requestId =
     ++comparisonRequestId;
@@ -1503,8 +1790,11 @@ async function renderCompare(current) {
   if (!compareId) {
     if ($('#summaryCompare')) {
       $('#summaryCompare')
-        .innerHTML =
-          '<span class="muted">Select a snapshot in Compare With.</span>';
+        .innerHTML = `
+          <span class="muted">
+            Select a snapshot in Compare With.
+          </span>
+        `;
     }
 
     draw(
@@ -1519,189 +1809,257 @@ async function renderCompare(current) {
 
   const compareUpload =
     uploads.find(
-      u => u.id === compareId
+      upload =>
+        upload.id ===
+        compareId
     );
 
-  if (!compareUpload) return;
-
-  const previousRows =
-    await comparisonRows(
-      compareId
-    );
-
-  if (
-    requestId !==
-    comparisonRequestId
-  ) {
+  if (!compareUpload) {
     return;
   }
 
-  /*
-    Same current filter selections
-    are applied to comparison rows.
-  */
+  try {
+    const compareRows =
+      await getComparisonRows(
+        compareId
+      );
 
-  const previous =
-    metrics(
-      previousRows.filter(
-        row => rowMatches(row)
-      )
+    if (
+      requestId !==
+      comparisonRequestId
+    ) {
+      return;
+    }
+
+    /*
+      Apply SAME selected filters
+      to comparison snapshot.
+    */
+
+    const compareFiltered =
+      compareRows.filter(
+        row =>
+          rowMatches(row)
+      );
+
+    const compareMetrics =
+      metrics(
+        compareFiltered
+      );
+
+    /* ===================================================
+       COMPARISON CHART
+
+       Direct source columns on BOTH snapshots.
+    =================================================== */
+
+    draw(
+      '#compareChart',
+      'bar',
+      bucketDefs.map(
+        item => item[0]
+      ),
+      [
+        {
+          label:
+            compareUpload
+              .outstanding_date,
+
+          data:
+            bucketDefs.map(
+              item =>
+                compareMetrics.bs[
+                  item[1]
+                ]
+            )
+        },
+
+        {
+          label:
+            activeUpload
+              .outstanding_date,
+
+          data:
+            bucketDefs.map(
+              item =>
+                currentMetrics.bs[
+                  item[1]
+                ]
+            )
+        }
+      ],
+      {
+        legend: true
+      }
     );
 
-  draw(
-    '#compareChart',
-    'bar',
-    bucketDefs.map(x => x[0]),
-    [
-      {
-        label:
-          compareUpload
-            .outstanding_date,
+    /* ===================================================
+       SUMMARY COMPARISON
+    =================================================== */
 
-        data:
-          bucketDefs.map(
-            x =>
-              previous.bs[x[1]]
-          )
+    const comparisonTable = [
+      {
+        metric:
+          'Total Outstanding',
+
+        previous:
+          compareMetrics.total,
+
+        current:
+          currentMetrics.total
       },
 
       {
-        label:
-          activeUpload
-            .outstanding_date,
+        metric:
+          'Total Customers',
 
-        data:
-          bucketDefs.map(
-            x =>
-              current.bs[x[1]]
-          )
+        previous:
+          compareMetrics.customers,
+
+        current:
+          currentMetrics.customers,
+
+        count: true
+      },
+
+      {
+        metric:
+          'PDC Amount',
+
+        previous:
+          compareMetrics.pdc,
+
+        current:
+          currentMetrics.pdc
+      },
+
+      {
+        metric:
+          'Over 90 Days',
+
+        previous:
+          compareMetrics.over90,
+
+        current:
+          currentMetrics.over90
+      },
+
+      {
+        metric:
+          'Over 150 Days',
+
+        previous:
+          compareMetrics.over150,
+
+        current:
+          currentMetrics.over150
       }
-    ],
-    {
-      legend: true
+    ];
+
+    if ($('#summaryCompare')) {
+      $('#summaryCompare')
+        .innerHTML =
+          simpleTable(
+            comparisonTable,
+            [
+              {
+                label:
+                  'Metric',
+
+                key:
+                  'metric'
+              },
+
+              {
+                label:
+                  compareUpload
+                    .outstanding_date,
+
+                num: true,
+
+                render:
+                  row =>
+                    row.count
+                      ? Number(
+                          row.previous
+                        ).toLocaleString(
+                          'en-IN'
+                        )
+                      : money(
+                          row.previous
+                        )
+              },
+
+              {
+                label:
+                  activeUpload
+                    .outstanding_date,
+
+                num: true,
+
+                render:
+                  row =>
+                    row.count
+                      ? Number(
+                          row.current
+                        ).toLocaleString(
+                          'en-IN'
+                        )
+                      : money(
+                          row.current
+                        )
+              }
+            ]
+          );
     }
-  );
 
-  const comparison = [
-    {
-      metric:
-        'Total Outstanding',
-      previous:
-        previous.total,
-      current:
-        current.total
-    },
-    {
-      metric:
-        'Total Customers',
-      previous:
-        previous.customers,
-      current:
-        current.customers,
-      count: true
-    },
-    {
-      metric:
-        'PDC Amount',
-      previous:
-        previous.pdc,
-      current:
-        current.pdc
-    },
-    {
-      metric:
-        'Over 90 Days',
-      previous:
-        previous.over90,
-      current:
-        current.over90
-    },
-    {
-      metric:
-        'Over 150 Days',
-      previous:
-        previous.over150,
-      current:
-        current.over150
+  } catch (error) {
+    console.error(
+      'Comparison error:',
+      error
+    );
+
+    if ($('#summaryCompare')) {
+      $('#summaryCompare')
+        .innerHTML = `
+          <span class="muted">
+            Comparison unavailable.
+          </span>
+        `;
     }
-  ];
-
-  if ($('#summaryCompare')) {
-    $('#summaryCompare').innerHTML =
-      simpleTable(
-        comparison,
-        [
-          {
-            label: 'Metric',
-            key: 'metric'
-          },
-          {
-            label:
-              compareUpload
-                .outstanding_date,
-
-            num: true,
-
-            render: row =>
-              row.count
-                ? Number(
-                    row.previous
-                  ).toLocaleString(
-                    'en-IN'
-                  )
-                : money(
-                    row.previous
-                  )
-          },
-          {
-            label:
-              activeUpload
-                .outstanding_date,
-
-            num: true,
-
-            render: row =>
-              row.count
-                ? Number(
-                    row.current
-                  ).toLocaleString(
-                    'en-IN'
-                  )
-                : money(
-                    row.current
-                  )
-          }
-        ]
-      );
   }
 }
 
-/* =========================================================
-   HISTORY
+
+
+
+
+
+ /* =========================================================
+   SNAPSHOT HISTORY
 ========================================================= */
 
 function renderHistory() {
-  const container = $('#history');
+  const container =
+    $('#snapshotHistory');
 
   if (!container) return;
 
-  const list =
-    [...uploads].sort(
-      (a, b) => {
-        const result =
-          compareValues(
-            a,
-            b,
-            historySort.key
-          );
+  let list =
+    [...uploads];
 
-        return (
-          historySort.dir === 'asc'
-            ? result
-            : -result
-        );
-      }
-    );
+  list.sort((a, b) => {
+    const result =
+      compareValues(
+        a,
+        b,
+        historySort.key
+      );
+
+    return historySort.dir === 'asc'
+      ? result
+      : -result;
+  });
 
   container.innerHTML = `
     <table>
@@ -1711,7 +2069,7 @@ function renderHistory() {
             class="sortable"
             data-history-sort="outstanding_date"
           >
-            Date
+            Snapshot Date
             ${sortArrow(
               historySort,
               'outstanding_date'
@@ -1720,28 +2078,6 @@ function renderHistory() {
 
           <th
             class="sortable"
-            data-history-sort="uploaded_at"
-          >
-            Uploaded On
-            ${sortArrow(
-              historySort,
-              'uploaded_at'
-            )}
-          </th>
-
-          <th
-            class="sortable"
-            data-history-sort="uploaded_by"
-          >
-            By
-            ${sortArrow(
-              historySort,
-              'uploaded_by'
-            )}
-          </th>
-
-          <th
-            class="sortable num"
             data-history-sort="total_customers"
           >
             Customers
@@ -1752,7 +2088,7 @@ function renderHistory() {
           </th>
 
           <th
-            class="sortable num"
+            class="sortable"
             data-history-sort="total_outstanding"
           >
             Outstanding
@@ -1761,43 +2097,39 @@ function renderHistory() {
               'total_outstanding'
             )}
           </th>
+
+          <th
+            class="sortable"
+            data-history-sort="total_pdc"
+          >
+            PDC
+            ${sortArrow(
+              historySort,
+              'total_pdc'
+            )}
+          </th>
+
+          <th>
+            File
+          </th>
         </tr>
       </thead>
 
       <tbody>
         ${
           list.length
-            ? list.map(u => `
+            ? list.map(upload => `
                 <tr>
                   <td>
                     ${esc(
-                      u.outstanding_date ||
-                      ''
-                    )}
-                  </td>
-
-                  <td>
-                    ${esc(
-                      u.uploaded_at
-                        ? new Date(
-                            u.uploaded_at
-                          ).toLocaleString(
-                            'en-IN'
-                          )
-                        : ''
-                    )}
-                  </td>
-
-                  <td>
-                    ${esc(
-                      u.uploaded_by ||
+                      upload.outstanding_date ||
                       ''
                     )}
                   </td>
 
                   <td class="num">
                     ${num(
-                      u.total_customers
+                      upload.total_customers
                     ).toLocaleString(
                       'en-IN'
                     )}
@@ -1805,7 +2137,20 @@ function renderHistory() {
 
                   <td class="num">
                     ${money(
-                      u.total_outstanding
+                      upload.total_outstanding
+                    )}
+                  </td>
+
+                  <td class="num">
+                    ${money(
+                      upload.total_pdc
+                    )}
+                  </td>
+
+                  <td>
+                    ${esc(
+                      upload.file_name ||
+                      ''
                     )}
                   </td>
                 </tr>
@@ -1816,7 +2161,7 @@ function renderHistory() {
                     colspan="5"
                     class="muted"
                   >
-                    No snapshots
+                    No snapshot history
                   </td>
                 </tr>
               `
@@ -1854,41 +2199,105 @@ function renderHistory() {
 }
 
 /* =========================================================
-   SORT UPLOADS
+   SNAPSHOT SELECTOR
 ========================================================= */
 
-function sortUploads() {
-  uploads.sort((a, b) => {
-    const d =
-      String(
-        b.outstanding_date || ''
-      ).localeCompare(
-        String(
-          a.outstanding_date || ''
-        )
-      );
+function populateSnapshotSelector() {
+  const select =
+    $('#snapshotSelect');
 
-    if (d) return d;
+  if (!select) return;
 
-    return String(
-      b.uploaded_at || ''
-    ).localeCompare(
-      String(
-        a.uploaded_at || ''
-      )
-    );
-  });
+  select.innerHTML =
+    uploads.map(upload => `
+      <option
+        value="${esc(upload.id)}"
+      >
+        ${esc(
+          upload.outstanding_date
+        )}
+      </option>
+    `).join('');
+
+  if (activeUpload) {
+    select.value =
+      activeUpload.id;
+  }
 }
 
 /* =========================================================
-   LOAD SNAPSHOT
+   LOAD SELECTED SNAPSHOT
 ========================================================= */
 
-async function load(
-  preferredId = null
+async function loadSnapshot(
+  uploadId
 ) {
+  const upload =
+    uploads.find(
+      item =>
+        item.id === uploadId
+    );
+
+  if (!upload) {
+    throw new Error(
+      'Snapshot not found.'
+    );
+  }
+
   toast(
-    'Loading snapshot list...',
+    `Loading ${upload.outstanding_date}...`,
+    true
+  );
+
+  activeUpload =
+    upload;
+
+  rows =
+    await getAllOutstandingRows(
+      upload.id,
+      'Loading outstanding'
+    );
+
+  snapshotCache.set(
+    upload.id,
+    rows
+  );
+
+  /*
+    Clear old filter selections
+    when snapshot changes.
+  */
+
+  filterMap.forEach(
+    ([key]) =>
+      filterSelections[key]
+        .clear()
+  );
+
+  detailPage = 1;
+
+  populateSnapshotSelector();
+
+  populateCompareSelector();
+
+  makeFilters();
+
+  render();
+
+  toast(
+    `${rows.length.toLocaleString(
+      'en-IN'
+    )} rows loaded`
+  );
+}
+
+/* =========================================================
+   LOAD DASHBOARD
+========================================================= */
+
+async function load() {
+  toast(
+    'Loading snapshots...',
     true
   );
 
@@ -1902,27 +2311,30 @@ async function load(
       ? data
       : [];
 
-  sortUploads();
+  uploads.sort(
+    (a, b) => {
+      const dateCompare =
+        String(
+          b.outstanding_date || ''
+        ).localeCompare(
+          String(
+            a.outstanding_date || ''
+          )
+        );
 
-  const select =
-    $('#snapshotSelect');
+      if (dateCompare !== 0) {
+        return dateCompare;
+      }
 
-  if (select) {
-    select.innerHTML =
-      uploads.length
-        ? uploads.map(u => `
-            <option value="${esc(u.id)}">
-              ${esc(
-                u.outstanding_date
-              )}
-            </option>
-          `).join('')
-        : `
-            <option value="">
-              No snapshot
-            </option>
-          `;
-  }
+      return String(
+        b.uploaded_at || ''
+      ).localeCompare(
+        String(
+          a.uploaded_at || ''
+        )
+      );
+    }
+  );
 
   renderHistory();
 
@@ -1930,119 +2342,25 @@ async function load(
     rows = [];
     activeUpload = null;
 
+    populateSnapshotSelector();
+    populateCompareSelector();
     makeFilters();
     render();
 
     toast(
-      'No outstanding snapshot found.',
-      true
+      'No outstanding snapshot uploaded yet.'
     );
 
     return;
   }
 
   activeUpload =
-    uploads.find(
-      u => u.id === preferredId
-    ) ||
     uploads[0];
 
-  if (select) {
-    select.value =
-      activeUpload.id;
-  }
+  populateSnapshotSelector();
 
-  toast(
-    `Loading ${activeUpload.outstanding_date}...`,
-    true
-  );
-
-  rows =
-    await getAllOutstandingRows(
-      activeUpload.id,
-      'Loading current'
-    );
-
-  snapshotCache.set(
-    activeUpload.id,
-    rows
-  );
-
-  filterMap.forEach(([key]) => {
-    filterSelections[key].clear();
-  });
-
-  detailPage = 1;
-
-  makeFilters();
-  populateCompareSelector();
-  renderHistory();
-  render();
-
-  toast(
-    `${rows.length.toLocaleString(
-      'en-IN'
-    )} rows loaded.`
-  );
-}
-
-/* =========================================================
-   SWITCH SNAPSHOT
-========================================================= */
-
-async function switchSnapshot() {
-  const id =
-    $('#snapshotSelect')?.value;
-
-  if (
-    !id ||
-    id === activeUpload?.id
-  ) {
-    return;
-  }
-
-  activeUpload =
-    uploads.find(
-      u => u.id === id
-    );
-
-  if (!activeUpload) return;
-
-  toast(
-    `Loading ${activeUpload.outstanding_date}...`,
-    true
-  );
-
-  if (snapshotCache.has(id)) {
-    rows =
-      snapshotCache.get(id);
-  } else {
-    rows =
-      await getAllOutstandingRows(
-        id,
-        'Loading current'
-      );
-
-    snapshotCache.set(
-      id,
-      rows
-    );
-  }
-
-  filterMap.forEach(([key]) => {
-    filterSelections[key].clear();
-  });
-
-  detailPage = 1;
-
-  makeFilters();
-  populateCompareSelector();
-  render();
-
-  toast(
-    `${rows.length.toLocaleString(
-      'en-IN'
-    )} rows loaded.`
+  await loadSnapshot(
+    activeUpload.id
   );
 }
 
@@ -2050,183 +2368,203 @@ async function switchSnapshot() {
    CSV UPLOAD
 ========================================================= */
 
-async function upload(file) {
-  if (!file) return;
-
-  if (!/\.csv$/i.test(file.name)) {
-    toast(
-      'Please select a CSV file.'
-    );
-    return;
-  }
-
-  const date =
-    prompt(
-      'Outstanding Date (YYYY-MM-DD):',
-      new Date()
-        .toISOString()
-        .slice(0, 10)
-    );
-
-  if (!date) return;
-
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/
-      .test(date)
-  ) {
-    toast(
-      'Date format must be YYYY-MM-DD.'
-    );
-    return;
-  }
-
-  toast('Reading CSV...', true);
-
-  const parsed =
-    await new Promise(
-      (resolve, reject) => {
-        Papa.parse(file, {
+function parseCsv(file) {
+  return new Promise(
+    (resolve, reject) => {
+      Papa.parse(
+        file,
+        {
           header: true,
           skipEmptyLines: true,
-          complete: resolve,
-          error: reject
-        });
-      }
-    );
+          transformHeader:
+            header =>
+              String(header)
+                .trim(),
 
-  const required = [
-    'Party',
-    'Balance',
-    '15',
-    '30',
-    '45',
-    '60',
-    '75',
-    '90',
-    '120',
-    '150',
-    'PDC',
-    'SM',
-    'GrpName',
-    'Division',
-    'Area',
-    'Order',
-    'City',
-    'Pincode'
-  ];
+          complete(result) {
+            if (
+              result.errors &&
+              result.errors.length
+            ) {
+              const serious =
+                result.errors.find(
+                  error =>
+                    error.type !==
+                    'FieldMismatch'
+                );
 
-  const fields =
-    parsed.meta?.fields || [];
+              if (serious) {
+                reject(
+                  new Error(
+                    serious.message
+                  )
+                );
 
-  const missing =
-    required.filter(
-      x => !fields.includes(x)
-    );
+                return;
+              }
+            }
 
-  if (missing.length) {
+            resolve(
+              result.data || []
+            );
+          },
+
+          error(error) {
+            reject(error);
+          }
+        }
+      );
+    }
+  );
+}
+
+/* =========================================================
+   MAP CSV TO DATABASE
+
+   IMPORTANT:
+   CSV values are stored DIRECTLY.
+
+   CSV 15  -> days_15
+   CSV 30  -> days_30
+   CSV 45  -> days_45
+   CSV 60  -> days_60
+   CSV 75  -> days_75
+   CSV 90  -> days_90
+   CSV 120 -> days_120
+   CSV 150 -> days_150
+
+   No subtraction.
+========================================================= */
+
+function mapCsvRows(csvRows) {
+  return csvRows.map(row => ({
+    party:
+      String(
+        row.Party ?? ''
+      ).trim(),
+
+    balance:
+      num(row.Balance),
+
+    days_15:
+      num(row['15']),
+
+    days_30:
+      num(row['30']),
+
+    days_45:
+      num(row['45']),
+
+    days_60:
+      num(row['60']),
+
+    days_75:
+      num(row['75']),
+
+    days_90:
+      num(row['90']),
+
+    days_120:
+      num(row['120']),
+
+    days_150:
+      num(row['150']),
+
+    pdc:
+      num(row.PDC),
+
+    sm:
+      String(
+        row.SM ?? ''
+      ).trim(),
+
+    grp_name:
+      String(
+        row.GrpName ?? ''
+      ).trim(),
+
+    division:
+      String(
+        row.Division ?? ''
+      ).trim(),
+
+    area:
+      String(
+        row.Area ?? ''
+      ).trim(),
+
+    order_type:
+      String(
+        row.Order ?? ''
+      ).trim(),
+
+    city:
+      String(
+        row.City ?? ''
+      ).trim(),
+
+    pincode:
+      String(
+        row.Pincode ?? ''
+      ).trim()
+  }));
+}
+
+/* =========================================================
+   UPLOAD OUTSTANDING
+========================================================= */
+
+async function uploadOutstanding(
+  file,
+  outstandingDate
+) {
+  if (!file) {
     throw new Error(
-      'Missing CSV columns: ' +
-      missing.join(', ')
+      'Please select CSV file.'
     );
   }
+
+  if (!outstandingDate) {
+    throw new Error(
+      'Please select outstanding date.'
+    );
+  }
+
+  toast(
+    'Reading CSV...',
+    true
+  );
+
+  const csvRows =
+    await parseCsv(file);
+
+  if (!csvRows.length) {
+    throw new Error(
+      'CSV contains no data.'
+    );
+  }
+
+  const mappedRows =
+    mapCsvRows(csvRows);
+
+  const requiredCheck =
+    mappedRows.filter(
+      row =>
+        row.party
+    );
+
+  if (!requiredCheck.length) {
+    throw new Error(
+      'Party column not found or CSV has no valid Party rows.'
+    );
+  }
+
+  /*
+    Upload exact source values.
+  */
 
   const payload =
-    parsed.data
-      .map(r => ({
-        party:
-          String(
-            r.Party ?? ''
-          ).trim(),
-
-        balance:
-          num(r.Balance),
-
-        days_15:
-          num(r['15']),
-
-        days_30:
-          num(r['30']),
-
-        days_45:
-          num(r['45']),
-
-        days_60:
-          num(r['60']),
-
-        days_75:
-          num(r['75']),
-
-        days_90:
-          num(r['90']),
-
-        days_120:
-          num(r['120']),
-
-        days_150:
-          num(r['150']),
-
-        pdc:
-          num(r.PDC),
-
-        sm:
-          String(
-            r.SM ?? ''
-          ).trim(),
-
-        grp_name:
-          String(
-            r.GrpName ?? ''
-          ).trim(),
-
-        division:
-          String(
-            r.Division ?? ''
-          ).trim(),
-
-        area:
-          String(
-            r.Area ?? ''
-          ).trim(),
-
-        order_type:
-          String(
-            r.Order ?? ''
-          ).trim(),
-
-        city:
-          String(
-            r.City ?? ''
-          ).trim(),
-
-        pincode:
-          String(
-            r.Pincode ?? ''
-          ).trim()
-      }))
-      .filter(r => r.party);
-
-  if (!payload.length) {
-    throw new Error(
-      'CSV contains no valid rows.'
-    );
-  }
-
-  let uploadedBy = '';
-
-  try {
-    const user =
-      JSON.parse(
-        localStorage.getItem(USER) ||
-        '{}'
-      );
-
-    uploadedBy =
-      user.name ||
-      user.full_name ||
-      user.username ||
-      user.email ||
-      '';
-  } catch (_) {}
+    requiredCheck;
 
   toast(
     `Uploading ${payload.length.toLocaleString(
@@ -2235,40 +2573,123 @@ async function upload(file) {
     true
   );
 
-  const result =
-    await rpc(
+  const { data, error } =
+    await sb.rpc(
       'raj_outstanding_upload_json',
-      {
-        p_outstanding_date: date,
-        p_file_name: file.name,
-        p_uploaded_by:
-          uploadedBy,
-        p_rows: payload
-      }
+      authArgs({
+        p_outstanding_date:
+          outstandingDate,
+
+        p_file_name:
+          file.name,
+
+        p_rows:
+          payload
+      })
     );
 
-  snapshotCache.clear();
-
-  let newId = null;
-
-  if (typeof result === 'string') {
-    newId = result;
-  } else if (
-    result &&
-    typeof result === 'object'
-  ) {
-    newId =
-      result.upload_id ||
-      result.id ||
-      null;
+  if (error) {
+    throw new Error(
+      'Upload failed: ' +
+      error.message
+    );
   }
 
   toast(
-    'Upload completed. Reloading...',
+    'Upload completed. Refreshing dashboard...',
     true
   );
 
-  await load(newId);
+  snapshotCache.clear();
+
+  await load();
+
+  toast(
+    'Outstanding uploaded successfully.'
+  );
+
+  return data;
+}
+
+/* =========================================================
+   UPLOAD MODAL HELPERS
+========================================================= */
+
+function openUploadModal() {
+  const modal =
+    $('#uploadModal');
+
+  if (!modal) {
+    /*
+      Fallback:
+      If HTML uses direct file/date controls,
+      click the file input.
+    */
+
+    $('#csvFile')?.click();
+    return;
+  }
+
+  modal.classList.add(
+    'open'
+  );
+
+  modal.style.display =
+    'flex';
+
+  const date =
+    $('#outstandingDate');
+
+  if (
+    date &&
+    !date.value
+  ) {
+    date.value =
+      new Date()
+        .toISOString()
+        .slice(0, 10);
+  }
+}
+
+function closeUploadModal() {
+  const modal =
+    $('#uploadModal');
+
+  if (!modal) return;
+
+  modal.classList.remove(
+    'open'
+  );
+
+  modal.style.display =
+    'none';
+}
+
+/* =========================================================
+   CLEAR ALL FILTERS
+========================================================= */
+
+function clearAllFilters() {
+  filterMap.forEach(
+    ([key]) =>
+      filterSelections[key]
+        .clear()
+  );
+
+  document
+    .querySelectorAll(
+      '.ms-search'
+    )
+    .forEach(
+      input =>
+        input.value = ''
+    );
+
+  detailPage = 1;
+
+  refreshFilters();
+
+  render();
 }
 
 /* =========================================================
@@ -2276,162 +2697,227 @@ async function upload(file) {
 ========================================================= */
 
 function bindEvents() {
-  $('#snapshotSelect')
-    ?.addEventListener(
-      'change',
-      () =>
-        switchSnapshot()
-          .catch(fatal)
-    );
 
-  $('#compareSnapshotSelect')
-    ?.addEventListener(
-      'change',
-      () =>
-        renderCompare(
-          metrics(filtered())
-        ).catch(fatal)
-    );
+  /* SNAPSHOT CHANGE */
 
-  $('#resetBtn')
-    ?.addEventListener(
-      'click',
-      () => {
-        filterMap.forEach(
-          ([key]) =>
-            filterSelections[key]
-              .clear()
-        );
+  if ($('#snapshotSelect')) {
+    $('#snapshotSelect')
+      .onchange =
+        async event => {
+          try {
+            await loadSnapshot(
+              event.target.value
+            );
+          } catch (error) {
+            fatal(error);
+          }
+        };
+  }
 
-        detailPage = 1;
+  /* COMPARISON CHANGE */
 
-        makeFilters();
-        render();
-      }
-    );
+  if (
+    $('#compareSnapshotSelect')
+  ) {
+    $('#compareSnapshotSelect')
+      .onchange =
+        () => {
+          renderCompare(
+            metrics(
+              filtered()
+            )
+          ).catch(
+            error =>
+              console.error(
+                error
+              )
+          );
+        };
+  }
 
-  $('#detailSearch')
-    ?.addEventListener(
-      'input',
-      () => {
-        detailPage = 1;
-        renderDetails(filtered());
-      }
-    );
+  /* CUSTOMER SEARCH */
 
-  $('#prevPage')
-    ?.addEventListener(
-      'click',
-      () => {
-        if (detailPage > 1) {
-          detailPage--;
+  if ($('#detailSearch')) {
+    $('#detailSearch')
+      .oninput =
+        () => {
+          detailPage = 1;
+
           renderDetails(
             filtered()
           );
-        }
-      }
-    );
+        };
+  }
 
-  $('#nextPage')
-    ?.addEventListener(
-      'click',
-      () => {
-        detailPage++;
-        renderDetails(
-          filtered()
-        );
-      }
-    );
+  /* PREVIOUS PAGE */
 
-  $('#refreshBtn')
-    ?.addEventListener(
-      'click',
-      () => {
-        snapshotCache.clear();
+  if ($('#prevPage')) {
+    $('#prevPage')
+      .onclick =
+        () => {
+          if (
+            detailPage > 1
+          ) {
+            detailPage--;
 
-        load(
-          activeUpload?.id
-        ).catch(fatal);
-      }
-    );
+            renderDetails(
+              filtered()
+            );
+          }
+        };
+  }
 
-  $('#logsBtn')
-    ?.addEventListener(
-      'click',
-      () => {
-        $('#customerDetails')
-          ?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start'
-          });
-      }
-    );
+  /* NEXT PAGE */
 
-  const fileInput =
-    $('#fileInput');
+  if ($('#nextPage')) {
+    $('#nextPage')
+      .onclick =
+        () => {
+          detailPage++;
 
-  const openUpload =
-    () => fileInput?.click();
+          renderDetails(
+            filtered()
+          );
+        };
+  }
 
-  $('#uploadBtn')
-    ?.addEventListener(
-      'click',
-      openUpload
-    );
+  /* CLEAR FILTERS */
 
-  $('#uploadBtn2')
-    ?.addEventListener(
-      'click',
-      openUpload
-    );
+  const clearButton =
+    $('#clearFilters') ||
+    $('#clearAllFilters');
 
-  fileInput
-    ?.addEventListener(
-      'change',
+  if (clearButton) {
+    clearButton.onclick =
+      clearAllFilters;
+  }
+
+  /* UPLOAD BUTTON */
+
+  const uploadButton =
+    $('#uploadBtn') ||
+    $('#uploadOutstandingBtn');
+
+  if (uploadButton) {
+    uploadButton.onclick =
+      openUploadModal;
+  }
+
+  /* CLOSE UPLOAD MODAL */
+
+  const closeButton =
+    $('#closeUploadModal') ||
+    $('#cancelUpload');
+
+  if (closeButton) {
+    closeButton.onclick =
+      closeUploadModal;
+  }
+
+  /* SUBMIT UPLOAD */
+
+  const uploadForm =
+    $('#uploadForm');
+
+  if (uploadForm) {
+    uploadForm.onsubmit =
       async event => {
+        event.preventDefault();
+
         const file =
-          event.target.files?.[0];
+          $('#csvFile')
+            ?.files?.[0];
 
-        event.target.value = '';
-
-        if (!file) return;
+        const date =
+          $('#outstandingDate')
+            ?.value;
 
         try {
-          await upload(file);
+          await uploadOutstanding(
+            file,
+            date
+          );
+
+          closeUploadModal();
+
+          uploadForm.reset();
+
         } catch (error) {
           fatal(error);
         }
+      };
+  }
+
+  /*
+    Some versions of HTML may have
+    a separate upload confirm button.
+  */
+
+  const confirmUpload =
+    $('#confirmUpload');
+
+  if (
+    confirmUpload &&
+    !uploadForm
+  ) {
+    confirmUpload.onclick =
+      async () => {
+        const file =
+          $('#csvFile')
+            ?.files?.[0];
+
+        const date =
+          $('#outstandingDate')
+            ?.value;
+
+        try {
+          await uploadOutstanding(
+            file,
+            date
+          );
+
+          closeUploadModal();
+
+        } catch (error) {
+          fatal(error);
+        }
+      };
+  }
+
+  /* ESC CLOSE */
+
+  document.addEventListener(
+    'keydown',
+    event => {
+      if (
+        event.key ===
+        'Escape'
+      ) {
+        document
+          .querySelectorAll(
+            '.ms.open'
+          )
+          .forEach(
+            box =>
+              box.classList
+                .remove('open')
+          );
+
+        closeUploadModal();
       }
-    );
-
-  $('#logoutBtn')
-    ?.addEventListener(
-      'click',
-      () => {
-        localStorage.removeItem(
-          TOKEN
-        );
-
-        localStorage.removeItem(
-          USER
-        );
-
-        location.href =
-          'index.html';
-      }
-    );
+    }
+  );
 }
 
 /* =========================================================
-   START
+   INITIALIZE
 ========================================================= */
 
 async function init() {
   try {
     /*
-      These checks are BEFORE creating
-      the Supabase client so startup errors
-      can be shown clearly.
+      Check required libraries before
+      creating Supabase client.
     */
 
     if (
@@ -2439,7 +2925,7 @@ async function init() {
       'undefined'
     ) {
       throw new Error(
-        'Supabase library not loaded.'
+        'Supabase library is not loaded.'
       );
     }
 
@@ -2448,7 +2934,7 @@ async function init() {
       'undefined'
     ) {
       throw new Error(
-        'RAJ_CONFIG not loaded.'
+        'config.js / RAJ_CONFIG is not loaded.'
       );
     }
 
@@ -2457,7 +2943,7 @@ async function init() {
       'undefined'
     ) {
       throw new Error(
-        'Chart.js not loaded.'
+        'Chart.js is not loaded.'
       );
     }
 
@@ -2466,7 +2952,7 @@ async function init() {
       'undefined'
     ) {
       throw new Error(
-        'PapaParse not loaded.'
+        'PapaParse is not loaded.'
       );
     }
 
@@ -2481,22 +2967,26 @@ async function init() {
       !key
     ) {
       throw new Error(
-        'Supabase URL/key missing in config.js.'
+        'Supabase configuration is incomplete.'
       );
     }
 
     sb =
       window.supabase
         .createClient(
-          RAJ_CONFIG.supabaseUrl,
+          RAJ_CONFIG
+            .supabaseUrl,
           key
         );
 
     bindEvents();
 
-    const ok = await guard();
+    const ok =
+      await guard();
 
-    if (!ok) return;
+    if (!ok) {
+      return;
+    }
 
     await load();
 
@@ -2504,6 +2994,10 @@ async function init() {
     fatal(error);
   }
 }
+
+/* =========================================================
+   START
+========================================================= */
 
 if (
   document.readyState ===
