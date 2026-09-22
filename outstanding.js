@@ -2,30 +2,27 @@
 'use strict';
 
 /* =========================================================
-   RAJ OUTSTANDING DASHBOARD
-   CLEAN COMPLETE VERSION
+   OUTSTANDING DASHBOARD - CLEAN VERSION
 ========================================================= */
 
-const { createClient } = supabase;
-
-const sb = createClient(
-  RAJ_CONFIG.supabaseUrl,
-  RAJ_CONFIG.supabasePublishableKey
-);
+const $ = s => document.querySelector(s);
 
 const TOKEN = 'raj_dashboard_session_token';
 const DEVICE = 'raj_dashboard_device_id';
 const USER = 'raj_dashboard_user';
 
-const RPC_PAGE_SIZE = 1000;
+const PAGE_SIZE = 1000;
 const DETAIL_PAGE_SIZE = 50;
 
+let sb = null;
 let rows = [];
 let uploads = [];
 let activeUpload = null;
 let charts = {};
-
 let detailPage = 1;
+let comparisonRequestId = 0;
+
+const snapshotCache = new Map();
 
 let detailSort = {
   key: 'party',
@@ -36,10 +33,6 @@ let historySort = {
   key: 'outstanding_date',
   dir: 'desc'
 };
-
-let comparisonRequestId = 0;
-
-const snapshotCache = new Map();
 
 /* =========================================================
    FILTERS
@@ -63,7 +56,7 @@ filterMap.forEach(([key]) => {
 });
 
 /* =========================================================
-   AGEING BUCKETS
+   AGEING DEFINITIONS
 ========================================================= */
 
 const bucketDefs = [
@@ -79,89 +72,91 @@ const bucketDefs = [
   ['PDC', 'pdc']
 ];
 
-const $ = selector =>
-  document.querySelector(selector);
+const customerBucketDefs = [
+  ['0-15', 'days_15'],
+  ['16-30', 'days_30'],
+  ['31-45', 'days_45'],
+  ['46-60', 'days_60'],
+  ['61-75', 'days_75'],
+  ['76-90', 'days_90'],
+  ['91-120', 'days_120'],
+  ['121-150', 'days_150'],
+  ['>150', 'over150']
+];
 
-function num(value) {
+/* =========================================================
+   BASIC HELPERS
+========================================================= */
+
+function num(v) {
   if (
-    value === null ||
-    value === undefined ||
-    value === ''
+    v === null ||
+    v === undefined ||
+    v === ''
   ) {
     return 0;
   }
 
-  const parsed = Number(
-    String(value)
+  const n = Number(
+    String(v)
       .replace(/,/g, '')
       .trim()
   );
 
-  return Number.isFinite(parsed)
-    ? parsed
-    : 0;
+  return Number.isFinite(n) ? n : 0;
 }
 
-function money(value) {
+function money(v) {
   return '₹ ' +
-    Math.round(num(value))
+    Math.round(num(v))
       .toLocaleString('en-IN');
 }
 
-function esc(value) {
-  return String(value ?? '')
-    .replace(
-      /[&<>"']/g,
-      character => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-      }[character])
-    );
+function esc(v) {
+  return String(v ?? '')
+    .replace(/[&<>"']/g, c => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[c]));
 }
-
-/* =========================================================
-   TOAST / ERROR
-========================================================= */
 
 function toast(message, stay = false) {
   console.log('[Outstanding]', message);
 
-  const element = $('#toast');
+  const el = $('#toast');
 
-  if (!element) {
-    return;
-  }
+  if (!el) return;
 
-  element.textContent = message;
-  element.style.display = 'block';
+  el.textContent = message;
+  el.style.display = 'block';
 
   clearTimeout(toast.timer);
 
   if (!stay) {
     toast.timer = setTimeout(() => {
-      element.style.display = 'none';
+      el.style.display = 'none';
     }, 3500);
   }
 }
 
-function showFatal(error) {
+function fatal(error) {
   console.error(
-    '[Outstanding Dashboard Error]',
+    '[Outstanding Dashboard]',
     error
   );
 
   toast(
     'Dashboard error: ' +
-      (error?.message || String(error)),
+    (error?.message || String(error)),
     true
   );
 }
 
 /* =========================================================
-   AUTH
+   SUPABASE / AUTH
 ========================================================= */
 
 function authArgs(extra = {}) {
@@ -176,16 +171,16 @@ function authArgs(extra = {}) {
   };
 }
 
-async function rpc(functionName, args = {}) {
+async function rpc(name, args = {}) {
   const { data, error } =
     await sb.rpc(
-      functionName,
+      name,
       authArgs(args)
     );
 
   if (error) {
     throw new Error(
-      `${functionName}: ${error.message}`
+      `${name}: ${error.message}`
     );
   }
 
@@ -193,12 +188,12 @@ async function rpc(functionName, args = {}) {
 }
 
 async function guard() {
-  toast('Checking session...', true);
-
   if (!localStorage.getItem(TOKEN)) {
     location.href = 'index.html';
     return false;
   }
+
+  toast('Checking session...', true);
 
   const { data, error } =
     await sb.rpc(
@@ -222,179 +217,128 @@ async function guard() {
 }
 
 /* =========================================================
-   LOAD ALL ROWS - PAGINATION
+   LOAD ALL ROWS - 1000 AT A TIME
 ========================================================= */
 
 async function getAllOutstandingRows(
   uploadId,
-  statusPrefix = 'Loading'
+  message = 'Loading'
 ) {
-  const allRows = [];
+  const result = [];
   let offset = 0;
 
   while (true) {
-
     toast(
-      `${statusPrefix} rows... ` +
-      `${allRows.length.toLocaleString('en-IN')} loaded`,
+      `${message}: ${result.length.toLocaleString('en-IN')} rows loaded...`,
       true
     );
 
-    const paged =
+    const response =
       await sb.rpc(
         'raj_outstanding_get_rows',
         authArgs({
           p_upload_id: uploadId,
           p_offset: offset,
-          p_limit: RPC_PAGE_SIZE
+          p_limit: PAGE_SIZE
         })
       );
 
-    if (paged.error) {
-
-      if (offset === 0) {
-
-        const legacy =
-          await sb.rpc(
-            'raj_outstanding_get_rows',
-            authArgs({
-              p_upload_id: uploadId
-            })
-          );
-
-        if (legacy.error) {
-          throw new Error(
-            'Outstanding rows load failed: ' +
-            legacy.error.message
-          );
-        }
-
-        return Array.isArray(legacy.data)
-          ? legacy.data
-          : [];
-      }
-
+    if (response.error) {
       throw new Error(
-        'Outstanding rows load failed: ' +
-        paged.error.message
+        'raj_outstanding_get_rows: ' +
+        response.error.message
       );
     }
 
     const page =
-      Array.isArray(paged.data)
-        ? paged.data
+      Array.isArray(response.data)
+        ? response.data
         : [];
 
-    allRows.push(...page);
+    result.push(...page);
 
-    if (page.length < RPC_PAGE_SIZE) {
+    if (page.length < PAGE_SIZE) {
       break;
     }
 
-    offset += RPC_PAGE_SIZE;
+    offset += PAGE_SIZE;
 
     if (offset > 100000) {
       throw new Error(
-        'Outstanding pagination safety limit reached.'
+        'Pagination safety limit reached.'
       );
     }
   }
 
-  console.log(
-    '[Outstanding] Final row count:',
-    allRows.length
-  );
-
-  return allRows;
+  return result;
 }
 
 /* =========================================================
-   AGEING CALCULATION
+   CORRECT AGEING BUCKET CALCULATION
 
    Source columns are cumulative.
-
-   0-15    = Balance - 15 - PDC
-   16-30   = 15 - 30
-   31-45   = 30 - 45
-   46-60   = 45 - 60
-   61-75   = 60 - 75
-   76-90   = 75 - 90
-   91-120  = 90 - 120
-   121-150 = 120 - 150
-   >150    = 150
 ========================================================= */
 
 function bucket(row) {
   return {
+    days_15: Math.max(
+      0,
+      num(row.balance) -
+      num(row.days_15) -
+      num(row.pdc)
+    ),
 
-    days_15:
-      Math.max(
-        0,
-        num(row.balance) -
-        num(row.days_15) -
-        num(row.pdc)
-      ),
+    days_30: Math.max(
+      0,
+      num(row.days_15) -
+      num(row.days_30)
+    ),
 
-    days_30:
-      Math.max(
-        0,
-        num(row.days_15) -
-        num(row.days_30)
-      ),
+    days_45: Math.max(
+      0,
+      num(row.days_30) -
+      num(row.days_45)
+    ),
 
-    days_45:
-      Math.max(
-        0,
-        num(row.days_30) -
-        num(row.days_45)
-      ),
+    days_60: Math.max(
+      0,
+      num(row.days_45) -
+      num(row.days_60)
+    ),
 
-    days_60:
-      Math.max(
-        0,
-        num(row.days_45) -
-        num(row.days_60)
-      ),
+    days_75: Math.max(
+      0,
+      num(row.days_60) -
+      num(row.days_75)
+    ),
 
-    days_75:
-      Math.max(
-        0,
-        num(row.days_60) -
-        num(row.days_75)
-      ),
+    days_90: Math.max(
+      0,
+      num(row.days_75) -
+      num(row.days_90)
+    ),
 
-    days_90:
-      Math.max(
-        0,
-        num(row.days_75) -
-        num(row.days_90)
-      ),
+    days_120: Math.max(
+      0,
+      num(row.days_90) -
+      num(row.days_120)
+    ),
 
-    days_120:
-      Math.max(
-        0,
-        num(row.days_90) -
-        num(row.days_120)
-      ),
+    days_150: Math.max(
+      0,
+      num(row.days_120) -
+      num(row.days_150)
+    ),
 
-    days_150:
-      Math.max(
-        0,
-        num(row.days_120) -
-        num(row.days_150)
-      ),
+    over150: Math.max(
+      0,
+      num(row.days_150)
+    ),
 
-    over150:
-      Math.max(
-        0,
-        num(row.days_150)
-      ),
-
-    pdc:
-      Math.max(
-        0,
-        num(row.pdc)
-      )
+    pdc: Math.max(
+      0,
+      num(row.pdc)
+    )
   };
 }
 
@@ -402,12 +346,8 @@ function bucket(row) {
    FILTER LOGIC
 ========================================================= */
 
-function rowMatchesSelections(
-  row,
-  ignoreKey = null
-) {
+function rowMatches(row, ignoreKey = null) {
   return filterMap.every(([key]) => {
-
     if (key === ignoreKey) {
       return true;
     }
@@ -426,44 +366,31 @@ function rowMatchesSelections(
   });
 }
 
-function filtered(sourceData = rows) {
-  return sourceData.filter(
-    row => rowMatchesSelections(row)
-  );
+function filtered(source = rows) {
+  return source.filter(row => rowMatches(row));
 }
 
-function availableValues(
-  key,
-  sourceData = rows
-) {
+function availableValues(key) {
   return [
     ...new Set(
-      sourceData
-        .filter(
-          row =>
-            rowMatchesSelections(
-              row,
-              key
-            )
+      rows
+        .filter(row =>
+          rowMatches(row, key)
         )
-        .map(
-          row =>
-            String(
-              row[key] ?? ''
-            ).trim()
+        .map(row =>
+          String(row[key] ?? '').trim()
         )
         .filter(Boolean)
     )
-  ].sort(
-    (a, b) =>
-      a.localeCompare(
-        b,
-        undefined,
-        {
-          numeric: true,
-          sensitivity: 'base'
-        }
-      )
+  ].sort((a, b) =>
+    a.localeCompare(
+      b,
+      undefined,
+      {
+        numeric: true,
+        sensitivity: 'base'
+      }
+    )
   );
 }
 
@@ -471,19 +398,17 @@ function pruneSelections() {
   let changed = true;
   let pass = 0;
 
-  while (changed && pass++ < 12) {
+  while (changed && pass < 12) {
     changed = false;
+    pass++;
 
     for (const [key] of filterMap) {
-
       const available =
-        new Set(
-          availableValues(key)
-        );
+        new Set(availableValues(key));
 
       for (
-        const value of
-        [...filterSelections[key]]
+        const value
+        of [...filterSelections[key]]
       ) {
         if (!available.has(value)) {
           filterSelections[key]
@@ -496,10 +421,7 @@ function pruneSelections() {
   }
 }
 
-function filterButtonText(
-  key,
-  label
-) {
+function filterTitle(key, label) {
   const selected =
     filterSelections[key];
 
@@ -514,89 +436,58 @@ function filterButtonText(
   return `${selected.size} selected`;
 }
 
-/* =========================================================
-   FILTER OPTIONS
-========================================================= */
-
 function renderFilterOptions(key) {
-
-  const component =
+  const box =
     document.querySelector(
       `.ms[data-key="${key}"]`
     );
 
-  if (!component) {
-    return;
-  }
+  if (!box) return;
 
   const definition =
-    filterMap.find(
-      item => item[0] === key
-    );
+    filterMap.find(x => x[0] === key);
 
-  if (!definition) {
-    return;
-  }
+  if (!definition) return;
 
-  const label =
-    definition[1];
-
-  const searchInput =
-    component.querySelector(
-      '.ms-search'
-    );
+  const label = definition[1];
 
   const search =
     String(
-      searchInput?.value || ''
+      box.querySelector('.ms-search')
+        ?.value || ''
     )
       .trim()
       .toLowerCase();
 
   const values =
     availableValues(key)
-      .filter(
-        value =>
-          value
-            .toLowerCase()
-            .includes(search)
+      .filter(v =>
+        v.toLowerCase()
+          .includes(search)
       );
 
   const options =
-    component.querySelector(
-      '.ms-options'
-    );
+    box.querySelector('.ms-options');
 
-  if (!options) {
-    return;
-  }
+  if (!options) return;
 
   options.innerHTML =
     values.length
-
-      ? values.map(
-          value => `
-            <label class="ms-option">
-
-              <input
-                type="checkbox"
-                value="${esc(value)}"
-                ${
-                  filterSelections[key]
-                    .has(value)
-                    ? 'checked'
-                    : ''
-                }
-              >
-
-              <span>
-                ${esc(value)}
-              </span>
-
-            </label>
-          `
-        ).join('')
-
+      ? values.map(value => `
+          <label class="ms-option">
+            <input
+              type="checkbox"
+              value="${esc(value)}"
+              ${
+                filterSelections[key]
+                  .has(value)
+                  ? 'checked'
+                  : ''
+              }
+            >
+            <span>${esc(value)}</span>
+          </label>
+        `).join('')
       : `
           <div class="ms-empty">
             No matching options
@@ -604,280 +495,189 @@ function renderFilterOptions(key) {
         `;
 
   const trigger =
-    component.querySelector(
-      '.ms-trigger'
-    );
+    box.querySelector('.ms-trigger');
 
   if (trigger) {
     trigger.textContent =
-      filterButtonText(
-        key,
-        label
-      );
+      filterTitle(key, label);
   }
 
   options
     .querySelectorAll(
       'input[type="checkbox"]'
     )
-    .forEach(
-      checkbox => {
+    .forEach(input => {
+      input.onchange = () => {
+        if (input.checked) {
+          filterSelections[key]
+            .add(input.value);
+        } else {
+          filterSelections[key]
+            .delete(input.value);
+        }
 
-        checkbox.onchange =
-          () => {
-
-            if (checkbox.checked) {
-              filterSelections[key]
-                .add(
-                  checkbox.value
-                );
-            } else {
-              filterSelections[key]
-                .delete(
-                  checkbox.value
-                );
-            }
-
-            filtersChanged();
-          };
-      }
-    );
+        filtersChanged();
+      };
+    });
 }
 
-function refreshAllFilters() {
-  filterMap.forEach(
-    ([key]) =>
-      renderFilterOptions(key)
-  );
+function refreshFilters() {
+  filterMap.forEach(([key]) => {
+    renderFilterOptions(key);
+  });
 }
 
 function filtersChanged() {
   pruneSelections();
-
   detailPage = 1;
-
-  refreshAllFilters();
-
+  refreshFilters();
   render();
 }
 
-/* =========================================================
-   CREATE FILTERS
-========================================================= */
-
 function makeFilters() {
+  const container = $('#filters');
 
-  const container =
-    $('#filters');
-
-  if (!container) {
-    return;
-  }
+  if (!container) return;
 
   container.innerHTML =
-    filterMap.map(
-      ([key, label]) => `
+    filterMap.map(([key, label]) => `
+      <div class="field">
+        <label>${esc(label)}</label>
 
-        <div class="field">
-
-          <label>
-            ${esc(label)}
-          </label>
-
-          <div
-            class="ms"
-            data-key="${key}"
+        <div
+          class="ms"
+          data-key="${key}"
+        >
+          <button
+            type="button"
+            class="ms-trigger"
           >
+            ${esc(
+              filterTitle(key, label)
+            )}
+          </button>
 
-            <button
-              type="button"
-              class="ms-trigger"
-            >
-              ${esc(
-                filterButtonText(
-                  key,
-                  label
-                )
-              )}
-            </button>
-
-            <div class="ms-menu">
-
-              <div class="ms-search-wrap">
-
-                <input
-                  class="ms-search"
-                  type="search"
-                  placeholder="Search ${esc(label)}..."
-                >
-
-              </div>
-
-              <div class="ms-actions">
-
-                <button
-                  type="button"
-                  data-act="all"
-                >
-                  Select visible
-                </button>
-
-                <button
-                  type="button"
-                  data-act="clear"
-                >
-                  Clear
-                </button>
-
-              </div>
-
-              <div class="ms-options">
-              </div>
-
+          <div class="ms-menu">
+            <div class="ms-search-wrap">
+              <input
+                class="ms-search"
+                type="search"
+                placeholder="Search ${esc(label)}..."
+              >
             </div>
 
-          </div>
+            <div class="ms-actions">
+              <button
+                type="button"
+                data-act="all"
+              >
+                Select visible
+              </button>
 
+              <button
+                type="button"
+                data-act="clear"
+              >
+                Clear
+              </button>
+            </div>
+
+            <div class="ms-options"></div>
+          </div>
         </div>
-      `
-    ).join('');
+      </div>
+    `).join('');
 
   container
     .querySelectorAll('.ms')
-    .forEach(
-      component => {
+    .forEach(box => {
+      const key = box.dataset.key;
 
-        const key =
-          component.dataset.key;
+      const trigger =
+        box.querySelector('.ms-trigger');
 
-        const trigger =
-          component.querySelector(
-            '.ms-trigger'
-          );
+      const menu =
+        box.querySelector('.ms-menu');
 
-        const menu =
-          component.querySelector(
-            '.ms-menu'
-          );
+      const search =
+        box.querySelector('.ms-search');
 
-        const search =
-          component.querySelector(
-            '.ms-search'
-          );
+      const all =
+        box.querySelector(
+          '[data-act="all"]'
+        );
 
-        const selectVisible =
-          component.querySelector(
-            '[data-act="all"]'
-          );
+      const clear =
+        box.querySelector(
+          '[data-act="clear"]'
+        );
 
-        const clear =
-          component.querySelector(
-            '[data-act="clear"]'
-          );
+      trigger.onclick = event => {
+        event.stopPropagation();
 
-        trigger.onclick =
-          event => {
-
-            event.stopPropagation();
-
-            document
-              .querySelectorAll(
-                '.ms.open'
-              )
-              .forEach(
-                openComponent => {
-
-                  if (
-                    openComponent !==
-                    component
-                  ) {
-                    openComponent
-                      .classList
-                      .remove('open');
-                  }
-                }
-              );
-
-            component
-              .classList
-              .toggle('open');
-
-            renderFilterOptions(key);
-
-            if (
-              component
-                .classList
-                .contains('open')
-            ) {
-              setTimeout(
-                () =>
-                  search?.focus(),
-                20
-              );
+        document
+          .querySelectorAll('.ms.open')
+          .forEach(other => {
+            if (other !== box) {
+              other.classList
+                .remove('open');
             }
-          };
+          });
 
-        menu.onclick =
-          event =>
-            event.stopPropagation();
+        box.classList.toggle('open');
 
-        search.oninput =
-          () =>
-            renderFilterOptions(key);
+        renderFilterOptions(key);
 
-        clear.onclick =
-          () => {
+        if (
+          box.classList.contains('open')
+        ) {
+          setTimeout(
+            () => search?.focus(),
+            20
+          );
+        }
+      };
 
-            filterSelections[key]
-              .clear();
+      menu.onclick =
+        event => event.stopPropagation();
 
-            search.value = '';
+      search.oninput =
+        () => renderFilterOptions(key);
 
-            filtersChanged();
-          };
+      clear.onclick = () => {
+        filterSelections[key].clear();
+        search.value = '';
+        filtersChanged();
+      };
 
-        selectVisible.onclick =
-          () => {
+      all.onclick = () => {
+        const q =
+          String(search.value || '')
+            .trim()
+            .toLowerCase();
 
-            const query =
-              String(
-                search.value || ''
-              )
-                .trim()
-                .toLowerCase();
+        availableValues(key)
+          .filter(v =>
+            v.toLowerCase().includes(q)
+          )
+          .forEach(v =>
+            filterSelections[key].add(v)
+          );
 
-            availableValues(key)
-              .filter(
-                value =>
-                  value
-                    .toLowerCase()
-                    .includes(query)
-              )
-              .forEach(
-                value =>
-                  filterSelections[key]
-                    .add(value)
-              );
+        filtersChanged();
+      };
+    });
 
-            filtersChanged();
-          };
-      }
-    );
-
-  refreshAllFilters();
+  refreshFilters();
 }
 
 document.addEventListener(
   'click',
   () => {
-
     document
       .querySelectorAll('.ms.open')
-      .forEach(
-        component =>
-          component
-            .classList
-            .remove('open')
+      .forEach(box =>
+        box.classList.remove('open')
       );
   }
 );
@@ -895,57 +695,44 @@ function sum(data, key) {
 }
 
 function metrics(data) {
+  const bs = {};
 
-  const bucketSums = {};
-
-  bucketDefs.forEach(
-    ([, key]) => {
-
-      bucketSums[key] =
-        data.reduce(
-          (total, row) =>
-            total +
-            bucket(row)[key],
-          0
-        );
-    }
-  );
+  bucketDefs.forEach(([, key]) => {
+    bs[key] =
+      data.reduce(
+        (total, row) =>
+          total + bucket(row)[key],
+        0
+      );
+  });
 
   return {
-
-    total:
-      sum(data, 'balance'),
+    total: sum(data, 'balance'),
 
     customers:
       new Set(
         data
-          .map(
-            row =>
-              String(
-                row.party ?? ''
-              ).trim()
+          .map(row =>
+            String(row.party ?? '')
+              .trim()
           )
           .filter(Boolean)
       ).size,
 
-    pdc:
-      sum(data, 'pdc'),
+    pdc: sum(data, 'pdc'),
 
-    over90:
-      sum(data, 'days_90'),
+    /* Source 90/150 columns are cumulative */
+    over90: sum(data, 'days_90'),
 
     over150:
       sum(data, 'days_150'),
 
-    bs:
-      bucketSums
+    bs
   };
 }
 
-
-
- /* =========================================================
-   CHART
+/* =========================================================
+   CHARTS
 ========================================================= */
 
 function draw(
@@ -955,23 +742,16 @@ function draw(
   datasets,
   options = {}
 ) {
-
   if (charts[selector]) {
     charts[selector].destroy();
   }
 
   const canvas = $(selector);
 
-  if (
-    !canvas ||
-    typeof Chart === 'undefined'
-  ) {
-    return;
-  }
+  if (!canvas) return;
 
   charts[selector] =
     new Chart(canvas, {
-
       type,
 
       data: {
@@ -980,7 +760,6 @@ function draw(
       },
 
       options: {
-
         responsive: true,
         maintainAspectRatio: false,
 
@@ -990,7 +769,6 @@ function draw(
         },
 
         plugins: {
-
           legend: {
             display:
               type === 'doughnut' ||
@@ -998,33 +776,26 @@ function draw(
           },
 
           tooltip: {
-
             callbacks: {
-
               label(context) {
-
                 const prefix =
                   context.dataset.label
-                    ? context.dataset.label + ': '
+                    ? context.dataset.label +
+                      ': '
                     : '';
 
                 if (options.countChart) {
-
                   return (
                     prefix +
                     Number(
                       context.raw || 0
-                    ).toLocaleString(
-                      'en-IN'
-                    )
+                    ).toLocaleString('en-IN')
                   );
                 }
 
                 return (
                   prefix +
-                  money(
-                    context.raw || 0
-                  )
+                  money(context.raw || 0)
                 );
               }
             }
@@ -1035,26 +806,21 @@ function draw(
           type === 'doughnut'
             ? {}
             : {
-
                 y: {
-
                   beginAtZero: true,
 
-                  grid: {
-                    color: '#eef1f7'
-                  },
-
                   ticks: {
+                    precision:
+                      options.countChart
+                        ? 0
+                        : undefined,
 
                     callback(value) {
-
-                      const n =
-                        Number(value);
+                      const n = Number(value);
 
                       if (
                         options.countChart
                       ) {
-
                         return n.toLocaleString(
                           'en-IN'
                         );
@@ -1064,7 +830,6 @@ function draw(
                         Math.abs(n) >=
                         10000000
                       ) {
-
                         return (
                           n / 10000000
                         ).toFixed(1) + ' Cr';
@@ -1074,17 +839,14 @@ function draw(
                         Math.abs(n) >=
                         100000
                       ) {
-
                         return (
                           n / 100000
                         ).toFixed(1) + ' L';
                       }
 
                       if (
-                        Math.abs(n) >=
-                        1000
+                        Math.abs(n) >= 1000
                       ) {
-
                         return (
                           n / 1000
                         ).toFixed(0) + ' K';
@@ -1106,81 +868,50 @@ function draw(
 }
 
 /* =========================================================
-   SIMPLE TABLE
+   TABLE HELPER
 ========================================================= */
 
-function simpleTable(
-  items,
-  columns
-) {
-
+function simpleTable(items, columns) {
   return `
     <table>
-
       <thead>
         <tr>
-
-          ${
-            columns.map(
-              column => `
-                <th class="${
-                  column.num
-                    ? 'num'
-                    : ''
-                }">
-                  ${esc(column.label)}
-                </th>
-              `
-            ).join('')
-          }
-
+          ${columns.map(c => `
+            <th class="${
+              c.num ? 'num' : ''
+            }">
+              ${esc(c.label)}
+            </th>
+          `).join('')}
         </tr>
       </thead>
 
       <tbody>
-
         ${
           items.length
-
             ? items.map(
                 (row, index) => `
-
                   <tr>
-
-                    ${
-                      columns.map(
-                        column => `
-
-                          <td class="${
-                            column.num
-                              ? 'num'
-                              : ''
-                          }">
-
-                            ${
-                              column.render
-
-                                ? column.render(
-                                    row,
-                                    index
-                                  )
-
-                                : esc(
-                                    row[
-                                      column.key
-                                    ] ?? ''
-                                  )
-                            }
-
-                          </td>
-                        `
-                      ).join('')
-                    }
-
+                    ${columns.map(c => `
+                      <td class="${
+                        c.num ? 'num' : ''
+                      }">
+                        ${
+                          c.render
+                            ? c.render(
+                                row,
+                                index
+                              )
+                            : esc(
+                                row[c.key] ??
+                                ''
+                              )
+                        }
+                      </td>
+                    `).join('')}
                   </tr>
                 `
               ).join('')
-
             : `
                 <tr>
                   <td
@@ -1192,44 +923,33 @@ function simpleTable(
                 </tr>
               `
         }
-
       </tbody>
-
     </table>
   `;
 }
 
 /* =========================================================
-   SORTING
+   SORT HELPERS
 ========================================================= */
 
-const numericFields =
-  new Set([
-    'balance',
-    'days_15',
-    'days_30',
-    'days_45',
-    'days_60',
-    'days_75',
-    'days_90',
-    'days_120',
-    'days_150',
-    'pdc',
-    'total_customers',
-    'total_outstanding',
-    'total_pdc'
-  ]);
+const numericFields = new Set([
+  'balance',
+  'days_15',
+  'days_30',
+  'days_45',
+  'days_60',
+  'days_75',
+  'days_90',
+  'days_120',
+  'days_150',
+  'pdc',
+  'total_customers',
+  'total_outstanding',
+  'total_pdc'
+]);
 
-function compareValues(
-  a,
-  b,
-  key
-) {
-
-  if (
-    numericFields.has(key)
-  ) {
-
+function compareValues(a, b, key) {
+  if (numericFields.has(key)) {
     return (
       num(a?.[key]) -
       num(b?.[key])
@@ -1239,9 +959,7 @@ function compareValues(
   return String(
     a?.[key] ?? ''
   ).localeCompare(
-    String(
-      b?.[key] ?? ''
-    ),
+    String(b?.[key] ?? ''),
     undefined,
     {
       numeric: true,
@@ -1250,14 +968,8 @@ function compareValues(
   );
 }
 
-function sortArrow(
-  sort,
-  key
-) {
-
-  if (
-    sort.key !== key
-  ) {
+function sortArrow(sort, key) {
+  if (sort.key !== key) {
     return '';
   }
 
@@ -1271,18 +983,14 @@ function sortArrow(
 ========================================================= */
 
 function renderDetails(data) {
-
   const container =
     $('#customerDetails');
 
-  if (!container) {
-    return;
-  }
+  if (!container) return;
 
   const search =
     String(
-      $('#detailSearch')?.value ||
-      ''
+      $('#detailSearch')?.value || ''
     )
       .trim()
       .toLowerCase();
@@ -1290,47 +998,36 @@ function renderDetails(data) {
   let list = [...data];
 
   if (search) {
-
-    list =
-      list.filter(
-        row => [
-
-          row.party,
-          row.sm,
-          row.grp_name,
-          row.division,
-          row.area,
-          row.order_type,
-          row.city,
-          row.pincode
-
-        ].some(
-          value =>
-            String(
-              value ?? ''
-            )
-              .toLowerCase()
-              .includes(search)
-        )
-      );
+    list = list.filter(row =>
+      [
+        row.party,
+        row.sm,
+        row.grp_name,
+        row.division,
+        row.area,
+        row.order_type,
+        row.city,
+        row.pincode
+      ].some(v =>
+        String(v ?? '')
+          .toLowerCase()
+          .includes(search)
+      )
+    );
   }
 
-  list.sort(
-    (a, b) => {
+  list.sort((a, b) => {
+    const result =
+      compareValues(
+        a,
+        b,
+        detailSort.key
+      );
 
-      const result =
-        compareValues(
-          a,
-          b,
-          detailSort.key
-        );
-
-      return detailSort.dir ===
-        'asc'
-          ? result
-          : -result;
-    }
-  );
+    return detailSort.dir === 'asc'
+      ? result
+      : -result;
+  });
 
   const totalPages =
     Math.max(
@@ -1343,720 +1040,430 @@ function renderDetails(data) {
 
   detailPage =
     Math.min(
-      Math.max(
-        1,
-        detailPage
-      ),
+      Math.max(detailPage, 1),
       totalPages
     );
 
   const start =
-    (
-      detailPage - 1
-    ) *
+    (detailPage - 1) *
     DETAIL_PAGE_SIZE;
 
   const pageRows =
     list.slice(
       start,
-      start +
-      DETAIL_PAGE_SIZE
+      start + DETAIL_PAGE_SIZE
     );
 
   const columns = [
-
     ['party', 'Party', false],
-
     ['balance', 'Balance', true],
-
     ['days_15', '>15', true],
-
     ['days_30', '>30', true],
-
     ['days_45', '>45', true],
-
     ['days_60', '>60', true],
-
     ['days_75', '>75', true],
-
     ['days_90', '>90', true],
-
     ['days_120', '>120', true],
-
     ['days_150', '>150', true],
-
     ['pdc', 'PDC', true],
-
     ['sm', 'SM', false],
-
     ['grp_name', 'GrpName', false],
-
     ['division', 'Division', false],
-
     ['area', 'Area', false],
-
     [
       'order_type',
       'OD / Order',
       false
     ],
-
     ['city', 'City', false],
-
     ['pincode', 'Pincode', false]
   ];
 
   container.innerHTML = `
-
     <table>
-
       <thead>
-
         <tr>
-
-          ${
-            columns.map(
-              (
-                [
-                  key,
-                  label,
-                  numeric
-                ]
-              ) => `
-
-                <th
-                  class="sortable ${
-                    numeric
-                      ? 'num'
-                      : ''
-                  }"
-                  data-detail-sort="${key}"
-                >
-
-                  ${esc(label)}
-
-                  ${
-                    sortArrow(
-                      detailSort,
-                      key
-                    )
-                  }
-
-                </th>
-              `
-            ).join('')
-          }
-
+          ${columns.map(
+            ([key, label, numeric]) => `
+              <th
+                class="sortable ${
+                  numeric ? 'num' : ''
+                }"
+                data-detail-sort="${key}"
+              >
+                ${esc(label)}
+                ${sortArrow(
+                  detailSort,
+                  key
+                )}
+              </th>
+            `
+          ).join('')}
         </tr>
-
       </thead>
 
       <tbody>
-
         ${
           pageRows.length
-
-            ? pageRows.map(
-                row => `
-
-                  <tr>
-
-                    ${
-                      columns.map(
-                        (
-                          [
-                            key,
-                            ,
-                            numeric
-                          ]
-                        ) => `
-
-                          <td class="${
-                            numeric
-                              ? 'num'
-                              : ''
-                          }">
-
-                            ${
-                              numeric
-
-                                ? money(
-                                    row[key]
-                                  )
-
-                                : esc(
-                                    row[key] ??
-                                    ''
-                                  )
-                            }
-
-                          </td>
-                        `
-                      ).join('')
-                    }
-
-                  </tr>
-                `
-              ).join('')
-
-            : `
-
+            ? pageRows.map(row => `
                 <tr>
-
+                  ${columns.map(
+                    ([key, , numeric]) => `
+                      <td class="${
+                        numeric ? 'num' : ''
+                      }">
+                        ${
+                          numeric
+                            ? money(row[key])
+                            : esc(
+                                row[key] ??
+                                ''
+                              )
+                        }
+                      </td>
+                    `
+                  ).join('')}
+                </tr>
+              `).join('')
+            : `
+                <tr>
                   <td
                     colspan="${columns.length}"
                     class="muted"
                   >
                     No matching data
                   </td>
-
                 </tr>
               `
         }
-
       </tbody>
-
     </table>
   `;
 
   if ($('#detailCount')) {
-
-    $('#detailCount')
-      .textContent =
-        `${list.length.toLocaleString(
-          'en-IN'
-        )} rows`;
+    $('#detailCount').textContent =
+      `${list.length.toLocaleString(
+        'en-IN'
+      )} rows`;
   }
 
   if ($('#pageInfo')) {
-
-    $('#pageInfo')
-      .textContent =
-        `Page ${detailPage} of ${totalPages}`;
+    $('#pageInfo').textContent =
+      `Page ${detailPage} of ${totalPages}`;
   }
 
   if ($('#prevPage')) {
-
     $('#prevPage').disabled =
       detailPage <= 1;
   }
 
   if ($('#nextPage')) {
-
     $('#nextPage').disabled =
-      detailPage >=
-      totalPages;
+      detailPage >= totalPages;
   }
 
   container
     .querySelectorAll(
       '[data-detail-sort]'
     )
-    .forEach(
-      heading => {
+    .forEach(th => {
+      th.onclick = () => {
+        const key =
+          th.dataset.detailSort;
 
-        heading.onclick =
-          () => {
-
-            const key =
-              heading.dataset
-                .detailSort;
-
-            if (
-              detailSort.key ===
-              key
-            ) {
-
-              detailSort.dir =
-                detailSort.dir ===
-                'asc'
-                  ? 'desc'
-                  : 'asc';
-
-            } else {
-
-              detailSort = {
-                key,
-                dir: 'asc'
-              };
-            }
-
-            detailPage = 1;
-
-            renderDetails(
-              filtered()
-            );
+        if (detailSort.key === key) {
+          detailSort.dir =
+            detailSort.dir === 'asc'
+              ? 'desc'
+              : 'asc';
+        } else {
+          detailSort = {
+            key,
+            dir: 'asc'
           };
-      }
-    );
+        }
+
+        detailPage = 1;
+
+        renderDetails(filtered());
+      };
+    });
 }
 
 /* =========================================================
-   MAIN DASHBOARD RENDER
+   MAIN RENDER
 ========================================================= */
 
 function render() {
+  const data = filtered();
+  const m = metrics(data);
 
-  const data =
-    filtered();
+  /* KPI */
 
-  const currentMetrics =
-    metrics(data);
-
-  /* ---------------- KPI ---------------- */
-
-  const kpis =
-    $('#kpis');
-
-  if (kpis) {
-
+  if ($('#kpis')) {
     const cards = [
-
       [
         'Total Outstanding',
-        money(
-          currentMetrics.total
-        )
+        money(m.total)
       ],
-
       [
         'Total Customers',
-        currentMetrics
-          .customers
-          .toLocaleString(
-            'en-IN'
-          )
+        m.customers.toLocaleString(
+          'en-IN'
+        )
       ],
-
       [
         'PDC Amount',
-        money(
-          currentMetrics.pdc
-        )
+        money(m.pdc)
       ],
-
       [
         'Over 90 Days',
-        money(
-          currentMetrics.over90
-        )
+        money(m.over90)
       ],
-
       [
         'Over 150 Days',
-        money(
-          currentMetrics.over150
-        )
+        money(m.over150)
       ]
     ];
 
-    kpis.innerHTML =
-      cards.map(
-        (
-          [
-            label,
-            value
-          ]
-        ) => `
-
-          <article class="kpi">
-
-            <span>
-              ${esc(label)}
-            </span>
-
-            <strong>
-              ${esc(value)}
-            </strong>
-
-            <small>
-              Current snapshot
-            </small>
-
-          </article>
-        `
-      ).join('');
+    $('#kpis').innerHTML =
+      cards.map(([label, value]) => `
+        <article class="kpi">
+          <span>${esc(label)}</span>
+          <strong>${esc(value)}</strong>
+          <small>Current snapshot</small>
+        </article>
+      `).join('');
   }
 
-  /* ---------------- AGEING ANALYSIS ---------------- */
+  /* AGEING AMOUNT */
 
-  const labels =
-    bucketDefs.map(
-      item => item[0]
-    );
+  const ageingLabels =
+    bucketDefs.map(x => x[0]);
 
-  const values =
+  const ageingValues =
     bucketDefs.map(
-      item =>
-        currentMetrics.bs[
-          item[1]
-        ]
+      x => m.bs[x[1]]
     );
 
   draw(
     '#ageChart',
     'bar',
-    labels,
-    [
-      {
-        label: 'Amount',
-        data: values,
-        borderRadius: 6
-      }
-    ]
+    ageingLabels,
+    [{
+      label: 'Amount',
+      data: ageingValues,
+      borderRadius: 6
+    }]
   );
 
-  /* ---------------- OUTSTANDING BREAKUP ---------------- */
+  /* DONUT */
 
   draw(
     '#donutChart',
     'doughnut',
-    labels,
-    [
-      {
-        label: 'Amount',
-        data: values,
-        borderWidth: 0
-      }
-    ],
+    ageingLabels,
+    [{
+      label: 'Amount',
+      data: ageingValues,
+      borderWidth: 0
+    }],
     {
       legend: true
     }
   );
 
   /* =====================================================
-     AGEING WISE CUSTOMER COUNT (> ₹1,000)
+     AGEING WISE UNIQUE CUSTOMER COUNT
 
-     IMPORTANT:
-     Each bar counts UNIQUE customers where that exact
-     ageing bucket amount is greater than ₹1,000.
-     PDC is not included in this chart.
+     Only customer whose EXACT ageing bucket
+     amount is MORE THAN ₹1,000 is counted.
   ===================================================== */
 
-  const ageingCustomerBuckets = [
-
-    ['0-15', 'days_15'],
-
-    ['16-30', 'days_30'],
-
-    ['31-45', 'days_45'],
-
-    ['46-60', 'days_60'],
-
-    ['61-75', 'days_75'],
-
-    ['76-90', 'days_90'],
-
-    ['91-120', 'days_120'],
-
-    ['121-150', 'days_150'],
-
-    ['>150', 'over150']
-  ];
-
   const ageingCustomerCounts =
-    ageingCustomerBuckets.map(
-      ([label, key]) => {
+    customerBucketDefs.map(
+      ([, key]) => {
+        const parties = new Set();
 
-        const customers =
-          new Set();
+        data.forEach(row => {
+          const amount =
+            bucket(row)[key];
 
-        data.forEach(
-          row => {
+          if (amount > 1000) {
+            const party =
+              String(
+                row.party ?? ''
+              ).trim();
 
-            const ageingAmount =
-              bucket(row)[key];
-
-            if (
-              ageingAmount > 1000
-            ) {
-
-              const party =
-                String(
-                  row.party ?? ''
-                ).trim();
-
-              if (party) {
-                customers.add(
-                  party
-                );
-              }
+            if (party) {
+              parties.add(party);
             }
           }
-        );
+        });
 
-        return customers.size;
+        return parties.size;
       }
     );
 
   draw(
     '#rangeChart',
     'bar',
-
-    ageingCustomerBuckets.map(
-      item => item[0]
+    customerBucketDefs.map(
+      x => x[0]
     ),
-
-    [
-      {
-        label:
-          'Customers > ₹1,000',
-
-        data:
-          ageingCustomerCounts,
-
-        borderRadius: 6
-      }
-    ],
-
+    [{
+      label: 'Customers > ₹1,000',
+      data: ageingCustomerCounts,
+      borderRadius: 6
+    }],
     {
       countChart: true
     }
   );
 
-  /* ---------------- TOP 5 CUSTOMERS ---------------- */
+  /* TOP 5 OUTSTANDING */
 
-  const topCustomers =
+  const top =
     [...data]
       .sort(
         (a, b) =>
           num(b.balance) -
           num(a.balance)
       )
-      .slice(
-        0,
-        5
-      );
+      .slice(0, 5);
 
   if ($('#topCustomers')) {
-
-    $('#topCustomers')
-      .innerHTML =
-        simpleTable(
-          topCustomers,
-          [
-
-            {
-              label: '#',
-
-              render:
-                (
-                  row,
-                  index
-                ) =>
-                  index + 1
-            },
-
-            {
-              label:
-                'Party Name',
-
-              key:
-                'party'
-            },
-
-            {
-              label:
-                'Balance',
-
-              num:
-                true,
-
-              render:
-                row =>
-                  money(
-                    row.balance
-                  )
-            }
-          ]
-        );
+    $('#topCustomers').innerHTML =
+      simpleTable(top, [
+        {
+          label: '#',
+          render:
+            (row, i) => i + 1
+        },
+        {
+          label: 'Party Name',
+          key: 'party'
+        },
+        {
+          label: 'Balance',
+          num: true,
+          render:
+            row => money(row.balance)
+        }
+      ]);
   }
 
-  /* ---------------- TOP 5 >150 ---------------- */
+  /* TOP 5 >150 */
 
   const overdue =
     [...data]
       .filter(
         row =>
-          num(
-            row.days_150
-          ) > 0
+          num(row.days_150) > 0
       )
       .sort(
         (a, b) =>
-          num(
-            b.days_150
-          ) -
-          num(
-            a.days_150
-          )
+          num(b.days_150) -
+          num(a.days_150)
       )
-      .slice(
-        0,
-        5
-      );
+      .slice(0, 5);
 
   if ($('#overdueCustomers')) {
-
     $('#overdueCustomers')
       .innerHTML =
-        simpleTable(
-          overdue,
-          [
-
-            {
-              label: '#',
-
-              render:
-                (
-                  row,
-                  index
-                ) =>
-                  index + 1
-            },
-
-            {
-              label:
-                'Party Name',
-
-              key:
-                'party'
-            },
-
-            {
-              label:
-                '>150 Days',
-
-              num:
-                true,
-
-              render:
-                row =>
-                  money(
-                    row.days_150
-                  )
-            },
-
-            {
-              label:
-                'Balance',
-
-              num:
-                true,
-
-              render:
-                row =>
-                  money(
-                    row.balance
-                  )
-            }
-          ]
-        );
+        simpleTable(overdue, [
+          {
+            label: '#',
+            render:
+              (row, i) => i + 1
+          },
+          {
+            label: 'Party Name',
+            key: 'party'
+          },
+          {
+            label: '>150 Days',
+            num: true,
+            render:
+              row =>
+                money(row.days_150)
+          },
+          {
+            label: 'Balance',
+            num: true,
+            render:
+              row =>
+                money(row.balance)
+          }
+        ]);
   }
 
   renderDetails(data);
 
-  renderCompare(
-    currentMetrics
-  );
+  renderCompare(m).catch(error => {
+    console.error(error);
+  });
 }
 
 /* =========================================================
-   COMPARISON SNAPSHOT SELECTOR
+   COMPARISON SELECTOR
 ========================================================= */
 
 function populateCompareSelector() {
-
   const select =
     $('#compareSnapshotSelect');
 
-  if (!select) {
-    return;
-  }
+  if (!select) return;
 
-  const previousValue =
-    select.value;
+  const oldValue = select.value;
 
   const available =
     uploads.filter(
-      upload =>
-        !activeUpload ||
-        upload.id !==
-          activeUpload.id
+      u =>
+        u.id !== activeUpload?.id
     );
 
   select.innerHTML = `
-
     <option value="">
       Select snapshot
     </option>
 
-    ${
-      available.map(
-        upload => `
-
-          <option
-            value="${esc(upload.id)}"
-          >
-            ${esc(
-              upload.outstanding_date
-            )}
-          </option>
-        `
-      ).join('')
-    }
+    ${available.map(u => `
+      <option value="${esc(u.id)}">
+        ${esc(u.outstanding_date)}
+      </option>
+    `).join('')}
   `;
 
   if (
-    previousValue &&
+    oldValue &&
     available.some(
-      upload =>
-        upload.id ===
-        previousValue
+      u => u.id === oldValue
     )
   ) {
-
-    select.value =
-      previousValue;
-
+    select.value = oldValue;
     return;
   }
 
   const currentIndex =
     uploads.findIndex(
-      upload =>
-        upload.id ===
-        activeUpload?.id
+      u => u.id === activeUpload?.id
     );
 
   const previous =
     currentIndex >= 0
-      ? uploads[
-          currentIndex + 1
-        ]
+      ? uploads[currentIndex + 1]
       : null;
 
   if (previous) {
-
-    select.value =
-      previous.id;
+    select.value = previous.id;
   }
 }
 
-/* =========================================================
-   COMPARISON ROW CACHE
-========================================================= */
-
-async function getComparisonRows(
-  uploadId
-) {
-
+async function comparisonRows(uploadId) {
   if (
-    snapshotCache.has(
-      uploadId
-    )
+    snapshotCache.has(uploadId)
   ) {
-
     return snapshotCache.get(
       uploadId
     );
@@ -2080,37 +1487,24 @@ async function getComparisonRows(
    COMPARISON
 ========================================================= */
 
-async function renderCompare(
-  currentMetrics
-) {
-
+async function renderCompare(current) {
   const select =
     $('#compareSnapshotSelect');
 
-  if (
-    !activeUpload ||
-    !select
-  ) {
+  if (!select || !activeUpload) {
     return;
   }
 
-  const compareId =
-    select.value;
+  const compareId = select.value;
 
   const requestId =
     ++comparisonRequestId;
 
   if (!compareId) {
-
     if ($('#summaryCompare')) {
-
       $('#summaryCompare')
-        .innerHTML = `
-
-          <span class="muted">
-            Select a snapshot in Compare With.
-          </span>
-        `;
+        .innerHTML =
+          '<span class="muted">Select a snapshot in Compare With.</span>';
     }
 
     draw(
@@ -2125,1014 +1519,62 @@ async function renderCompare(
 
   const compareUpload =
     uploads.find(
-      upload =>
-        upload.id ===
-        compareId
+      u => u.id === compareId
     );
 
-  if (!compareUpload) {
-    return;
-  }
+  if (!compareUpload) return;
 
-  try {
-
-    const compareRows =
-      await getComparisonRows(
-        compareId
-      );
-
-    if (
-      requestId !==
-      comparisonRequestId
-    ) {
-      return;
-    }
-
-    /*
-      Same selected filters are applied
-      to current and comparison snapshots.
-    */
-
-    const compareMetrics =
-      metrics(
-        filtered(
-          compareRows
-        )
-      );
-
-    const compareLabels =
-      bucketDefs.map(
-        item => item[0]
-      );
-
-    draw(
-      '#compareChart',
-      'bar',
-      compareLabels,
-      [
-
-        {
-          label:
-            compareUpload
-              .outstanding_date,
-
-          data:
-            bucketDefs.map(
-              item =>
-                compareMetrics.bs[
-                  item[1]
-                ]
-            )
-        },
-
-        {
-          label:
-            activeUpload
-              .outstanding_date,
-
-          data:
-            bucketDefs.map(
-              item =>
-                currentMetrics.bs[
-                  item[1]
-                ]
-            )
-        }
-      ],
-      {
-        legend: true
-      }
+  const previousRows =
+    await comparisonRows(
+      compareId
     );
-
-    const comparisonTable = [
-
-      {
-        metric:
-          'Total Outstanding',
-
-        previous:
-          compareMetrics.total,
-
-        current:
-          currentMetrics.total
-      },
-
-      {
-        metric:
-          'Total Customers',
-
-        previous:
-          compareMetrics.customers,
-
-        current:
-          currentMetrics.customers,
-
-        count:
-          true
-      },
-
-      {
-        metric:
-          'PDC Amount',
-
-        previous:
-          compareMetrics.pdc,
-
-        current:
-          currentMetrics.pdc
-      },
-
-      {
-        metric:
-          'Over 90 Days',
-
-        previous:
-          compareMetrics.over90,
-
-        current:
-          currentMetrics.over90
-      },
-
-      {
-        metric:
-          'Over 150 Days',
-
-        previous:
-          compareMetrics.over150,
-
-        current:
-          currentMetrics.over150
-      }
-    ];
-
-    if ($('#summaryCompare')) {
-
-      $('#summaryCompare')
-        .innerHTML =
-          simpleTable(
-            comparisonTable,
-            [
-
-              {
-                label:
-                  'Metric',
-
-                key:
-                  'metric'
-              },
-
-              {
-                label:
-                  compareUpload
-                    .outstanding_date,
-
-                num:
-                  true,
-
-                render:
-                  row =>
-                    row.count
-
-                      ? Number(
-                          row.previous
-                        ).toLocaleString(
-                          'en-IN'
-                        )
-
-                      : money(
-                          row.previous
-                        )
-              },
-
-              {
-                label:
-                  activeUpload
-                    .outstanding_date,
-
-                num:
-                  true,
-
-                render:
-                  row =>
-                    row.count
-
-                      ? Number(
-                          row.current
-                        ).toLocaleString(
-                          'en-IN'
-                        )
-
-                      : money(
-                          row.current
-                        )
-              }
-            ]
-          );
-    }
-
-  } catch (error) {
-
-    console.error(
-      'Comparison error:',
-      error
-    );
-
-    if (
-      requestId !==
-      comparisonRequestId
-    ) {
-      return;
-    }
-
-    if ($('#summaryCompare')) {
-
-      $('#summaryCompare')
-        .innerHTML = `
-
-          <span class="muted">
-            Comparison unavailable:
-            ${esc(error.message)}
-          </span>
-        `;
-    }
-  }
-}
-
-
-
- /* =========================================================
-   CHART
-========================================================= */
-
-function draw(
-  selector,
-  type,
-  labels,
-  datasets,
-  options = {}
-) {
-
-  if (charts[selector]) {
-    charts[selector].destroy();
-  }
-
-  const canvas = $(selector);
 
   if (
-    !canvas ||
-    typeof Chart === 'undefined'
+    requestId !==
+    comparisonRequestId
   ) {
     return;
   }
 
-  charts[selector] =
-    new Chart(canvas, {
-
-      type,
-
-      data: {
-        labels,
-        datasets
-      },
-
-      options: {
-
-        responsive: true,
-        maintainAspectRatio: false,
-
-        interaction: {
-          mode: 'index',
-          intersect: false
-        },
-
-        plugins: {
-
-          legend: {
-            display:
-              type === 'doughnut' ||
-              !!options.legend
-          },
-
-          tooltip: {
-
-            callbacks: {
-
-              label(context) {
-
-                const prefix =
-                  context.dataset.label
-                    ? context.dataset.label + ': '
-                    : '';
-
-                if (options.countChart) {
-
-                  return (
-                    prefix +
-                    Number(
-                      context.raw || 0
-                    ).toLocaleString(
-                      'en-IN'
-                    )
-                  );
-                }
-
-                return (
-                  prefix +
-                  money(
-                    context.raw || 0
-                  )
-                );
-              }
-            }
-          }
-        },
-
-        scales:
-          type === 'doughnut'
-            ? {}
-            : {
-
-                y: {
-
-                  beginAtZero: true,
-
-                  grid: {
-                    color: '#eef1f7'
-                  },
-
-                  ticks: {
-
-                    callback(value) {
-
-                      const n =
-                        Number(value);
-
-                      if (
-                        options.countChart
-                      ) {
-
-                        return n.toLocaleString(
-                          'en-IN'
-                        );
-                      }
-
-                      if (
-                        Math.abs(n) >=
-                        10000000
-                      ) {
-
-                        return (
-                          n / 10000000
-                        ).toFixed(1) + ' Cr';
-                      }
-
-                      if (
-                        Math.abs(n) >=
-                        100000
-                      ) {
-
-                        return (
-                          n / 100000
-                        ).toFixed(1) + ' L';
-                      }
-
-                      if (
-                        Math.abs(n) >=
-                        1000
-                      ) {
-
-                        return (
-                          n / 1000
-                        ).toFixed(0) + ' K';
-                      }
-
-                      return n;
-                    }
-                  }
-                },
-
-                x: {
-                  grid: {
-                    display: false
-                  }
-                }
-              }
-      }
-    });
-}
-
-/* =========================================================
-   SIMPLE TABLE
-========================================================= */
-
-function simpleTable(
-  items,
-  columns
-) {
-
-  return `
-    <table>
-
-      <thead>
-        <tr>
-
-          ${
-            columns.map(
-              column => `
-                <th class="${
-                  column.num
-                    ? 'num'
-                    : ''
-                }">
-                  ${esc(column.label)}
-                </th>
-              `
-            ).join('')
-          }
-
-        </tr>
-      </thead>
-
-      <tbody>
-
-        ${
-          items.length
-
-            ? items.map(
-                (row, index) => `
-
-                  <tr>
-
-                    ${
-                      columns.map(
-                        column => `
-
-                          <td class="${
-                            column.num
-                              ? 'num'
-                              : ''
-                          }">
-
-                            ${
-                              column.render
-
-                                ? column.render(
-                                    row,
-                                    index
-                                  )
-
-                                : esc(
-                                    row[
-                                      column.key
-                                    ] ?? ''
-                                  )
-                            }
-
-                          </td>
-                        `
-                      ).join('')
-                    }
-
-                  </tr>
-                `
-              ).join('')
-
-            : `
-                <tr>
-                  <td
-                    colspan="${columns.length}"
-                    class="muted"
-                  >
-                    No data
-                  </td>
-                </tr>
-              `
-        }
-
-      </tbody>
-
-    </table>
-  `;
-}
-
-/* =========================================================
-   SORTING
-========================================================= */
-
-const numericFields =
-  new Set([
-    'balance',
-    'days_15',
-    'days_30',
-    'days_45',
-    'days_60',
-    'days_75',
-    'days_90',
-    'days_120',
-    'days_150',
-    'pdc',
-    'total_customers',
-    'total_outstanding',
-    'total_pdc'
-  ]);
-
-function compareValues(
-  a,
-  b,
-  key
-) {
-
-  if (
-    numericFields.has(key)
-  ) {
-
-    return (
-      num(a?.[key]) -
-      num(b?.[key])
-    );
-  }
-
-  return String(
-    a?.[key] ?? ''
-  ).localeCompare(
-    String(
-      b?.[key] ?? ''
-    ),
-    undefined,
-    {
-      numeric: true,
-      sensitivity: 'base'
-    }
-  );
-}
-
-function sortArrow(
-  sort,
-  key
-) {
-
-  if (
-    sort.key !== key
-  ) {
-    return '';
-  }
-
-  return sort.dir === 'asc'
-    ? ' ▲'
-    : ' ▼';
-}
-
-/* =========================================================
-   CUSTOMER DETAILS
-========================================================= */
-
-function renderDetails(data) {
-
-  const container =
-    $('#customerDetails');
-
-  if (!container) {
-    return;
-  }
-
-  const search =
-    String(
-      $('#detailSearch')?.value ||
-      ''
-    )
-      .trim()
-      .toLowerCase();
-
-  let list = [...data];
-
-  if (search) {
-
-    list =
-      list.filter(
-        row => [
-
-          row.party,
-          row.sm,
-          row.grp_name,
-          row.division,
-          row.area,
-          row.order_type,
-          row.city,
-          row.pincode
-
-        ].some(
-          value =>
-            String(
-              value ?? ''
-            )
-              .toLowerCase()
-              .includes(search)
-        )
-      );
-  }
-
-  list.sort(
-    (a, b) => {
-
-      const result =
-        compareValues(
-          a,
-          b,
-          detailSort.key
-        );
-
-      return detailSort.dir ===
-        'asc'
-          ? result
-          : -result;
-    }
-  );
-
-  const totalPages =
-    Math.max(
-      1,
-      Math.ceil(
-        list.length /
-        DETAIL_PAGE_SIZE
+  /*
+    Same current filter selections
+    are applied to comparison rows.
+  */
+
+  const previous =
+    metrics(
+      previousRows.filter(
+        row => rowMatches(row)
       )
     );
 
-  detailPage =
-    Math.min(
-      Math.max(
-        1,
-        detailPage
-      ),
-      totalPages
-    );
-
-  const start =
-    (
-      detailPage - 1
-    ) *
-    DETAIL_PAGE_SIZE;
-
-  const pageRows =
-    list.slice(
-      start,
-      start +
-      DETAIL_PAGE_SIZE
-    );
-
-  const columns = [
-
-    ['party', 'Party', false],
-
-    ['balance', 'Balance', true],
-
-    ['days_15', '>15', true],
-
-    ['days_30', '>30', true],
-
-    ['days_45', '>45', true],
-
-    ['days_60', '>60', true],
-
-    ['days_75', '>75', true],
-
-    ['days_90', '>90', true],
-
-    ['days_120', '>120', true],
-
-    ['days_150', '>150', true],
-
-    ['pdc', 'PDC', true],
-
-    ['sm', 'SM', false],
-
-    ['grp_name', 'GrpName', false],
-
-    ['division', 'Division', false],
-
-    ['area', 'Area', false],
-
-    [
-      'order_type',
-      'OD / Order',
-      false
-    ],
-
-    ['city', 'City', false],
-
-    ['pincode', 'Pincode', false]
-  ];
-
-  container.innerHTML = `
-
-    <table>
-
-      <thead>
-
-        <tr>
-
-          ${
-            columns.map(
-              (
-                [
-                  key,
-                  label,
-                  numeric
-                ]
-              ) => `
-
-                <th
-                  class="sortable ${
-                    numeric
-                      ? 'num'
-                      : ''
-                  }"
-                  data-detail-sort="${key}"
-                >
-
-                  ${esc(label)}
-
-                  ${
-                    sortArrow(
-                      detailSort,
-                      key
-                    )
-                  }
-
-                </th>
-              `
-            ).join('')
-          }
-
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        ${
-          pageRows.length
-
-            ? pageRows.map(
-                row => `
-
-                  <tr>
-
-                    ${
-                      columns.map(
-                        (
-                          [
-                            key,
-                            ,
-                            numeric
-                          ]
-                        ) => `
-
-                          <td class="${
-                            numeric
-                              ? 'num'
-                              : ''
-                          }">
-
-                            ${
-                              numeric
-
-                                ? money(
-                                    row[key]
-                                  )
-
-                                : esc(
-                                    row[key] ??
-                                    ''
-                                  )
-                            }
-
-                          </td>
-                        `
-                      ).join('')
-                    }
-
-                  </tr>
-                `
-              ).join('')
-
-            : `
-
-                <tr>
-
-                  <td
-                    colspan="${columns.length}"
-                    class="muted"
-                  >
-                    No matching data
-                  </td>
-
-                </tr>
-              `
-        }
-
-      </tbody>
-
-    </table>
-  `;
-
-  if ($('#detailCount')) {
-
-    $('#detailCount')
-      .textContent =
-        `${list.length.toLocaleString(
-          'en-IN'
-        )} rows`;
-  }
-
-  if ($('#pageInfo')) {
-
-    $('#pageInfo')
-      .textContent =
-        `Page ${detailPage} of ${totalPages}`;
-  }
-
-  if ($('#prevPage')) {
-
-    $('#prevPage').disabled =
-      detailPage <= 1;
-  }
-
-  if ($('#nextPage')) {
-
-    $('#nextPage').disabled =
-      detailPage >=
-      totalPages;
-  }
-
-  container
-    .querySelectorAll(
-      '[data-detail-sort]'
-    )
-    .forEach(
-      heading => {
-
-        heading.onclick =
-          () => {
-
-            const key =
-              heading.dataset
-                .detailSort;
-
-            if (
-              detailSort.key ===
-              key
-            ) {
-
-              detailSort.dir =
-                detailSort.dir ===
-                'asc'
-                  ? 'desc'
-                  : 'asc';
-
-            } else {
-
-              detailSort = {
-                key,
-                dir: 'asc'
-              };
-            }
-
-            detailPage = 1;
-
-            renderDetails(
-              filtered()
-            );
-          };
-      }
-    );
-}
-
-/* =========================================================
-   MAIN DASHBOARD RENDER
-========================================================= */
-
-function render() {
-
-  const data =
-    filtered();
-
-  const currentMetrics =
-    metrics(data);
-
-  /* ---------------- KPI ---------------- */
-
-  const kpis =
-    $('#kpis');
-
-  if (kpis) {
-
-    const cards = [
-
-      [
-        'Total Outstanding',
-        money(
-          currentMetrics.total
-        )
-      ],
-
-      [
-        'Total Customers',
-        currentMetrics
-          .customers
-          .toLocaleString(
-            'en-IN'
-          )
-      ],
-
-      [
-        'PDC Amount',
-        money(
-          currentMetrics.pdc
-        )
-      ],
-
-      [
-        'Over 90 Days',
-        money(
-          currentMetrics.over90
-        )
-      ],
-
-      [
-        'Over 150 Days',
-        money(
-          currentMetrics.over150
-        )
-      ]
-    ];
-
-    kpis.innerHTML =
-      cards.map(
-        (
-          [
-            label,
-            value
-          ]
-        ) => `
-
-          <article class="kpi">
-
-            <span>
-              ${esc(label)}
-            </span>
-
-            <strong>
-              ${esc(value)}
-            </strong>
-
-            <small>
-              Current snapshot
-            </small>
-
-          </article>
-        `
-      ).join('');
-  }
-
-  /* ---------------- AGEING ANALYSIS ---------------- */
-
-  const labels =
-    bucketDefs.map(
-      item => item[0]
-    );
-
-  const values =
-    bucketDefs.map(
-      item =>
-        currentMetrics.bs[
-          item[1]
-        ]
-    );
-
   draw(
-    '#ageChart',
+    '#compareChart',
     'bar',
-    labels,
+    bucketDefs.map(x => x[0]),
     [
       {
-        label: 'Amount',
-        data: values,
-        borderRadius: 6
-      }
-    ]
-  );
+        label:
+          compareUpload
+            .outstanding_date,
 
-  /* ---------------- OUTSTANDING BREAKUP ---------------- */
+        data:
+          bucketDefs.map(
+            x =>
+              previous.bs[x[1]]
+          )
+      },
 
-  draw(
-    '#donutChart',
-    'doughnut',
-    labels,
-    [
       {
-        label: 'Amount',
-        data: values,
-        borderWidth: 0
+        label:
+          activeUpload
+            .outstanding_date,
+
+        data:
+          bucketDefs.map(
+            x =>
+              current.bs[x[1]]
+          )
       }
     ],
     {
@@ -3140,636 +1582,939 @@ function render() {
     }
   );
 
-  /* =====================================================
-     AGEING WISE CUSTOMER COUNT (> ₹1,000)
-
-     IMPORTANT:
-     Each bar counts UNIQUE customers where that exact
-     ageing bucket amount is greater than ₹1,000.
-     PDC is not included in this chart.
-  ===================================================== */
-
-  const ageingCustomerBuckets = [
-
-    ['0-15', 'days_15'],
-
-    ['16-30', 'days_30'],
-
-    ['31-45', 'days_45'],
-
-    ['46-60', 'days_60'],
-
-    ['61-75', 'days_75'],
-
-    ['76-90', 'days_90'],
-
-    ['91-120', 'days_120'],
-
-    ['121-150', 'days_150'],
-
-    ['>150', 'over150']
+  const comparison = [
+    {
+      metric:
+        'Total Outstanding',
+      previous:
+        previous.total,
+      current:
+        current.total
+    },
+    {
+      metric:
+        'Total Customers',
+      previous:
+        previous.customers,
+      current:
+        current.customers,
+      count: true
+    },
+    {
+      metric:
+        'PDC Amount',
+      previous:
+        previous.pdc,
+      current:
+        current.pdc
+    },
+    {
+      metric:
+        'Over 90 Days',
+      previous:
+        previous.over90,
+      current:
+        current.over90
+    },
+    {
+      metric:
+        'Over 150 Days',
+      previous:
+        previous.over150,
+      current:
+        current.over150
+    }
   ];
 
-  const ageingCustomerCounts =
-    ageingCustomerBuckets.map(
-      ([label, key]) => {
+  if ($('#summaryCompare')) {
+    $('#summaryCompare').innerHTML =
+      simpleTable(
+        comparison,
+        [
+          {
+            label: 'Metric',
+            key: 'metric'
+          },
+          {
+            label:
+              compareUpload
+                .outstanding_date,
 
-        const customers =
-          new Set();
+            num: true,
 
-        data.forEach(
-          row => {
+            render: row =>
+              row.count
+                ? Number(
+                    row.previous
+                  ).toLocaleString(
+                    'en-IN'
+                  )
+                : money(
+                    row.previous
+                  )
+          },
+          {
+            label:
+              activeUpload
+                .outstanding_date,
 
-            const ageingAmount =
-              bucket(row)[key];
+            num: true,
 
-            if (
-              ageingAmount > 1000
-            ) {
-
-              const party =
-                String(
-                  row.party ?? ''
-                ).trim();
-
-              if (party) {
-                customers.add(
-                  party
-                );
-              }
-            }
+            render: row =>
+              row.count
+                ? Number(
+                    row.current
+                  ).toLocaleString(
+                    'en-IN'
+                  )
+                : money(
+                    row.current
+                  )
           }
-        );
-
-        return customers.size;
-      }
-    );
-
-  draw(
-    '#rangeChart',
-    'bar',
-
-    ageingCustomerBuckets.map(
-      item => item[0]
-    ),
-
-    [
-      {
-        label:
-          'Customers > ₹1,000',
-
-        data:
-          ageingCustomerCounts,
-
-        borderRadius: 6
-      }
-    ],
-
-    {
-      countChart: true
-    }
-  );
-
-  /* ---------------- TOP 5 CUSTOMERS ---------------- */
-
-  const topCustomers =
-    [...data]
-      .sort(
-        (a, b) =>
-          num(b.balance) -
-          num(a.balance)
-      )
-      .slice(
-        0,
-        5
+        ]
       );
-
-  if ($('#topCustomers')) {
-
-    $('#topCustomers')
-      .innerHTML =
-        simpleTable(
-          topCustomers,
-          [
-
-            {
-              label: '#',
-
-              render:
-                (
-                  row,
-                  index
-                ) =>
-                  index + 1
-            },
-
-            {
-              label:
-                'Party Name',
-
-              key:
-                'party'
-            },
-
-            {
-              label:
-                'Balance',
-
-              num:
-                true,
-
-              render:
-                row =>
-                  money(
-                    row.balance
-                  )
-            }
-          ]
-        );
   }
-
-  /* ---------------- TOP 5 >150 ---------------- */
-
-  const overdue =
-    [...data]
-      .filter(
-        row =>
-          num(
-            row.days_150
-          ) > 0
-      )
-      .sort(
-        (a, b) =>
-          num(
-            b.days_150
-          ) -
-          num(
-            a.days_150
-          )
-      )
-      .slice(
-        0,
-        5
-      );
-
-  if ($('#overdueCustomers')) {
-
-    $('#overdueCustomers')
-      .innerHTML =
-        simpleTable(
-          overdue,
-          [
-
-            {
-              label: '#',
-
-              render:
-                (
-                  row,
-                  index
-                ) =>
-                  index + 1
-            },
-
-            {
-              label:
-                'Party Name',
-
-              key:
-                'party'
-            },
-
-            {
-              label:
-                '>150 Days',
-
-              num:
-                true,
-
-              render:
-                row =>
-                  money(
-                    row.days_150
-                  )
-            },
-
-            {
-              label:
-                'Balance',
-
-              num:
-                true,
-
-              render:
-                row =>
-                  money(
-                    row.balance
-                  )
-            }
-          ]
-        );
-  }
-
-  renderDetails(data);
-
-  renderCompare(
-    currentMetrics
-  );
 }
 
 /* =========================================================
-   COMPARISON SNAPSHOT SELECTOR
+   HISTORY
 ========================================================= */
 
-function populateCompareSelector() {
+function renderHistory() {
+  const container = $('#history');
 
-  const select =
-    $('#compareSnapshotSelect');
+  if (!container) return;
 
-  if (!select) {
-    return;
-  }
+  const list =
+    [...uploads].sort(
+      (a, b) => {
+        const result =
+          compareValues(
+            a,
+            b,
+            historySort.key
+          );
 
-  const previousValue =
-    select.value;
-
-  const available =
-    uploads.filter(
-      upload =>
-        !activeUpload ||
-        upload.id !==
-          activeUpload.id
+        return (
+          historySort.dir === 'asc'
+            ? result
+            : -result
+        );
+      }
     );
 
-  select.innerHTML = `
-
-    <option value="">
-      Select snapshot
-    </option>
-
-    ${
-      available.map(
-        upload => `
-
-          <option
-            value="${esc(upload.id)}"
+  container.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th
+            class="sortable"
+            data-history-sort="outstanding_date"
           >
-            ${esc(
-              upload.outstanding_date
+            Date
+            ${sortArrow(
+              historySort,
+              'outstanding_date'
             )}
-          </option>
-        `
-      ).join('')
-    }
+          </th>
+
+          <th
+            class="sortable"
+            data-history-sort="uploaded_at"
+          >
+            Uploaded On
+            ${sortArrow(
+              historySort,
+              'uploaded_at'
+            )}
+          </th>
+
+          <th
+            class="sortable"
+            data-history-sort="uploaded_by"
+          >
+            By
+            ${sortArrow(
+              historySort,
+              'uploaded_by'
+            )}
+          </th>
+
+          <th
+            class="sortable num"
+            data-history-sort="total_customers"
+          >
+            Customers
+            ${sortArrow(
+              historySort,
+              'total_customers'
+            )}
+          </th>
+
+          <th
+            class="sortable num"
+            data-history-sort="total_outstanding"
+          >
+            Outstanding
+            ${sortArrow(
+              historySort,
+              'total_outstanding'
+            )}
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        ${
+          list.length
+            ? list.map(u => `
+                <tr>
+                  <td>
+                    ${esc(
+                      u.outstanding_date ||
+                      ''
+                    )}
+                  </td>
+
+                  <td>
+                    ${esc(
+                      u.uploaded_at
+                        ? new Date(
+                            u.uploaded_at
+                          ).toLocaleString(
+                            'en-IN'
+                          )
+                        : ''
+                    )}
+                  </td>
+
+                  <td>
+                    ${esc(
+                      u.uploaded_by ||
+                      ''
+                    )}
+                  </td>
+
+                  <td class="num">
+                    ${num(
+                      u.total_customers
+                    ).toLocaleString(
+                      'en-IN'
+                    )}
+                  </td>
+
+                  <td class="num">
+                    ${money(
+                      u.total_outstanding
+                    )}
+                  </td>
+                </tr>
+              `).join('')
+            : `
+                <tr>
+                  <td
+                    colspan="5"
+                    class="muted"
+                  >
+                    No snapshots
+                  </td>
+                </tr>
+              `
+        }
+      </tbody>
+    </table>
   `;
 
-  if (
-    previousValue &&
-    available.some(
-      upload =>
-        upload.id ===
-        previousValue
+  container
+    .querySelectorAll(
+      '[data-history-sort]'
     )
-  ) {
+    .forEach(th => {
+      th.onclick = () => {
+        const key =
+          th.dataset.historySort;
 
-    select.value =
-      previousValue;
+        if (
+          historySort.key === key
+        ) {
+          historySort.dir =
+            historySort.dir === 'asc'
+              ? 'desc'
+              : 'asc';
+        } else {
+          historySort = {
+            key,
+            dir: 'asc'
+          };
+        }
 
-    return;
-  }
-
-  const currentIndex =
-    uploads.findIndex(
-      upload =>
-        upload.id ===
-        activeUpload?.id
-    );
-
-  const previous =
-    currentIndex >= 0
-      ? uploads[
-          currentIndex + 1
-        ]
-      : null;
-
-  if (previous) {
-
-    select.value =
-      previous.id;
-  }
+        renderHistory();
+      };
+    });
 }
 
 /* =========================================================
-   COMPARISON ROW CACHE
+   SORT UPLOADS
 ========================================================= */
 
-async function getComparisonRows(
-  uploadId
-) {
-
-  if (
-    snapshotCache.has(
-      uploadId
-    )
-  ) {
-
-    return snapshotCache.get(
-      uploadId
-    );
-  }
-
-  const data =
-    await getAllOutstandingRows(
-      uploadId,
-      'Loading comparison'
-    );
-
-  snapshotCache.set(
-    uploadId,
-    data
-  );
-
-  return data;
-}
-
-/* =========================================================
-   COMPARISON
-========================================================= */
-
-async function renderCompare(
-  currentMetrics
-) {
-
-  const select =
-    $('#compareSnapshotSelect');
-
-  if (
-    !activeUpload ||
-    !select
-  ) {
-    return;
-  }
-
-  const compareId =
-    select.value;
-
-  const requestId =
-    ++comparisonRequestId;
-
-  if (!compareId) {
-
-    if ($('#summaryCompare')) {
-
-      $('#summaryCompare')
-        .innerHTML = `
-
-          <span class="muted">
-            Select a snapshot in Compare With.
-          </span>
-        `;
-    }
-
-    draw(
-      '#compareChart',
-      'bar',
-      [],
-      []
-    );
-
-    return;
-  }
-
-  const compareUpload =
-    uploads.find(
-      upload =>
-        upload.id ===
-        compareId
-    );
-
-  if (!compareUpload) {
-    return;
-  }
-
-  try {
-
-    const compareRows =
-      await getComparisonRows(
-        compareId
-      );
-
-    if (
-      requestId !==
-      comparisonRequestId
-    ) {
-      return;
-    }
-
-    /*
-      Same selected filters are applied
-      to current and comparison snapshots.
-    */
-
-    const compareMetrics =
-      metrics(
-        filtered(
-          compareRows
+function sortUploads() {
+  uploads.sort((a, b) => {
+    const d =
+      String(
+        b.outstanding_date || ''
+      ).localeCompare(
+        String(
+          a.outstanding_date || ''
         )
       );
 
-    const compareLabels =
-      bucketDefs.map(
-        item => item[0]
+    if (d) return d;
+
+    return String(
+      b.uploaded_at || ''
+    ).localeCompare(
+      String(
+        a.uploaded_at || ''
+      )
+    );
+  });
+}
+
+/* =========================================================
+   LOAD SNAPSHOT
+========================================================= */
+
+async function load(
+  preferredId = null
+) {
+  toast(
+    'Loading snapshot list...',
+    true
+  );
+
+  const data =
+    await rpc(
+      'raj_outstanding_list_uploads'
+    );
+
+  uploads =
+    Array.isArray(data)
+      ? data
+      : [];
+
+  sortUploads();
+
+  const select =
+    $('#snapshotSelect');
+
+  if (select) {
+    select.innerHTML =
+      uploads.length
+        ? uploads.map(u => `
+            <option value="${esc(u.id)}">
+              ${esc(
+                u.outstanding_date
+              )}
+            </option>
+          `).join('')
+        : `
+            <option value="">
+              No snapshot
+            </option>
+          `;
+  }
+
+  renderHistory();
+
+  if (!uploads.length) {
+    rows = [];
+    activeUpload = null;
+
+    makeFilters();
+    render();
+
+    toast(
+      'No outstanding snapshot found.',
+      true
+    );
+
+    return;
+  }
+
+  activeUpload =
+    uploads.find(
+      u => u.id === preferredId
+    ) ||
+    uploads[0];
+
+  if (select) {
+    select.value =
+      activeUpload.id;
+  }
+
+  toast(
+    `Loading ${activeUpload.outstanding_date}...`,
+    true
+  );
+
+  rows =
+    await getAllOutstandingRows(
+      activeUpload.id,
+      'Loading current'
+    );
+
+  snapshotCache.set(
+    activeUpload.id,
+    rows
+  );
+
+  filterMap.forEach(([key]) => {
+    filterSelections[key].clear();
+  });
+
+  detailPage = 1;
+
+  makeFilters();
+  populateCompareSelector();
+  renderHistory();
+  render();
+
+  toast(
+    `${rows.length.toLocaleString(
+      'en-IN'
+    )} rows loaded.`
+  );
+}
+
+/* =========================================================
+   SWITCH SNAPSHOT
+========================================================= */
+
+async function switchSnapshot() {
+  const id =
+    $('#snapshotSelect')?.value;
+
+  if (
+    !id ||
+    id === activeUpload?.id
+  ) {
+    return;
+  }
+
+  activeUpload =
+    uploads.find(
+      u => u.id === id
+    );
+
+  if (!activeUpload) return;
+
+  toast(
+    `Loading ${activeUpload.outstanding_date}...`,
+    true
+  );
+
+  if (snapshotCache.has(id)) {
+    rows =
+      snapshotCache.get(id);
+  } else {
+    rows =
+      await getAllOutstandingRows(
+        id,
+        'Loading current'
       );
 
-    draw(
-      '#compareChart',
-      'bar',
-      compareLabels,
-      [
+    snapshotCache.set(
+      id,
+      rows
+    );
+  }
 
-        {
-          label:
-            compareUpload
-              .outstanding_date,
+  filterMap.forEach(([key]) => {
+    filterSelections[key].clear();
+  });
 
-          data:
-            bucketDefs.map(
-              item =>
-                compareMetrics.bs[
-                  item[1]
-                ]
-            )
-        },
+  detailPage = 1;
 
-        {
-          label:
-            activeUpload
-              .outstanding_date,
+  makeFilters();
+  populateCompareSelector();
+  render();
 
-          data:
-            bucketDefs.map(
-              item =>
-                currentMetrics.bs[
-                  item[1]
-                ]
-            )
-        }
-      ],
-      {
-        legend: true
+  toast(
+    `${rows.length.toLocaleString(
+      'en-IN'
+    )} rows loaded.`
+  );
+}
+
+/* =========================================================
+   CSV UPLOAD
+========================================================= */
+
+async function upload(file) {
+  if (!file) return;
+
+  if (!/\.csv$/i.test(file.name)) {
+    toast(
+      'Please select a CSV file.'
+    );
+    return;
+  }
+
+  const date =
+    prompt(
+      'Outstanding Date (YYYY-MM-DD):',
+      new Date()
+        .toISOString()
+        .slice(0, 10)
+    );
+
+  if (!date) return;
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/
+      .test(date)
+  ) {
+    toast(
+      'Date format must be YYYY-MM-DD.'
+    );
+    return;
+  }
+
+  toast('Reading CSV...', true);
+
+  const parsed =
+    await new Promise(
+      (resolve, reject) => {
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: resolve,
+          error: reject
+        });
       }
     );
 
-    const comparisonTable = [
+  const required = [
+    'Party',
+    'Balance',
+    '15',
+    '30',
+    '45',
+    '60',
+    '75',
+    '90',
+    '120',
+    '150',
+    'PDC',
+    'SM',
+    'GrpName',
+    'Division',
+    'Area',
+    'Order',
+    'City',
+    'Pincode'
+  ];
 
+  const fields =
+    parsed.meta?.fields || [];
+
+  const missing =
+    required.filter(
+      x => !fields.includes(x)
+    );
+
+  if (missing.length) {
+    throw new Error(
+      'Missing CSV columns: ' +
+      missing.join(', ')
+    );
+  }
+
+  const payload =
+    parsed.data
+      .map(r => ({
+        party:
+          String(
+            r.Party ?? ''
+          ).trim(),
+
+        balance:
+          num(r.Balance),
+
+        days_15:
+          num(r['15']),
+
+        days_30:
+          num(r['30']),
+
+        days_45:
+          num(r['45']),
+
+        days_60:
+          num(r['60']),
+
+        days_75:
+          num(r['75']),
+
+        days_90:
+          num(r['90']),
+
+        days_120:
+          num(r['120']),
+
+        days_150:
+          num(r['150']),
+
+        pdc:
+          num(r.PDC),
+
+        sm:
+          String(
+            r.SM ?? ''
+          ).trim(),
+
+        grp_name:
+          String(
+            r.GrpName ?? ''
+          ).trim(),
+
+        division:
+          String(
+            r.Division ?? ''
+          ).trim(),
+
+        area:
+          String(
+            r.Area ?? ''
+          ).trim(),
+
+        order_type:
+          String(
+            r.Order ?? ''
+          ).trim(),
+
+        city:
+          String(
+            r.City ?? ''
+          ).trim(),
+
+        pincode:
+          String(
+            r.Pincode ?? ''
+          ).trim()
+      }))
+      .filter(r => r.party);
+
+  if (!payload.length) {
+    throw new Error(
+      'CSV contains no valid rows.'
+    );
+  }
+
+  let uploadedBy = '';
+
+  try {
+    const user =
+      JSON.parse(
+        localStorage.getItem(USER) ||
+        '{}'
+      );
+
+    uploadedBy =
+      user.name ||
+      user.full_name ||
+      user.username ||
+      user.email ||
+      '';
+  } catch (_) {}
+
+  toast(
+    `Uploading ${payload.length.toLocaleString(
+      'en-IN'
+    )} rows...`,
+    true
+  );
+
+  const result =
+    await rpc(
+      'raj_outstanding_upload_json',
       {
-        metric:
-          'Total Outstanding',
-
-        previous:
-          compareMetrics.total,
-
-        current:
-          currentMetrics.total
-      },
-
-      {
-        metric:
-          'Total Customers',
-
-        previous:
-          compareMetrics.customers,
-
-        current:
-          currentMetrics.customers,
-
-        count:
-          true
-      },
-
-      {
-        metric:
-          'PDC Amount',
-
-        previous:
-          compareMetrics.pdc,
-
-        current:
-          currentMetrics.pdc
-      },
-
-      {
-        metric:
-          'Over 90 Days',
-
-        previous:
-          compareMetrics.over90,
-
-        current:
-          currentMetrics.over90
-      },
-
-      {
-        metric:
-          'Over 150 Days',
-
-        previous:
-          compareMetrics.over150,
-
-        current:
-          currentMetrics.over150
+        p_outstanding_date: date,
+        p_file_name: file.name,
+        p_uploaded_by:
+          uploadedBy,
+        p_rows: payload
       }
-    ];
+    );
 
-    if ($('#summaryCompare')) {
+  snapshotCache.clear();
 
-      $('#summaryCompare')
-        .innerHTML =
-          simpleTable(
-            comparisonTable,
-            [
+  let newId = null;
 
-              {
-                label:
-                  'Metric',
+  if (typeof result === 'string') {
+    newId = result;
+  } else if (
+    result &&
+    typeof result === 'object'
+  ) {
+    newId =
+      result.upload_id ||
+      result.id ||
+      null;
+  }
 
-                key:
-                  'metric'
-              },
+  toast(
+    'Upload completed. Reloading...',
+    true
+  );
 
-              {
-                label:
-                  compareUpload
-                    .outstanding_date,
+  await load(newId);
+}
 
-                num:
-                  true,
+/* =========================================================
+   EVENTS
+========================================================= */
 
-                render:
-                  row =>
-                    row.count
+function bindEvents() {
+  $('#snapshotSelect')
+    ?.addEventListener(
+      'change',
+      () =>
+        switchSnapshot()
+          .catch(fatal)
+    );
 
-                      ? Number(
-                          row.previous
-                        ).toLocaleString(
-                          'en-IN'
-                        )
+  $('#compareSnapshotSelect')
+    ?.addEventListener(
+      'change',
+      () =>
+        renderCompare(
+          metrics(filtered())
+        ).catch(fatal)
+    );
 
-                      : money(
-                          row.previous
-                        )
-              },
+  $('#resetBtn')
+    ?.addEventListener(
+      'click',
+      () => {
+        filterMap.forEach(
+          ([key]) =>
+            filterSelections[key]
+              .clear()
+        );
 
-              {
-                label:
-                  activeUpload
-                    .outstanding_date,
+        detailPage = 1;
 
-                num:
-                  true,
+        makeFilters();
+        render();
+      }
+    );
 
-                render:
-                  row =>
-                    row.count
+  $('#detailSearch')
+    ?.addEventListener(
+      'input',
+      () => {
+        detailPage = 1;
+        renderDetails(filtered());
+      }
+    );
 
-                      ? Number(
-                          row.current
-                        ).toLocaleString(
-                          'en-IN'
-                        )
-
-                      : money(
-                          row.current
-                        )
-              }
-            ]
+  $('#prevPage')
+    ?.addEventListener(
+      'click',
+      () => {
+        if (detailPage > 1) {
+          detailPage--;
+          renderDetails(
+            filtered()
           );
-    }
-
-  } catch (error) {
-
-    console.error(
-      'Comparison error:',
-      error
+        }
+      }
     );
+
+  $('#nextPage')
+    ?.addEventListener(
+      'click',
+      () => {
+        detailPage++;
+        renderDetails(
+          filtered()
+        );
+      }
+    );
+
+  $('#refreshBtn')
+    ?.addEventListener(
+      'click',
+      () => {
+        snapshotCache.clear();
+
+        load(
+          activeUpload?.id
+        ).catch(fatal);
+      }
+    );
+
+  $('#logsBtn')
+    ?.addEventListener(
+      'click',
+      () => {
+        $('#customerDetails')
+          ?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+      }
+    );
+
+  const fileInput =
+    $('#fileInput');
+
+  const openUpload =
+    () => fileInput?.click();
+
+  $('#uploadBtn')
+    ?.addEventListener(
+      'click',
+      openUpload
+    );
+
+  $('#uploadBtn2')
+    ?.addEventListener(
+      'click',
+      openUpload
+    );
+
+  fileInput
+    ?.addEventListener(
+      'change',
+      async event => {
+        const file =
+          event.target.files?.[0];
+
+        event.target.value = '';
+
+        if (!file) return;
+
+        try {
+          await upload(file);
+        } catch (error) {
+          fatal(error);
+        }
+      }
+    );
+
+  $('#logoutBtn')
+    ?.addEventListener(
+      'click',
+      () => {
+        localStorage.removeItem(
+          TOKEN
+        );
+
+        localStorage.removeItem(
+          USER
+        );
+
+        location.href =
+          'index.html';
+      }
+    );
+}
+
+/* =========================================================
+   START
+========================================================= */
+
+async function init() {
+  try {
+    /*
+      These checks are BEFORE creating
+      the Supabase client so startup errors
+      can be shown clearly.
+    */
 
     if (
-      requestId !==
-      comparisonRequestId
+      typeof window.supabase ===
+      'undefined'
     ) {
-      return;
+      throw new Error(
+        'Supabase library not loaded.'
+      );
     }
 
-    if ($('#summaryCompare')) {
-
-      $('#summaryCompare')
-        .innerHTML = `
-
-          <span class="muted">
-            Comparison unavailable:
-            ${esc(error.message)}
-          </span>
-        `;
+    if (
+      typeof window.RAJ_CONFIG ===
+      'undefined'
+    ) {
+      throw new Error(
+        'RAJ_CONFIG not loaded.'
+      );
     }
+
+    if (
+      typeof window.Chart ===
+      'undefined'
+    ) {
+      throw new Error(
+        'Chart.js not loaded.'
+      );
+    }
+
+    if (
+      typeof window.Papa ===
+      'undefined'
+    ) {
+      throw new Error(
+        'PapaParse not loaded.'
+      );
+    }
+
+    const key =
+      RAJ_CONFIG
+        .supabasePublishableKey ||
+      RAJ_CONFIG
+        .supabaseAnonKey;
+
+    if (
+      !RAJ_CONFIG.supabaseUrl ||
+      !key
+    ) {
+      throw new Error(
+        'Supabase URL/key missing in config.js.'
+      );
+    }
+
+    sb =
+      window.supabase
+        .createClient(
+          RAJ_CONFIG.supabaseUrl,
+          key
+        );
+
+    bindEvents();
+
+    const ok = await guard();
+
+    if (!ok) return;
+
+    await load();
+
+  } catch (error) {
+    fatal(error);
   }
 }
+
+if (
+  document.readyState ===
+  'loading'
+) {
+  document.addEventListener(
+    'DOMContentLoaded',
+    init
+  );
+} else {
+  init();
+}
+
+})();
