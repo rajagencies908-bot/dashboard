@@ -89,6 +89,59 @@ const customerBucketDefs = [
   ['121-150', 'days_150']
 ];
 
+
+
+/* =========================================================
+   ROLE / SALES ALLOCATION SCOPE
+   Reuses raj_dashboard_user SM / OD access.
+========================================================= */
+function storedUser(){
+  try{return JSON.parse(localStorage.getItem(USER)||'{}')||{};}catch{return {};}
+}
+function codeList(value){
+  if(Array.isArray(value)) return [...new Set(value.map(v=>String(v).trim()).filter(Boolean))];
+  if(value==null||value==='') return [];
+  return [...new Set(String(value).split(/[,;|]/).map(v=>v.trim()).filter(Boolean))];
+}
+function isAdmin(){
+  const u=storedUser();
+  return String(u.role||'').toLowerCase()==='admin'||u.full_view===true||u.fullView===true;
+}
+function roleScopedRows(source){
+  const u=storedUser();
+  if(isAdmin()) return source;
+  const role=String(u.role||'').toLowerCase();
+  const sm=codeList(u.sm_access).filter(v=>v.toUpperCase()!=='ALL');
+  const od=codeList(u.od_access).filter(v=>v.toUpperCase()!=='ALL');
+  return source.filter(row=>{
+    const rsm=String(row.sm??'').trim();
+    const rod=String(row.order_type??'').trim();
+    if(role==='sm') return sm.length>0 && sm.includes(rsm);
+    if(role==='od') return od.length>0 && od.includes(rod);
+    if(role==='saleshead'){
+      const smOk=!sm.length||sm.includes(rsm);
+      const odOk=!od.length||od.includes(rod);
+      return smOk&&odOk;
+    }
+    return false;
+  });
+}
+function applyRoleUi(){
+  const admin=isAdmin();
+  document.querySelectorAll('.admin-upload').forEach(el=>el.style.display=admin?'':'none');
+  const logs=document.getElementById('logsBtn'); if(logs) logs.style.display=admin?'':'none';
+}
+function initOutstandingDrawer(){
+  const sidebar=document.querySelector('.sidebar');
+  const toggle=document.getElementById('odFilterToggle');
+  if(!sidebar||!toggle) return;
+  const close=()=>{sidebar.classList.remove('od-open');document.body.classList.remove('od-drawer-open');};
+  toggle.addEventListener('click',e=>{e.stopPropagation();const open=!sidebar.classList.contains('od-open');sidebar.classList.toggle('od-open',open);document.body.classList.toggle('od-drawer-open',open);});
+  sidebar.addEventListener('click',e=>e.stopPropagation());
+  document.addEventListener('click',()=>{if(innerWidth<=900) close();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape') close();});
+}
+
 /* =========================================================
    BASIC HELPERS
 ========================================================= */
@@ -218,6 +271,10 @@ async function guard() {
     return false;
   }
 
+  if (data.user) {
+    localStorage.setItem(USER, JSON.stringify(data.user));
+  }
+  applyRoleUi();
   return true;
 }
 
@@ -373,7 +430,7 @@ function rowMatches(row, ignoreKey = null) {
 }
 
 function filtered(source = rows) {
-  return source.filter(
+  return roleScopedRows(source).filter(
     row => rowMatches(row)
   );
 }
@@ -381,7 +438,7 @@ function filtered(source = rows) {
 function availableValues(key) {
   return [
     ...new Set(
-      rows
+      roleScopedRows(rows)
         .filter(
           row =>
             rowMatches(row, key)
@@ -1837,7 +1894,7 @@ async function renderCompare(
     */
 
     const compareFiltered =
-      compareRows.filter(
+      roleScopedRows(compareRows).filter(
         row =>
           rowMatches(row)
       );
@@ -2784,6 +2841,7 @@ function bindEvents() {
   /* CLEAR FILTERS */
 
   const clearButton =
+    $('#resetBtn') ||
     $('#clearFilters') ||
     $('#clearAllFilters');
 
@@ -2802,6 +2860,10 @@ function bindEvents() {
     uploadButton.onclick =
       openUploadModal;
   }
+
+  if ($('#uploadBtn2')) { $('#uploadBtn2').onclick = openUploadModal; }
+  if ($('#refreshBtn')) { $('#refreshBtn').onclick = () => load().catch(fatal); }
+  if ($('#logoutBtn')) { $('#logoutBtn').onclick = () => { localStorage.removeItem(TOKEN); localStorage.removeItem(USER); location.href='index.html'; }; }
 
   /* CLOSE UPLOAD MODAL */
 
@@ -2980,6 +3042,7 @@ async function init() {
         );
 
     bindEvents();
+    initOutstandingDrawer();
 
     const ok =
       await guard();

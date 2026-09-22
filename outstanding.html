@@ -19,11 +19,18 @@
       <a class="active" href="outstanding.html">Outstanding Dashboard</a>
     </nav>
 
+    <div class="side-filter-head">
+      <b>Filters</b>
+      <button class="text-btn" id="resetBtn" type="button">Reset</button>
+    </div>
+    <div class="filters side-filters" id="filters"></div>
+
     <div class="spacer"></div>
     <button class="side-logout" id="logoutBtn">Logout</button>
   </aside>
 
   <main class="main">
+    <button class="btn light od-filter-toggle" id="odFilterToggle" type="button">☰ Filters</button>
     <header class="topbar">
       <div>
         <h1>Outstanding Dashboard</h1>
@@ -39,16 +46,6 @@
 
     <section class="kpis" id="kpis"></section>
 
-    <section class="card">
-      <div class="card-title">
-        <div>
-          <b>Filters</b>
-          <span>Filter the complete dashboard</span>
-        </div>
-        <button class="text-btn" id="resetBtn">Reset Filters</button>
-      </div>
-      <div class="filters" id="filters"></div>
-    </section>
 
     <section class="grid two">
       <div class="card">
@@ -78,7 +75,7 @@
 
     <section class="grid two">
       <div class="card">
-        <div class="card-title"><div><b>Outstanding Comparison</b><span>Current vs previous snapshot</span></div></div>
+        <div class="card-title"><div><b>Outstanding Comparison</b><span>Current vs previous snapshot</span></div><select id="compareSnapshotSelect" title="Compare with snapshot"></select></div>
         <div class="chartbox"><canvas id="compareChart"></canvas></div>
       </div>
       <div class="card">
@@ -112,7 +109,7 @@
           <div><b>Snapshot History</b><span>Click headings to sort</span></div>
           <button class="text-btn" id="refreshBtn">Refresh</button>
         </div>
-        <div class="table-wrap" id="history"></div>
+        <div class="table-wrap" id="snapshotHistory"></div>
       </div>
 
       <div class="card">
@@ -126,12 +123,24 @@
   </main>
 </div>
 
+
+<div class="upload-modal" id="uploadModal" style="display:none">
+  <form class="upload-dialog" id="uploadForm">
+    <div class="card-title"><div><b>Upload Outstanding</b><span>Upload CSV snapshot</span></div><button type="button" class="text-btn" id="closeUploadModal">Close</button></div>
+    <label>Outstanding Date</label>
+    <input id="outstandingDate" type="date" required>
+    <label>CSV File</label>
+    <input id="csvFile" type="file" accept=".csv,text/csv" required>
+    <div class="actions"><button type="button" class="btn light" id="cancelUpload">Cancel</button><button type="submit" class="btn primary">Upload</button></div>
+  </form>
+</div>
+
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="config.js"></script>
-<script src="outstanding.js?v=20260922-3"></script>
+<script src="outstanding.js?v=20260922-role-sidebar"></script>
 </body>
 </html>

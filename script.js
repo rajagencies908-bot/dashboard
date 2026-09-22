@@ -4847,3 +4847,32 @@ document.addEventListener(
 
   }
 );
+
+
+/* =====================================================
+   SALES FILTER SIDEBAR / MOBILE DRAWER
+===================================================== */
+(function(){
+  function closeSalesFilterDrawer(){
+    const panel=document.getElementById('salesFilterPanel');
+    panel?.classList.remove('sales-filter-open');
+    document.body.classList.remove('sales-filter-drawer-open');
+  }
+  function initSalesFilterDrawer(){
+    const panel=document.getElementById('salesFilterPanel');
+    const toggle=document.getElementById('salesFilterToggle');
+    if(!panel||!toggle) return;
+    toggle.addEventListener('click',function(e){
+      e.stopPropagation();
+      const open=!panel.classList.contains('sales-filter-open');
+      panel.classList.toggle('sales-filter-open',open);
+      document.body.classList.toggle('sales-filter-drawer-open',open);
+    });
+    panel.addEventListener('click',e=>e.stopPropagation());
+    document.addEventListener('click',()=>{if(window.innerWidth<=1100) closeSalesFilterDrawer();});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape') closeSalesFilterDrawer();});
+    window.addEventListener('resize',()=>{if(window.innerWidth>1100) closeSalesFilterDrawer();});
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',initSalesFilterDrawer);
+  else initSalesFilterDrawer();
+})();
