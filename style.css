@@ -2312,3 +2312,19 @@ input::placeholder{
   }
   body.sales-filter-drawer-open{overflow:hidden;}
 }
+
+
+/* RAJ GROUP LOGO */
+.logo {
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
