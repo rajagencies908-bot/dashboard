@@ -40,6 +40,7 @@ let historySort = {
 ========================================================= */
 
 const filterMap = [
+  ['age_days', 'Days / Ageing'],
   ['party', 'Customer / Party'],
   ['sm', 'SM'],
   ['grp_name', 'GrpName'],
@@ -55,6 +56,17 @@ const filterSelections = {};
 filterMap.forEach(([key]) => {
   filterSelections[key] = new Set();
 });
+
+const AGE_FILTERS = {
+  '15 Days':'days_15',
+  '30 Days':'days_30',
+  '45 Days':'days_45',
+  '60 Days':'days_60',
+  '75 Days':'days_75',
+  '90 Days':'days_90',
+  '120 Days':'days_120',
+  '150 Days':'days_150'
+};
 
 /* =========================================================
    AGEING DEFINITIONS
@@ -422,6 +434,13 @@ function rowMatches(row, ignoreKey = null) {
       return true;
     }
 
+    if (key === 'age_days') {
+      return [...selected].some(label => {
+        const field = AGE_FILTERS[label];
+        return field && num(row[field]) > 0;
+      });
+    }
+
     const value =
       String(row[key] ?? '').trim();
 
@@ -436,6 +455,9 @@ function filtered(source = rows) {
 }
 
 function availableValues(key) {
+  if (key === 'age_days') {
+    return Object.keys(AGE_FILTERS);
+  }
   return [
     ...new Set(
       roleScopedRows(rows)
@@ -866,11 +888,13 @@ function metrics(data) {
     /*
       Direct source column totals.
     */
-    over90:
-      sum(data, 'days_90'),
-
-    over150:
-      sum(data, 'days_150'),
+    over30: sum(data, 'days_30'),
+    over45: sum(data, 'days_45'),
+    over60: sum(data, 'days_60'),
+    over75: sum(data, 'days_75'),
+    over90: sum(data, 'days_90'),
+    over120: sum(data, 'days_120'),
+    over150: sum(data, 'days_150'),
 
     bs
   };
@@ -1376,10 +1400,46 @@ function renderDetails(data) {
 }
 
 /* =========================================================
+   ACTIVE FILTER SUMMARY + KPI DRILLDOWN
+========================================================= */
+function renderActiveFilters(){
+  let bar = document.getElementById('odActiveFilters');
+  if(!bar){
+    const kpis = document.getElementById('kpis');
+    if(!kpis) return;
+    bar = document.createElement('div');
+    bar.id = 'odActiveFilters';
+    bar.className = 'active-filter-bar';
+    kpis.insertAdjacentElement('beforebegin', bar);
+  }
+  const chips=[];
+  filterMap.forEach(([key,label])=>{
+    const vals=[...(filterSelections[key]||[])];
+    if(vals.length) chips.push(`<span><b>${esc(label)}:</b> ${esc(vals.join(', '))}</span>`);
+  });
+  bar.innerHTML = chips.length
+    ? `<strong>Active Filters</strong>${chips.join('')}`
+    : `<strong>Active Filters</strong><span>All Data</span>`;
+}
+
+function drillToAge(label){
+  filterSelections.age_days.clear();
+  if(label) filterSelections.age_days.add(label);
+  detailPage = 1;
+  refreshFilters();
+  render();
+  setTimeout(()=>{
+    document.getElementById('customerDetails')?.closest('.card')?.scrollIntoView({behavior:'smooth',block:'start'});
+  },50);
+}
+
+/* =========================================================
    MAIN DASHBOARD RENDER
 ========================================================= */
 
 function render() {
+  renderActiveFilters();
+
   const data =
     filtered();
 
@@ -1395,36 +1455,30 @@ function render() {
 
   if (kpis) {
     const cards = [
-      ['Total Outstanding', money(currentMetrics.total)],
-      ['Total Customers', currentMetrics.customers.toLocaleString('en-IN')],
-      ['PDC Amount', money(currentMetrics.pdc)],
-      ['Over 30 Days', money(sum(data, 'days_30'))],
-      ['Over 45 Days', money(sum(data, 'days_45'))],
-      ['Over 60 Days', money(sum(data, 'days_60'))],
-      ['Over 75 Days', money(sum(data, 'days_75'))],
-      ['Over 90 Days', money(currentMetrics.over90)],
-      ['Over 120 Days', money(sum(data, 'days_120'))],
-      ['Over 150 Days', money(currentMetrics.over150)]
+      ['Total Outstanding', money(currentMetrics.total), ''],
+      ['Total Customers', currentMetrics.customers.toLocaleString('en-IN'), ''],
+      ['PDC Amount', money(currentMetrics.pdc), ''],
+      ['Over 30 Days', money(currentMetrics.over30), '30 Days'],
+      ['Over 45 Days', money(currentMetrics.over45), '45 Days'],
+      ['Over 60 Days', money(currentMetrics.over60), '60 Days'],
+      ['Over 75 Days', money(currentMetrics.over75), '75 Days'],
+      ['Over 90 Days', money(currentMetrics.over90), '90 Days'],
+      ['Over 120 Days', money(currentMetrics.over120), '120 Days'],
+      ['Over 150 Days', money(currentMetrics.over150), '150 Days']
     ];
 
     kpis.innerHTML =
-      cards.map(
-        ([label, value]) => `
-          <article class="kpi">
-            <span>
-              ${esc(label)}
-            </span>
+      cards.map(([label, value, age]) => `
+        <article class="kpi ${age ? 'kpi-clickable' : ''}" ${age ? `data-age="${esc(age)}" title="Show ${esc(age)} customers"` : ''}>
+          <span>${esc(label)}</span>
+          <strong>${esc(value)}</strong>
+          <small>${age ? 'Click to view customers' : 'Current snapshot'}</small>
+        </article>
+      `).join('');
 
-            <strong>
-              ${esc(value)}
-            </strong>
-
-            <small>
-              Current snapshot
-            </small>
-          </article>
-        `
-      ).join('');
+    kpis.querySelectorAll('[data-age]').forEach(card => {
+      card.onclick = () => drillToAge(card.dataset.age);
+    });
   }
 
   /* =====================================================
@@ -1967,10 +2021,6 @@ async function renderCompare(
           currentMetrics.pdc
       },
 
-      { metric: 'Over 30 Days', previous: sum(compareFiltered, 'days_30'), current: sum(filtered(), 'days_30') },
-      { metric: 'Over 45 Days', previous: sum(compareFiltered, 'days_45'), current: sum(filtered(), 'days_45') },
-      { metric: 'Over 60 Days', previous: sum(compareFiltered, 'days_60'), current: sum(filtered(), 'days_60') },
-      { metric: 'Over 75 Days', previous: sum(compareFiltered, 'days_75'), current: sum(filtered(), 'days_75') },
       {
         metric:
           'Over 90 Days',
@@ -1981,7 +2031,6 @@ async function renderCompare(
         current:
           currentMetrics.over90
       },
-      { metric: 'Over 120 Days', previous: sum(compareFiltered, 'days_120'), current: sum(filtered(), 'days_120') },
 
       {
         metric:

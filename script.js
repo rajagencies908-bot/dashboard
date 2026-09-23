@@ -2347,6 +2347,11 @@ function renderMonths(monthData){
                 <b>${fmt(sales.CustomersBilled)}</b>
               </div>
 
+              <div class="metric avg-customer-sale">
+                <span>Avg Sale / Customer</span>
+                <b>${money(Number(sales.CustomersBilled || 0) > 0 ? Number(sales.Taxable || 0) / Number(sales.CustomersBilled || 0) : 0)}</b>
+              </div>
+
               <div class="metric">
                 <span>Budget Customers</span>
                 <b>${fmt(budget.BudgetCustomers)}</b>
@@ -2534,6 +2539,10 @@ async function loadGroupSummary(){
   const showMonthlyCustomers =
     currentView !== 'Party';
 
+  // Part Number = ItemCode. Show monthly unique part count only in Company Wise.
+  const showMonthlyParts =
+    currentView === 'MainGrp';
+
   try{
 
     const results =
@@ -2638,6 +2647,15 @@ async function loadGroupSummary(){
 
         }
 
+        if(showMonthlyParts){
+          header += `
+            <th>
+              ${esc(monthNames[month] || month)}
+              Part Nos. Sold
+            </th>
+          `;
+        }
+
       }
     );
 
@@ -2691,9 +2709,9 @@ async function loadGroupSummary(){
         analysisMonths.length
         *
         (
-          showMonthlyCustomers
-            ? 2
-            : 1
+          (showMonthlyCustomers ? 2 : 1)
+          +
+          (showMonthlyParts ? 1 : 0)
         );
 
       const averageColumns =
@@ -2762,6 +2780,15 @@ async function loadGroupSummary(){
                         row.customersbilled
                         ??
                         0
+                      ),
+
+                    parts:
+                      Number(
+                        row.productsSold
+                        ??
+                        row.productssold
+                        ??
+                        0
                       )
                   }
                 );
@@ -2815,7 +2842,8 @@ async function loadGroupSummary(){
 
                   {
                     taxable:0,
-                    customers:0
+                    customers:0,
+                    parts:0
                   }
               );
 
@@ -2889,6 +2917,11 @@ async function loadGroupSummary(){
                       cells +=
                         `<td>${fmt(stat.customers)}</td>`;
 
+                    }
+
+                    if(showMonthlyParts){
+                      cells +=
+                        `<td>${fmt(stat.parts)}</td>`;
                     }
 
                     return cells;
@@ -3838,6 +3871,34 @@ async function loadBudget(){
 
 
 /* =====================================================
+   ACTIVE FILTER SUMMARY
+===================================================== */
+function renderActiveFilters(){
+  let bar = document.getElementById('activeFiltersBar');
+  if(!bar){
+    const hero = document.querySelector('.hero');
+    if(!hero) return;
+    bar = document.createElement('div');
+    bar.id = 'activeFiltersBar';
+    bar.className = 'active-filter-bar';
+    hero.insertAdjacentElement('afterend', bar);
+  }
+
+  const chips = [];
+  if(selected.month?.length){
+    chips.push(`<span><b>Month:</b> ${esc(selected.month.map(m=>monthNames[m]||m).join(', '))}</span>`);
+  }
+  for(const [key,label] of filterDefs){
+    if(selected[key]?.length){
+      chips.push(`<span><b>${esc(label)}:</b> ${esc(selected[key].join(', '))}</span>`);
+    }
+  }
+  bar.innerHTML = chips.length
+    ? `<strong>Active Filters</strong>${chips.join('')}`
+    : `<strong>Active Filters</strong><span>All Data</span>`;
+}
+
+/* =====================================================
    MAIN DASHBOARD
 ===================================================== */
 
@@ -3859,6 +3920,8 @@ async function loadDashboard(
 
 
   try{
+
+    renderActiveFilters();
 
     /*
       First build correct Target / Budget Status customer scope.
