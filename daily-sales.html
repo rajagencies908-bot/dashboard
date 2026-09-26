@@ -77,9 +77,9 @@
   </main>
 </div>
 
-<div class="modal" id="salesModal" hidden><div class="modal-card"><div class="modal-head"><div><b>Upload Daily Sales</b><span>Single or multiple sales dates in one CSV</span></div><button data-close="salesModal">×</button></div><input id="salesFile" type="file" accept=".csv,text/csv"><div class="preview" id="salesPreview">Choose your date-wise Sales CSV.</div><div class="progress" id="salesProgress"><i></i></div><div class="modal-actions"><button class="btn light" data-close="salesModal">Cancel</button><button class="btn primary" id="confirmSalesUpload">Upload & Update</button></div></div></div>
+<div class="modal" id="salesModal" hidden><div class="modal-card"><div class="modal-head"><div><b>Upload Daily Sales</b><span>Single or multiple sales dates in one CSV</span></div><button data-close="salesModal">×</button></div><input id="salesFile" type="file" accept=".csv,text/csv"><div class="preview" id="salesPreview">Choose your date-wise Sales CSV.</div><div class="upload-stats" id="salesStats" hidden></div><div class="progress" id="salesProgress"><i></i></div><div class="progress-text" id="salesProgressText"></div><div class="modal-actions"><button class="btn light" data-close="salesModal">Cancel</button><button class="btn primary" id="confirmSalesUpload">Upload & Update</button></div></div></div>
 
-<div class="modal" id="budgetModal" hidden><div class="modal-card"><div class="modal-head"><div><b>Upload Budget Master</b><span>Document column is used as Customer Code</span></div><button data-close="budgetModal">×</button></div><input id="budgetFile" type="file" accept=".csv,.xls,.xlsx"><div class="preview" id="budgetPreview">Choose the complete Budget Master file.</div><div class="modal-actions"><button class="btn light" data-close="budgetModal">Cancel</button><button class="btn primary" id="confirmBudgetUpload">Upload Budget</button></div></div></div>
+<div class="modal" id="budgetModal" hidden><div class="modal-card"><div class="modal-head"><div><b>Upload Budget Master</b><span>Document column is used as Customer Code</span></div><button data-close="budgetModal">×</button></div><input id="budgetFile" type="file" accept=".csv,.xls,.xlsx"><div class="preview" id="budgetPreview">Choose the complete Budget Master file.</div><div class="upload-stats" id="budgetStats" hidden></div><div class="progress" id="budgetProgress"><i></i></div><div class="progress-text" id="budgetProgressText"></div><div class="modal-actions"><button class="btn light" data-close="budgetModal">Cancel</button><button class="btn primary" id="confirmBudgetUpload">Upload Budget</button></div></div></div>
 
 <div id="toast"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -87,7 +87,7 @@
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="config.js"></script>
-<script src="daily-sales.js?v=20260926"></script>
+<script src="daily-sales.js?v=20260926c"></script>
 <script src="dashboard-nav.js?v=20260926b"></script>
 </body>
 </html>
