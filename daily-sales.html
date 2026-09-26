@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Daily Sales Performance</title>
-  <link rel="stylesheet" href="daily-sales.css?v=20260926">
+  <link rel="stylesheet" href="daily-sales.css?v=20260926b">
 </head>
 <body>
 <div class="ds-shell">
@@ -15,10 +15,12 @@
       <a href="outstanding.html">Outstanding Dashboard</a>
       <a class="active" href="daily-sales.html">Daily Sales</a>
     </nav>
-    <div class="filter-title"><b>Filters</b><button id="resetFilters" type="button">Reset</button></div>
-    <div id="activeFilters" class="active-filters">Active Filters: All Data</div>
-    <div id="filterPanel" class="filter-panel"></div>
-    <div class="spacer"></div>
+    <div class="sidebar-divider"></div>
+    <div class="ds-filter-scroll">
+      <div class="filter-title"><b>Filters</b><button id="resetFilters" type="button">Reset</button></div>
+      <div id="activeFilters" class="active-filters">Active Filters: All Data</div>
+      <div id="filterPanel" class="filter-panel"></div>
+    </div>
     <button class="logout" id="logoutBtn" type="button">Logout</button>
   </aside>
 
@@ -85,6 +87,6 @@
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="config.js"></script>
-<script src="daily-sales.js?v=20260926"></script>
+<script src="daily-sales.js?v=20260926b"></script>
 </body>
 </html>
