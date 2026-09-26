@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Daily Sales Performance</title>
+  <link rel="stylesheet" href="daily-sales.css?v=20260926">
+</head>
+<body>
+<div class="ds-shell">
+  <aside class="ds-sidebar" id="dsSidebar">
+    <div class="ds-brand"><strong>RAJ</strong><small>Sales & Distribution</small></div>
+    <nav class="ds-nav">
+      <a href="index.html">Sales Dashboard</a>
+      <a href="outstanding.html">Outstanding Dashboard</a>
+      <a class="active" href="daily-sales.html">Daily Sales</a>
+    </nav>
+    <div class="filter-title"><b>Filters</b><button id="resetFilters" type="button">Reset</button></div>
+    <div id="activeFilters" class="active-filters">Active Filters: All Data</div>
+    <div id="filterPanel" class="filter-panel"></div>
+    <div class="spacer"></div>
+    <button class="logout" id="logoutBtn" type="button">Logout</button>
+  </aside>
+
+  <main class="ds-main">
+    <button class="mobile-filter" id="mobileFilter" type="button">☰ Filters</button>
+    <header class="ds-header">
+      <div><h1>Daily Sales Performance</h1><p>Date-wise actual sales, customer coverage and part-number analysis</p></div>
+      <div class="header-actions admin-only">
+        <button class="btn light" id="budgetUploadBtn" type="button">Upload Budget Master</button>
+        <button class="btn primary" id="salesUploadBtn" type="button">Upload Daily Sales</button>
+      </div>
+    </header>
+
+    <section class="date-card">
+      <div class="date-fields">
+        <label>From Date<input id="dateFrom" type="date"></label>
+        <label>To Date<input id="dateTo" type="date"></label>
+        <button class="btn primary" id="applyDate" type="button">Apply</button>
+      </div>
+      <div class="quick-ranges">
+        <button data-range="yesterday">Yesterday</button>
+        <button data-range="3">Last 3 Days</button>
+        <button data-range="7">Last 7 Days</button>
+        <button data-range="week">This Week</button>
+        <button data-range="month">This Month</button>
+      </div>
+    </section>
+
+    <section class="kpis" id="kpis"></section>
+
+    <section class="grid two">
+      <article class="card"><div class="card-head"><div><b>Date Wise Sales</b><span>Taxable sales across selected range</span></div></div><div class="chart-box"><canvas id="dateChart"></canvas></div></article>
+      <article class="card"><div class="card-head"><div><b>Area Wise Sales</b><span>Top areas by taxable sales</span></div></div><div class="chart-box"><canvas id="areaChart"></canvas></div></article>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><div><b>Performance Analysis</b><span>Same filters apply to every view</span></div></div>
+      <div class="tabs" id="analysisTabs">
+        <button class="active" data-view="date_wise">Date Wise</button><button data-view="sm_wise">SM Wise</button><button data-view="order_wise">Order Wise</button><button data-view="area_wise">Area Wise</button><button data-view="division_wise">Division Wise</button><button data-view="company_wise">Company Wise</button><button data-view="city_wise">City Wise</button><button data-view="customer_wise">Customer Wise</button><button data-view="product_wise">Product / Part No.</button>
+      </div>
+      <div class="table-wrap" id="analysisTable"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head detail-head"><div><b>Customer Performance Details</b><span>Budget customer matching uses Customer Code</span></div><div class="detail-tools"><input id="detailSearch" type="search" placeholder="Search code / party / SM / area"><select id="statusFilter"><option value="">All Customers</option><option value="Sales">Sales</option><option value="No Sales">No Sales</option></select></div></div>
+      <div class="table-wrap" id="customerDetails"></div>
+      <div class="pager"><button id="prevPage">Previous</button><span id="pageInfo"></span><button id="nextPage">Next</button></div>
+    </section>
+
+    <section class="card admin-only">
+      <div class="card-head"><div><b>Upload History</b><span>Daily Sales and Budget Master activity</span></div><button id="refreshUploads" class="text-btn" type="button">Refresh</button></div>
+      <div class="table-wrap" id="uploadHistory"></div>
+    </section>
+  </main>
+</div>
+
+<div class="modal" id="salesModal" hidden><div class="modal-card"><div class="modal-head"><div><b>Upload Daily Sales</b><span>Single or multiple sales dates in one CSV</span></div><button data-close="salesModal">×</button></div><input id="salesFile" type="file" accept=".csv,text/csv"><div class="preview" id="salesPreview">Choose your date-wise Sales CSV.</div><div class="progress" id="salesProgress"><i></i></div><div class="modal-actions"><button class="btn light" data-close="salesModal">Cancel</button><button class="btn primary" id="confirmSalesUpload">Upload & Update</button></div></div></div>
+
+<div class="modal" id="budgetModal" hidden><div class="modal-card"><div class="modal-head"><div><b>Upload Budget Master</b><span>Document column is used as Customer Code</span></div><button data-close="budgetModal">×</button></div><input id="budgetFile" type="file" accept=".csv,.xls,.xlsx"><div class="preview" id="budgetPreview">Choose the complete Budget Master file.</div><div class="modal-actions"><button class="btn light" data-close="budgetModal">Cancel</button><button class="btn primary" id="confirmBudgetUpload">Upload Budget</button></div></div></div>
+
+<div id="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="config.js"></script>
+<script src="daily-sales.js?v=20260926"></script>
+</body>
+</html>
