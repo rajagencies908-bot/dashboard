@@ -4433,10 +4433,10 @@ document.addEventListener(
       wireSearchBox('compareMonths');
 
 
-      /* INITIAL LOAD */
-
-      await refreshFilters();
-
+      /* INITIAL LOAD
+         Do not preload every filter dropdown. With the new date-wise Sales
+         source this creates many expensive startup RPCs. Each dropdown is
+         already refreshed on demand when the user opens it. */
 
       await loadDashboard();
 
