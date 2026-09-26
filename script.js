@@ -183,7 +183,14 @@ const budgetMonthMap = {
     'SepBudget',
     'SepSales',
     'SepDiff'
-  ]
+  ],
+
+  Oct:['OctBudget','OctSales','OctDiff'],
+  Nov:['NovBudget','NovSales','NovDiff'],
+  Dec:['DecBudget','DecSales','DecDiff'],
+  Jan:['JanBudget','JanSales','JanDiff'],
+  Feb:['FebBudget','FebSales','FebDiff'],
+  Mar:['MarBudget','MarSales','MarDiff']
 
 };
 
