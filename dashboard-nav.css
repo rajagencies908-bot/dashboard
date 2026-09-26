@@ -26,3 +26,17 @@
   #salesFilterPanel{top:92px!important}
   .dash-side-menu{position:sticky;top:-16px;z-index:5;background:#fff;padding-top:2px}
 }
+
+/* 2026-09-26B: keep dashboard navigation visible above scrolling filters */
+@media (min-width:1101px){
+  #salesFilterPanel .dash-side-menu,
+  .sidebar .dash-side-menu,
+  .ds-sidebar .dash-side-menu{
+    position:sticky !important;
+    top:-16px !important;
+    z-index:50 !important;
+    background:#fff !important;
+    padding:14px 0 12px !important;
+    margin-top:-14px !important;
+  }
+}
