@@ -2552,40 +2552,33 @@ async function loadGroupSummary(){
 
   try{
 
-    const results =
+    /* Run analysis RPCs sequentially.
+       The old Promise.all opened many heavy Supabase/Postgres queries at once
+       and could exhaust the connection pool on the new date-wise Sales source. */
+    const results = [];
 
-      await Promise.all(
-        [
+    results.push(
+      await rpc(
+        'raj_group_summary',
+        {
+          p_view: currentView,
+          ...args()
+        }
+      )
+    );
 
-          rpc(
-            'raj_group_summary',
-            {
-              p_view:
-                currentView,
-
-              ...args()
-            }
-          ),
-
-          ...analysisMonths.map(
-            month =>
-              rpc(
-                'raj_group_summary',
-                {
-                  p_view:
-                    currentView,
-
-                  ...args(),
-
-                  p_months:[
-                    month
-                  ]
-                }
-              )
-          )
-
-        ]
+    for(const month of analysisMonths){
+      results.push(
+        await rpc(
+          'raj_group_summary',
+          {
+            p_view: currentView,
+            ...args(),
+            p_months:[month]
+          }
+        )
       );
+    }
 
     const totalData =
       results[0]
@@ -4129,17 +4122,10 @@ async function loadDashboard(
     }
 
 
-    await Promise.all(
-      [
-
-        loadGroupSummary(),
-
-        loadBudget(),
-
-        loadComparison()
-
-      ]
-    );
+    /* Avoid simultaneous heavy RPC groups competing for the DB pool. */
+    await loadGroupSummary();
+    await loadBudget();
+    await loadComparison();
 
 
   }catch(error){
@@ -4876,15 +4862,8 @@ document.addEventListener(
                 analysisPage = 1;
 
 
-                await Promise.all(
-                  [
-
-                    loadGroupSummary(),
-
-                    loadBudget()
-
-                  ]
-                );
+                await loadGroupSummary();
+                await loadBudget();
 
               };
 
