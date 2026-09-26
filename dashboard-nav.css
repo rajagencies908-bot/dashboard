@@ -1,0 +1,28 @@
+/* Common scalable dashboard navigation */
+.dash-menu-label{font-size:11px;font-weight:900;letter-spacing:.12em;color:#8a94aa;margin:2px 6px 8px}
+.dash-side-menu{padding-bottom:14px;margin-bottom:12px;border-bottom:1px solid #e6eaf2}
+.dash-menu-nav{display:flex;flex-direction:column;gap:7px}
+.dash-menu-nav a{display:flex;align-items:center;gap:9px;text-decoration:none!important;border-radius:10px;padding:10px 12px;font-weight:800;font-size:13px;color:#4b5872;background:transparent}
+.dash-menu-nav a:hover{background:#f3f1ff;color:#5b4df7}
+.dash-menu-nav a.active{color:#fff!important;background:linear-gradient(135deg,#5b4df7,#7367ff)!important;box-shadow:0 7px 18px rgba(91,77,247,.20)}
+.dash-menu-nav a span{width:18px;text-align:center}
+.dash-filter-collapse{border:0;background:transparent;color:#5b4df7;font-weight:800;font-size:12px;padding:4px 6px;cursor:pointer}
+/* Sales filter collapse */
+#salesFilterPanel.dash-filters-collapsed .search-grid,
+#salesFilterPanel.dash-filters-collapsed .filters,
+#salesFilterPanel.dash-filters-collapsed .budget-filter-title,
+#salesFilterPanel.dash-filters-collapsed .budget-filters{display:none!important}
+#salesFilterPanel .panel-head>div{width:100%}
+#salesFilterPanel .panel-head h3{display:inline-block;margin-right:8px}
+#salesFilterPanel .panel-head .dash-filter-collapse{float:right;margin-top:1px}
+/* Outstanding filter collapse */
+.sidebar.dash-filters-collapsed .side-filters{display:none!important}
+.side-filter-head>div{display:flex;align-items:center;gap:4px}
+/* Daily filter collapse */
+.ds-sidebar.dash-filters-collapsed .active-filters,
+.ds-sidebar.dash-filters-collapsed .filter-panel{display:none!important}
+.filter-title>div{display:flex;align-items:center;gap:4px}
+@media(min-width:1101px){
+  #salesFilterPanel{top:92px!important}
+  .dash-side-menu{position:sticky;top:-16px;z-index:5;background:#fff;padding-top:2px}
+}

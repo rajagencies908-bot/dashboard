@@ -4,23 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Daily Sales Performance</title>
-  <link rel="stylesheet" href="daily-sales.css?v=20260926b">
+  <link rel="stylesheet" href="daily-sales.css?v=20260926">
+  <link rel="stylesheet" href="dashboard-nav.css?v=20260926">
 </head>
 <body>
 <div class="ds-shell">
   <aside class="ds-sidebar" id="dsSidebar">
     <div class="ds-brand"><strong>RAJ</strong><small>Sales & Distribution</small></div>
-    <nav class="ds-nav">
+    <div class="dash-menu-label">MENU</div>
+    <nav class="ds-nav dash-menu-nav">
       <a href="index.html">Sales Dashboard</a>
       <a href="outstanding.html">Outstanding Dashboard</a>
       <a class="active" href="daily-sales.html">Daily Sales</a>
     </nav>
-    <div class="sidebar-divider"></div>
-    <div class="ds-filter-scroll">
-      <div class="filter-title"><b>Filters</b><button id="resetFilters" type="button">Reset</button></div>
-      <div id="activeFilters" class="active-filters">Active Filters: All Data</div>
-      <div id="filterPanel" class="filter-panel"></div>
-    </div>
+    <div class="filter-title"><b>Filters</b><div><button class="dash-filter-collapse" type="button" aria-expanded="true">Hide ▴</button><button id="resetFilters" type="button">Reset</button></div></div>
+    <div id="activeFilters" class="active-filters">Active Filters: All Data</div>
+    <div id="filterPanel" class="filter-panel"></div>
+    <div class="spacer"></div>
     <button class="logout" id="logoutBtn" type="button">Logout</button>
   </aside>
 
@@ -87,6 +87,7 @@
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="config.js"></script>
-<script src="daily-sales.js?v=20260926b"></script>
+<script src="daily-sales.js?v=20260926"></script>
+<script src="dashboard-nav.js?v=20260926"></script>
 </body>
 </html>

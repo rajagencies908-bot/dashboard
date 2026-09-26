@@ -198,6 +198,7 @@
   >
 
 
+  <link rel="stylesheet" href="dashboard-nav.css?v=20260926">
 </head>
 
 
@@ -227,7 +228,7 @@
   </div>
 
 
-  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><a href="outstanding.html" style="text-decoration:none;background:#6657f5;color:#fff;padding:10px 14px;border-radius:10px;font-weight:700">Outstanding Dashboard</a><a href="daily-sales.html" style="text-decoration:none;background:#0f766e;color:#fff;padding:10px 14px;border-radius:10px;font-weight:700">Daily Sales</a>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
   <div class="live">
     ● Supabase Online
   </div></div>
@@ -388,13 +389,21 @@
 
   <section class="panel sales-filter-panel" id="salesFilterPanel">
 
+    <div class="dash-side-menu">
+      <div class="dash-menu-label">MENU</div>
+      <nav class="dash-menu-nav">
+        <a class="active" href="index.html"><span>▣</span> Sales Dashboard</a>
+        <a href="outstanding.html"><span>₹</span> Outstanding Dashboard</a>
+        <a href="daily-sales.html"><span>▦</span> Daily Sales</a>
+      </nav>
+    </div>
+
     <div class="panel-head">
 
       <div>
 
-        <h3>
-          Filters
-        </h3>
+        <h3>Filters</h3>
+        <button class="dash-filter-collapse" type="button" aria-expanded="true">Hide ▴</button>
 
         <p>
           All selected filters work together.
@@ -1313,6 +1322,7 @@
 
 
 
+<script src="dashboard-nav.js?v=20260926"></script>
 </body>
 
 </html>
