@@ -2015,7 +2015,7 @@ async function loadBudgetMonthSummary(){
     removes that filter. Never allow that old response to overwrite the
     latest selection.
   */
-  const requestId = ++rajBudgetMonthRequestId;
+  const requestId = rajBudgetMonthRequestId;
   const requestArgs = budgetSummaryArgs();
 
   try{
@@ -3956,6 +3956,10 @@ function renderActiveFilters(){
 async function loadDashboard(
   reloadFilters = false
 ){
+
+  /* Immediately invalidate any older Month-wise Budget request whenever
+     ANY dashboard filter changes. */
+  ++rajBudgetMonthRequestId;
 
   const loading =
     el('loading');
