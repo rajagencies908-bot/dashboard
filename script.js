@@ -4251,22 +4251,13 @@ document.addEventListener(
       buildFilterUI();
 
 
-      const schema =
-        await rpc(
-          'raj_dashboard_schema'
-        );
-
-
-      columns =
-        schema?.columns
-        ||
-        [];
-
-
-      months =
-        schema?.months
-        ||
-        [];
+      /* FAST STARTUP: do not call raj_dashboard_schema here.
+         That RPC was timing out before the dashboard could even open.
+         The current date-wise Sales dashboard uses the fixed financial-year
+         month set below. Detail columns are optional at startup and can stay
+         empty; the fast V8 summary/month cards do not depend on schema. */
+      columns = [];
+      months = ['Apr','May','Jun','Jul','Aug','Sep'];
 
 
       if(el('tableHead')){
