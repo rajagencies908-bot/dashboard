@@ -3993,27 +3993,38 @@ async function loadDashboard(
 
     /* FAST START: run the two main reads one-by-one.
        Parallel heavy aggregations were competing for the same DB resources. */
+    const isPlainAllData =
+      Object.keys(dashboardArgs.p_filters || {}).length === 0
+      && (!dashboardArgs.p_months || dashboardArgs.p_months.length === 0)
+      && (dashboardArgs.p_sale_status || 'All') === 'All'
+      && !(dashboardArgs.p_search || '').trim();
+
     rajSalesLoading('Loading sales summary...');
-    const summaryResult = await rpc(
-      'raj_dashboard_summary_v5',
-      dashboardArgs
-    );
+    const summaryResult = isPlainAllData
+      ? await rpc('raj_dashboard_open_summary_v8', {})
+      : await rpc('raj_dashboard_summary_v5', dashboardArgs);
 
     if(loading){
       loading.textContent = 'Updating table… Please wait';
     }
 
     rajSalesLoading('Loading sales records...');
-    const rowsResult = await rpc(
-      'raj_dashboard_rows_v5',
-      {
-        ...dashboardArgs,
-        p_page: page,
-        p_page_size: Number(
-          el('pageSize') ? el('pageSize').value : 25
+    const rowsResult = isPlainAllData
+      ? await rpc(
+          'raj_dashboard_open_rows_v8',
+          {
+            p_page: page,
+            p_page_size: Number(el('pageSize') ? el('pageSize').value : 25)
+          }
         )
-      }
-    );
+      : await rpc(
+          'raj_dashboard_rows_v5',
+          {
+            ...dashboardArgs,
+            p_page: page,
+            p_page_size: Number(el('pageSize') ? el('pageSize').value : 25)
+          }
+        );
 
 
     const summary =
@@ -4493,7 +4504,7 @@ document.addEventListener(
          source this creates many expensive startup RPCs. Each dropdown is
          already refreshed on demand when the user opens it. */
 
-      await loadDashboard();
+      await loadDashboard(false);
 
 
       /* ACTUAL COMPARE MONTH */
