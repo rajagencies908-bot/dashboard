@@ -2592,7 +2592,7 @@ async function loadGroupSummary(){
 
     results.push(
       await rpc(
-        'raj_group_summary_fast',
+        'raj_group_summary_v5',
         {
           p_view: currentView,
           ...args()
@@ -2603,7 +2603,7 @@ async function loadGroupSummary(){
     for(const month of analysisMonths){
       results.push(
         await rpc(
-          'raj_group_summary_fast',
+          'raj_group_summary_v5',
           {
             p_view: currentView,
             ...args(),
@@ -3976,7 +3976,7 @@ async function loadDashboard(
        Parallel heavy aggregations were competing for the same DB resources. */
     rajSalesLoading('Loading sales summary...');
     const summaryResult = await rpc(
-      'raj_dashboard_summary_fast',
+      'raj_dashboard_summary_v5',
       dashboardArgs
     );
 
@@ -3986,7 +3986,7 @@ async function loadDashboard(
 
     rajSalesLoading('Loading sales records...');
     const rowsResult = await rpc(
-      'raj_dashboard_rows_fast',
+      'raj_dashboard_rows_v5',
       {
         ...dashboardArgs,
         p_page: page,
