@@ -2005,16 +2005,30 @@ async function refreshPartyFilterOnly(){
    BUDGET MONTH SUMMARY
 ===================================================== */
 
+let rajBudgetMonthRequestId = 0;
+
 async function loadBudgetMonthSummary(){
+
+  /*
+    IMPORTANT:
+    A previous SM/Company request can sometimes finish AFTER the user
+    removes that filter. Never allow that old response to overwrite the
+    latest selection.
+  */
+  const requestId = ++rajBudgetMonthRequestId;
+  const requestArgs = budgetSummaryArgs();
 
   try{
 
     const data =
       await rpc(
         'raj_budget_month_summary_v6',
-        budgetSummaryArgs()
+        requestArgs
       );
 
+    if(requestId !== rajBudgetMonthRequestId){
+      return;
+    }
 
     budgetMonthStats = {};
 
@@ -2091,8 +2105,9 @@ async function loadBudgetMonthSummary(){
       error
     );
 
-
-    budgetMonthStats = {};
+    if(requestId === rajBudgetMonthRequestId){
+      budgetMonthStats = {};
+    }
 
   }
 
