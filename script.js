@@ -3938,40 +3938,27 @@ async function loadDashboard(
       args();
 
 
-    const [
-      summaryResult,
-      rowsResult
-    ] =
+    /* FAST START: run the two main reads one-by-one.
+       Parallel heavy aggregations were competing for the same DB resources. */
+    const summaryResult = await rpc(
+      'raj_dashboard_summary',
+      dashboardArgs
+    );
 
-      await Promise.all(
-        [
+    if(loading){
+      loading.textContent = 'Updating table… Please wait';
+    }
 
-          rpc(
-            'raj_dashboard_summary',
-            dashboardArgs
-          ),
-
-          rpc(
-            'raj_dashboard_rows',
-            {
-
-              ...dashboardArgs,
-
-              p_page:
-                page,
-
-              p_page_size:
-                Number(
-                  el('pageSize')
-                    ? el('pageSize').value
-                    : 25
-                )
-
-            }
-          )
-
-        ]
-      );
+    const rowsResult = await rpc(
+      'raj_dashboard_rows',
+      {
+        ...dashboardArgs,
+        p_page: page,
+        p_page_size: Number(
+          el('pageSize') ? el('pageSize').value : 25
+        )
+      }
+    );
 
 
     const summary =
@@ -4099,9 +4086,6 @@ async function loadDashboard(
     }
 
 
-    await loadBudgetMonthSummary();
-
-
     renderMonths(
       summaryResult?.monthly
       ||
@@ -4126,10 +4110,24 @@ async function loadDashboard(
     }
 
 
-    /* Avoid simultaneous heavy RPC groups competing for the DB pool. */
-    await loadGroupSummary();
-    await loadBudget();
-    await loadComparison();
+    /* FAST START:
+       Main KPIs/table are complete at this point. Do not block the user on
+       Analysis/Budget/Comparison. Those sections refresh independently. */
+    if(loading){
+      loading.textContent = 'Sales data updated';
+    }
+
+    window.clearTimeout(window.__rajDeferredDashboard);
+    window.__rajDeferredDashboard = window.setTimeout(async()=>{
+      try{
+        await loadBudgetMonthSummary();
+        await loadGroupSummary();
+        await loadBudget();
+        await loadComparison();
+      }catch(error){
+        console.error('Deferred dashboard section error:',error);
+      }
+    },250);
 
 
   }catch(error){
