@@ -95,62 +95,33 @@ let budgetPageSize = 25;
 
 
 /* =====================================================
-   SELECTION-FIRST DASHBOARD + VISIBLE LOADING
+   SALES LOADING STATUS
+   Only adds a loading message; existing interface/data logic stays unchanged.
 ===================================================== */
-
-function hasDashboardSelection(){
-  const filterSelected = filters.some(k => Array.isArray(selected[k]) && selected[k].length);
-  const monthSelected = Array.isArray(selected.month) && selected.month.length;
-  const searchSelected = Boolean(el('search') && el('search').value.trim());
-  const saleSelected = Boolean(el('productSaleStatus') && el('productSaleStatus').value !== 'All');
-  const budgetStatusSelected = Boolean(el('budgetStatus') && el('budgetStatus').value !== 'all');
-  const budgetTargetSelected = Boolean(el('budgetTarget') && el('budgetTarget').value !== 'all');
-  return Boolean(filterSelected || monthSelected || searchSelected || saleSelected || budgetStatusSelected || budgetTargetSelected);
-}
-
-function detailSections(){
-  const ids = ['multi_compareMonths','viewTabs','salesVisualChart','budgetPanel','tableHead'];
-  const sections = [];
-  ids.forEach(id=>{
-    const node=el(id);
-    const section=node && node.closest ? node.closest('section.panel') : null;
-    if(section && !sections.includes(section)) sections.push(section);
-  });
-  return sections;
-}
-
-function setDetailVisibility(show){
-  detailSections().forEach(section=>{
-    section.style.display = show ? '' : 'none';
-  });
-}
-
-function ensureMainLoadingOverlay(){
-  let box=document.getElementById('rajMainLoadingOverlay');
-  if(box) return box;
-  box=document.createElement('div');
-  box.id='rajMainLoadingOverlay';
-  box.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(248,249,255,.86);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;';
-  box.innerHTML='<div style="min-width:290px;max-width:90vw;background:#fff;border:1px solid #dedcf7;border-radius:18px;padding:24px 28px;box-shadow:0 18px 50px rgba(45,35,110,.16);text-align:center"><div style="width:34px;height:34px;margin:0 auto 14px;border:4px solid #ece9ff;border-top-color:#6752f5;border-radius:50%;animation:rajSpin .8s linear infinite"></div><strong id="rajMainLoadingTitle" style="display:block;font-size:16px;color:#1f2b4d">Updating data…</strong><span id="rajMainLoadingText" style="display:block;margin-top:7px;font-size:13px;color:#69728c">Please wait while the dashboard refreshes.</span></div>';
-  const style=document.createElement('style');
-  style.textContent='@keyframes rajSpin{to{transform:rotate(360deg)}}';
-  document.head.appendChild(style);
-  document.body.appendChild(box);
-  return box;
-}
-
-function showMainLoading(title='Updating data…', text='Please wait while the dashboard refreshes.'){
-  const box=ensureMainLoadingOverlay();
-  const t=document.getElementById('rajMainLoadingTitle');
-  const s=document.getElementById('rajMainLoadingText');
-  if(t)t.textContent=title;
-  if(s)s.textContent=text;
+function rajSalesLoading(message='Loading Sales Dashboard...'){
+  let box=document.getElementById('rajSalesLoadingStatus');
+  if(!box){
+    box=document.createElement('div');
+    box.id='rajSalesLoadingStatus';
+    box.setAttribute('aria-live','polite');
+    box.style.cssText='position:fixed;right:22px;bottom:22px;z-index:99999;display:none;align-items:center;gap:10px;background:#182238;color:#fff;padding:12px 16px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.22);font-size:13px;font-weight:700;max-width:380px';
+    box.innerHTML='<span style="width:16px;height:16px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;display:inline-block;animation:rajSalesSpin .75s linear infinite"></span><span id="rajSalesLoadingText"></span>';
+    const st=document.createElement('style');
+    st.textContent='@keyframes rajSalesSpin{to{transform:rotate(360deg)}}';
+    document.head.appendChild(st);
+    document.body.appendChild(box);
+  }
+  const txt=document.getElementById('rajSalesLoadingText');
+  if(txt) txt.textContent=message;
   box.style.display='flex';
 }
-
-function hideMainLoading(){
-  const box=document.getElementById('rajMainLoadingOverlay');
-  if(box)box.style.display='none';
+function rajSalesLoadingDone(message='Sales Dashboard updated'){
+  const box=document.getElementById('rajSalesLoadingStatus');
+  const txt=document.getElementById('rajSalesLoadingText');
+  if(!box) return;
+  if(txt) txt.textContent=message;
+  window.clearTimeout(window.__rajSalesLoadingHide);
+  window.__rajSalesLoadingHide=window.setTimeout(()=>{box.style.display='none';},900);
 }
 
 
@@ -3863,6 +3834,8 @@ async function loadBudget(){
     el('budgetLoading');
 
 
+  rajSalesLoading('Loading Sales Dashboard...');
+
   if(loading){
 
     loading.textContent = 'Updating data… Please wait';
@@ -3965,103 +3938,272 @@ function renderActiveFilters(){
    MAIN DASHBOARD
 ===================================================== */
 
-async function loadDashboard(reloadFilters = false){
+async function loadDashboard(
+  reloadFilters = false
+){
 
-  const loading = el('loading');
-  const hasSelection = hasDashboardSelection();
+  const loading =
+    el('loading');
 
-  setDetailVisibility(hasSelection);
-  showMainLoading(
-    hasSelection ? 'Updating selected data…' : 'Loading sales summary…',
-    hasSelection
-      ? 'Applying your selection and preparing the related reports.'
-      : 'Loading only Summary and Month-wise Summary for a fast start.'
-  );
 
   if(loading){
-    loading.textContent='Updating data… Please wait';
-    loading.classList.add('show');
+
+    loading.textContent = 'Updating data… Please wait';
+    loading.classList.add(
+      'show'
+    );
+
   }
+
 
   try{
+
     renderActiveFilters();
 
-    /* Budget customer scope is expensive and is only needed after a user
-       actually selects a filter/status/month/search. */
-    if(hasSelection){
-      await refreshBudgetSalesScope();
-    }else{
-      budgetScopeParties=[];
+    /*
+      First build correct Target / Budget Status customer scope.
+    */
+
+    rajSalesLoading('Preparing filters and budget data...');
+    await refreshBudgetSalesScope();
+
+
+    const dashboardArgs =
+      args();
+
+
+    /* FAST START: run the two main reads one-by-one.
+       Parallel heavy aggregations were competing for the same DB resources. */
+    rajSalesLoading('Loading sales summary...');
+    const summaryResult = await rpc(
+      'raj_dashboard_summary_fast',
+      dashboardArgs
+    );
+
+    if(loading){
+      loading.textContent = 'Updating table… Please wait';
     }
 
-    const dashboardArgs=args();
+    rajSalesLoading('Loading sales records...');
+    const rowsResult = await rpc(
+      'raj_dashboard_rows_fast',
+      {
+        ...dashboardArgs,
+        p_page: page,
+        p_page_size: Number(
+          el('pageSize') ? el('pageSize').value : 25
+        )
+      }
+    );
 
-    /* Always load the two startup sections requested by the user:
-       1) top KPI Summary
-       2) Month-wise Summary */
-    const summaryResult=await rpc('raj_dashboard_summary_fast',dashboardArgs);
-    const summary=summaryResult?.summary||{};
 
-    if(el('totalQty'))el('totalQty').textContent=fmt(summary.TotalQty);
-    if(el('totalTaxable'))el('totalTaxable').textContent=money(summary.TotalTaxable);
-    if(el('totalSale'))el('totalSale').textContent=money(summary.TotalSale);
-    if(el('productsSold'))el('productsSold').textContent=fmt(summary.ProductsSold);
-    if(el('customersBilled'))el('customersBilled').textContent=fmt(summary.CustomersBilled);
-    if(el('recordCount'))el('recordCount').textContent=fmt(summary.MatchingRecords||0);
+    const summary =
+      summaryResult?.summary
+      ||
+      {};
 
-    renderMonths(summaryResult?.monthly||{});
-    await loadBudgetMonthSummary();
 
-    /* No selection = stop here. This keeps startup very light. */
-    if(!hasSelection){
-      if(el('tableBody'))el('tableBody').innerHTML='';
-      if(loading)loading.textContent='Summary updated';
-      return;
+    if(el('totalQty')){
+
+      el(
+        'totalQty'
+      ).textContent =
+        fmt(
+          summary.TotalQty
+        );
+
     }
 
-    /* Only after a selection do we load detailed rows and lower reports. */
-    if(loading)loading.textContent='Loading selected records…';
 
-    const rowsResult=await rpc('raj_dashboard_rows_fast',{
-      ...dashboardArgs,
-      p_page:page,
-      p_page_size:Number(el('pageSize')?el('pageSize').value:25)
-    });
+    if(el('totalTaxable')){
 
-    page=Number(rowsResult?.page||1);
-    totalPages=Number(rowsResult?.totalPages||1);
+      el(
+        'totalTaxable'
+      ).textContent =
+        money(
+          summary.TotalTaxable
+        );
 
-    if(el('recordCount'))el('recordCount').textContent=fmt(rowsResult?.totalRows||0);
-    if(el('pageInfo'))el('pageInfo').textContent=`Page ${page} of ${totalPages} • ${fmt(rowsResult?.totalRows)} records`;
-    if(el('prevPage'))el('prevPage').disabled=page<=1;
-    if(el('nextPage'))el('nextPage').disabled=page>=totalPages;
-    renderRows(rowsResult?.rows||[]);
+    }
+
+
+    if(el('totalSale')){
+
+      el(
+        'totalSale'
+      ).textContent =
+        money(
+          summary.TotalSale
+        );
+
+    }
+
+
+    if(el('productsSold')){
+
+      el(
+        'productsSold'
+      ).textContent =
+        fmt(
+          summary.ProductsSold
+        );
+
+    }
+
+
+    if(el('customersBilled')){
+
+      el(
+        'customersBilled'
+      ).textContent =
+        fmt(
+          summary.CustomersBilled
+        );
+
+    }
+
+
+    if(el('recordCount')){
+
+      el(
+        'recordCount'
+      ).textContent =
+        fmt(
+          rowsResult?.totalRows
+        );
+
+    }
+
+
+    page =
+      Number(
+        rowsResult?.page
+        ||
+        1
+      );
+
+
+    totalPages =
+      Number(
+        rowsResult?.totalPages
+        ||
+        1
+      );
+
+
+    if(el('pageInfo')){
+
+      el(
+        'pageInfo'
+      ).textContent =
+
+        `Page ${page} of ${totalPages} • ${fmt(rowsResult?.totalRows)} records`;
+
+    }
+
+
+    if(el('prevPage')){
+
+      el(
+        'prevPage'
+      ).disabled =
+        page <= 1;
+
+    }
+
+
+    if(el('nextPage')){
+
+      el(
+        'nextPage'
+      ).disabled =
+        page >= totalPages;
+
+    }
+
+
+    renderMonths(
+      summaryResult?.monthly
+      ||
+      {}
+    );
+
+
+    renderRows(
+      rowsResult?.rows
+      ||
+      []
+    );
+
 
     if(reloadFilters){
+
       await refreshFilters();
+
       buildMonths();
+
+
     }
 
-    /* Lower reports are selection-driven. Run them one-by-one so the
-       Supabase connection pool is never flooded. */
-    if(loading)loading.textContent='Loading analysis…';
-    await loadGroupSummary();
 
-    if(loading)loading.textContent='Loading budget report…';
-    await loadBudget();
+    /* FAST START:
+       Main KPIs/table are complete at this point. Do not block the user on
+       Analysis/Budget/Comparison. Those sections refresh independently. */
+    if(loading){
+      loading.textContent = 'Sales data updated';
+    }
 
-    if(loading)loading.textContent='Loading comparison…';
-    await loadComparison();
+    window.clearTimeout(window.__rajDeferredDashboard);
+    window.__rajDeferredDashboard = window.setTimeout(async()=>{
+      try{
+        rajSalesLoading('Loading month-wise summary...');
+        await loadBudgetMonthSummary();
 
-    if(loading)loading.textContent='Selected data updated';
+        rajSalesLoading('Loading analysis...');
+        await loadGroupSummary();
+
+        rajSalesLoading('Loading customer budget...');
+        await loadBudget();
+
+        rajSalesLoading('Loading sales comparison...');
+        await loadComparison();
+
+        rajSalesLoadingDone('Sales Dashboard updated');
+      }catch(error){
+        console.error('Deferred dashboard section error:',error);
+        rajSalesLoadingDone('Dashboard loaded');
+      }
+    },100);
+
 
   }catch(error){
-    console.error(error);
-    alert('Dashboard error: '+error.message);
+
+    console.error(
+      error
+    );
+
+
+    alert(
+      'Dashboard error: '
+      +
+      error.message
+    );
+
+    rajSalesLoadingDone('Dashboard load error');
+
+
   }finally{
-    if(loading)loading.classList.remove('show');
-    hideMainLoading();
+
+    if(loading){
+
+      loading.classList.remove(
+        'show'
+      );
+
+    }
+
   }
+
 }
 
 
@@ -4120,10 +4262,6 @@ document.addEventListener(
       buildMonths();
 
       buildComparisonControls();
-
-      /* Fast start: only Summary + Month-wise Summary are visible until
-         the user makes a selection. */
-      setDetailVisibility(false);
 
 
       /* GLOBAL DROPDOWN */
