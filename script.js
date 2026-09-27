@@ -90,8 +90,6 @@ let budgetRows = [];
 let budgetScopeParties = [];
 
 let budgetMonthStats = {};
-let rajLastMonthData = {};
-let rajDashboardRequestId = 0;
 
 let budgetPageSize = 25;
 
@@ -2009,7 +2007,14 @@ async function refreshPartyFilterOnly(){
 
 let rajBudgetMonthRequestId = 0;
 
-async function loadBudgetMonthSummary(expectedDashboardRequestId = rajDashboardRequestId){
+/* Keep the latest Sales month summary in memory.
+   Budget is loaded after Sales for faster dashboard opening; when the matching
+   Budget response arrives we re-render the SAME Sales month data with the new
+   Budget values. This prevents the previous filter's Budget from appearing
+   one selection late. */
+let rajLatestMonthData = {};
+
+async function loadBudgetMonthSummary(){
 
   /*
     IMPORTANT:
@@ -2018,7 +2023,6 @@ async function loadBudgetMonthSummary(expectedDashboardRequestId = rajDashboardR
     latest selection.
   */
   const requestId = rajBudgetMonthRequestId;
-  const dashboardRequestId = expectedDashboardRequestId;
   const requestArgs = budgetSummaryArgs();
 
   try{
@@ -2029,11 +2033,8 @@ async function loadBudgetMonthSummary(expectedDashboardRequestId = rajDashboardR
         requestArgs
       );
 
-    if(
-      requestId !== rajBudgetMonthRequestId
-      || dashboardRequestId !== rajDashboardRequestId
-    ){
-      return false;
+    if(requestId !== rajBudgetMonthRequestId){
+      return;
     }
 
     budgetMonthStats = {};
@@ -2103,7 +2104,12 @@ async function loadBudgetMonthSummary(expectedDashboardRequestId = rajDashboardR
 
     }
 
-    return true;
+    /* Budget and Sales must always be rendered from the same current filter
+       state. Without this re-render the cards showed Budget one filter behind:
+       All Data -> zero, BH -> Full Company, remove BH -> BH, etc. */
+    if(requestId === rajBudgetMonthRequestId){
+      renderMonths(rajLatestMonthData || {});
+    }
 
 
   }catch(error){
@@ -2113,14 +2119,9 @@ async function loadBudgetMonthSummary(expectedDashboardRequestId = rajDashboardR
       error
     );
 
-    if(
-      requestId === rajBudgetMonthRequestId
-      && dashboardRequestId === rajDashboardRequestId
-    ){
+    if(requestId === rajBudgetMonthRequestId){
       budgetMonthStats = {};
     }
-
-    return false;
 
   }
 
@@ -3970,10 +3971,6 @@ async function loadDashboard(
   reloadFilters = false
 ){
 
-  /* Every filter/page/search change gets its own generation.
-     Older Sales or Budget responses are ignored if a newer selection exists. */
-  const dashboardRequestId = ++rajDashboardRequestId;
-
   /* Immediately invalidate any older Month-wise Budget request whenever
      ANY dashboard filter changes. */
   ++rajBudgetMonthRequestId;
@@ -4021,8 +4018,6 @@ async function loadDashboard(
       ? await rpc('raj_dashboard_open_summary_v8', {})
       : await rpc('raj_dashboard_summary_v5', dashboardArgs);
 
-    if(dashboardRequestId !== rajDashboardRequestId) return;
-
     if(loading){
       loading.textContent = 'Updating table… Please wait';
     }
@@ -4044,8 +4039,6 @@ async function loadDashboard(
             p_page_size: Number(el('pageSize') ? el('pageSize').value : 25)
           }
         );
-
-    if(dashboardRequestId !== rajDashboardRequestId) return;
 
 
     const summary =
@@ -4173,12 +4166,14 @@ async function loadDashboard(
     }
 
 
-    rajLastMonthData =
+    rajLatestMonthData =
       summaryResult?.monthly
       ||
       {};
 
-    renderMonths(rajLastMonthData);
+    renderMonths(
+      rajLatestMonthData
+    );
 
 
     renderRows(
@@ -4208,35 +4203,19 @@ async function loadDashboard(
     window.clearTimeout(window.__rajDeferredDashboard);
     window.__rajDeferredDashboard = window.setTimeout(async()=>{
       try{
-        if(dashboardRequestId !== rajDashboardRequestId) return;
+        rajSalesLoading('Loading month-wise summary...');
+        await loadBudgetMonthSummary();
 
-        rajSalesLoading('Loading month-wise budget...');
-        const budgetUpdated = await loadBudgetMonthSummary(dashboardRequestId);
-
-        /* Sales cards were already painted for speed. Repaint ONLY the
-           Month-wise cards after the matching budget response arrives. */
-        if(
-          budgetUpdated
-          && dashboardRequestId === rajDashboardRequestId
-        ){
-          renderMonths(rajLastMonthData);
-        }
-
-        if(dashboardRequestId !== rajDashboardRequestId) return;
         rajSalesLoading('Loading analysis...');
         await loadGroupSummary();
 
-        if(dashboardRequestId !== rajDashboardRequestId) return;
         rajSalesLoading('Loading customer budget...');
         await loadBudget();
 
-        if(dashboardRequestId !== rajDashboardRequestId) return;
         rajSalesLoading('Loading sales comparison...');
         await loadComparison();
 
-        if(dashboardRequestId === rajDashboardRequestId){
-          rajSalesLoadingDone('Sales Dashboard updated');
-        }
+        rajSalesLoadingDone('Sales Dashboard updated');
       }catch(error){
         console.error('Deferred dashboard section error:',error);
         rajSalesLoadingDone('Dashboard loaded');
