@@ -1750,7 +1750,7 @@ async function loadFilter(column){
 
   const data =
     await rpc(
-      'raj_filter_values',
+      'raj_filter_values_fast',
       {
 
         p_column:
@@ -3941,7 +3941,7 @@ async function loadDashboard(
     /* FAST START: run the two main reads one-by-one.
        Parallel heavy aggregations were competing for the same DB resources. */
     const summaryResult = await rpc(
-      'raj_dashboard_summary',
+      'raj_dashboard_summary_fast',
       dashboardArgs
     );
 
@@ -3950,7 +3950,7 @@ async function loadDashboard(
     }
 
     const rowsResult = await rpc(
-      'raj_dashboard_rows',
+      'raj_dashboard_rows_fast',
       {
         ...dashboardArgs,
         p_page: page,
@@ -4127,7 +4127,7 @@ async function loadDashboard(
       }catch(error){
         console.error('Deferred dashboard section error:',error);
       }
-    },250);
+    },2500);
 
 
   }catch(error){
