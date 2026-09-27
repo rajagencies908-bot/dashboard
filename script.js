@@ -2011,7 +2011,7 @@ async function loadBudgetMonthSummary(){
 
     const data =
       await rpc(
-        'raj_budget_month_summary',
+        'raj_budget_month_summary_v6',
         budgetSummaryArgs()
       );
 
