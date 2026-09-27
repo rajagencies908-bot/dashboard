@@ -2561,7 +2561,7 @@ async function loadGroupSummary(){
 
     results.push(
       await rpc(
-        'raj_group_summary',
+        'raj_group_summary_fast',
         {
           p_view: currentView,
           ...args()
@@ -2572,7 +2572,7 @@ async function loadGroupSummary(){
     for(const month of analysisMonths){
       results.push(
         await rpc(
-          'raj_group_summary',
+          'raj_group_summary_fast',
           {
             p_view: currentView,
             ...args(),
