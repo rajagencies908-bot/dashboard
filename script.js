@@ -90,6 +90,8 @@ let budgetRows = [];
 let budgetScopeParties = [];
 
 let budgetMonthStats = {};
+let rajLastMonthData = {};
+let rajDashboardRequestId = 0;
 
 let budgetPageSize = 25;
 
@@ -2007,7 +2009,7 @@ async function refreshPartyFilterOnly(){
 
 let rajBudgetMonthRequestId = 0;
 
-async function loadBudgetMonthSummary(){
+async function loadBudgetMonthSummary(expectedDashboardRequestId = rajDashboardRequestId){
 
   /*
     IMPORTANT:
@@ -2016,6 +2018,7 @@ async function loadBudgetMonthSummary(){
     latest selection.
   */
   const requestId = rajBudgetMonthRequestId;
+  const dashboardRequestId = expectedDashboardRequestId;
   const requestArgs = budgetSummaryArgs();
 
   try{
@@ -2026,8 +2029,11 @@ async function loadBudgetMonthSummary(){
         requestArgs
       );
 
-    if(requestId !== rajBudgetMonthRequestId){
-      return;
+    if(
+      requestId !== rajBudgetMonthRequestId
+      || dashboardRequestId !== rajDashboardRequestId
+    ){
+      return false;
     }
 
     budgetMonthStats = {};
@@ -2097,6 +2103,8 @@ async function loadBudgetMonthSummary(){
 
     }
 
+    return true;
+
 
   }catch(error){
 
@@ -2105,9 +2113,14 @@ async function loadBudgetMonthSummary(){
       error
     );
 
-    if(requestId === rajBudgetMonthRequestId){
+    if(
+      requestId === rajBudgetMonthRequestId
+      && dashboardRequestId === rajDashboardRequestId
+    ){
       budgetMonthStats = {};
     }
+
+    return false;
 
   }
 
@@ -3957,6 +3970,10 @@ async function loadDashboard(
   reloadFilters = false
 ){
 
+  /* Every filter/page/search change gets its own generation.
+     Older Sales or Budget responses are ignored if a newer selection exists. */
+  const dashboardRequestId = ++rajDashboardRequestId;
+
   /* Immediately invalidate any older Month-wise Budget request whenever
      ANY dashboard filter changes. */
   ++rajBudgetMonthRequestId;
@@ -4004,6 +4021,8 @@ async function loadDashboard(
       ? await rpc('raj_dashboard_open_summary_v8', {})
       : await rpc('raj_dashboard_summary_v5', dashboardArgs);
 
+    if(dashboardRequestId !== rajDashboardRequestId) return;
+
     if(loading){
       loading.textContent = 'Updating table… Please wait';
     }
@@ -4025,6 +4044,8 @@ async function loadDashboard(
             p_page_size: Number(el('pageSize') ? el('pageSize').value : 25)
           }
         );
+
+    if(dashboardRequestId !== rajDashboardRequestId) return;
 
 
     const summary =
@@ -4152,11 +4173,12 @@ async function loadDashboard(
     }
 
 
-    renderMonths(
+    rajLastMonthData =
       summaryResult?.monthly
       ||
-      {}
-    );
+      {};
+
+    renderMonths(rajLastMonthData);
 
 
     renderRows(
@@ -4186,19 +4208,35 @@ async function loadDashboard(
     window.clearTimeout(window.__rajDeferredDashboard);
     window.__rajDeferredDashboard = window.setTimeout(async()=>{
       try{
-        rajSalesLoading('Loading month-wise summary...');
-        await loadBudgetMonthSummary();
+        if(dashboardRequestId !== rajDashboardRequestId) return;
 
+        rajSalesLoading('Loading month-wise budget...');
+        const budgetUpdated = await loadBudgetMonthSummary(dashboardRequestId);
+
+        /* Sales cards were already painted for speed. Repaint ONLY the
+           Month-wise cards after the matching budget response arrives. */
+        if(
+          budgetUpdated
+          && dashboardRequestId === rajDashboardRequestId
+        ){
+          renderMonths(rajLastMonthData);
+        }
+
+        if(dashboardRequestId !== rajDashboardRequestId) return;
         rajSalesLoading('Loading analysis...');
         await loadGroupSummary();
 
+        if(dashboardRequestId !== rajDashboardRequestId) return;
         rajSalesLoading('Loading customer budget...');
         await loadBudget();
 
+        if(dashboardRequestId !== rajDashboardRequestId) return;
         rajSalesLoading('Loading sales comparison...');
         await loadComparison();
 
-        rajSalesLoadingDone('Sales Dashboard updated');
+        if(dashboardRequestId === rajDashboardRequestId){
+          rajSalesLoadingDone('Sales Dashboard updated');
+        }
       }catch(error){
         console.error('Deferred dashboard section error:',error);
         rajSalesLoadingDone('Dashboard loaded');
