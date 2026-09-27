@@ -2550,6 +2550,8 @@ async function loadGroupSummary(){
   const showMonthlyParts =
     currentView === 'MainGrp';
 
+  body.innerHTML = `<tr><td colspan="40" class="empty">Updating analysis data… Please wait</td></tr>`;
+
   try{
 
     /* Run analysis RPCs sequentially.
@@ -3803,6 +3805,7 @@ async function loadBudget(){
 
   if(loading){
 
+    loading.textContent = 'Updating data… Please wait';
     loading.classList.add(
       'show'
     );
@@ -3912,6 +3915,7 @@ async function loadDashboard(
 
   if(loading){
 
+    loading.textContent = 'Updating data… Please wait';
     loading.classList.add(
       'show'
     );

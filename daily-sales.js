@@ -97,6 +97,20 @@ await rpc('raj_daily_sales_complete_finalize',{
   p_batch_id:batch,
   p_upload_id:uploadId
 });
+
+/* Keep Main Sales Dashboard cache in sync automatically.
+   Only months present in this uploaded file are rebuilt. */
+const monthNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const changedMonths=[...new Set(dates.map(d=>{
+  const m=Number(String(d).slice(5,7));
+  return monthNames[m-1];
+}).filter(Boolean))];
+$('#salesProgressText').textContent='Updating Main Sales Dashboard cache...';
+await rpc('raj_main_sales_cache_refresh',{
+  ...authArgs(),
+  p_months:changedMonths
+});
+
 batch=null;
 progressSet('sales',rows.length,rows.length,[...common,['Batch',`${finalizeGroups.length} / ${finalizeGroups.length}`],['Status','Complete']]);salesUploadCache=null;toast(`Sales uploaded: ${dates.length} date(s), ${rows.length.toLocaleString('en-IN')} rows.`);setTimeout(()=>{$('#salesModal').hidden=true},1200);await loadAll()}catch(e){console.error(e);$('#salesProgressText').textContent='Upload failed: '+(e.message||'Unknown error');if(batch&&!finalizing){try{await rpc('raj_daily_sales_cancel_upload',{...authArgs(),p_batch_id:batch})}catch(_){}}toast((finalizing?'Finalizing failed; staged data was kept safely. ':'')+(e.message||'Sales upload failed.'),true)}finally{$('#confirmSalesUpload').disabled=false;card.classList.remove('uploading')}}
 async function readBudget(file){if(file.name.toLowerCase().endsWith('.csv'))return readCsv(file);const buf=await file.arrayBuffer(),wb=XLSX.read(buf,{type:'array'}),ws=wb.Sheets[wb.SheetNames[0]];return XLSX.utils.sheet_to_json(ws,{defval:''})}
