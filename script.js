@@ -1410,9 +1410,7 @@ async function applyBulkSelection(
 
     await loadComparison();
 
-    restoreOpenFilter(
-      'compareMonths'
-    );
+    el('multi_compareMonths')?.classList.remove('open');
 
     return;
 
@@ -1444,9 +1442,7 @@ async function applyBulkSelection(
 
     await refreshPartyFilterOnly();
 
-    restoreOpenFilter(
-      'month'
-    );
+    el('multi_month')?.classList.remove('open');
 
     return;
 
@@ -1484,7 +1480,7 @@ async function applyBulkSelection(
     await refreshPartyFilterOnly();
   }
 
-  restoreOpenFilter(id);
+  el('multi_' + id)?.classList.remove('open');
 
 }
 
@@ -1595,9 +1591,7 @@ function buildMonths(){
 
             await refreshPartyFilterOnly();
 
-            restoreOpenFilter(
-              'month'
-            );
+            el('multi_month')?.classList.remove('open');
 
           };
 
@@ -1718,9 +1712,7 @@ function buildComparisonControls(){
 
               await loadComparison();
 
-              restoreOpenFilter(
-                'compareMonths'
-              );
+              el('multi_compareMonths')?.classList.remove('open');
 
             };
 
@@ -1943,9 +1935,7 @@ async function loadFilter(column){
               await refreshPartyFilterOnly();
             }
 
-            restoreOpenFilter(
-              column
-            );
+            el('multi_' + column)?.classList.remove('open');
 
           };
 
