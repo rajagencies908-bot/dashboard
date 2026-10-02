@@ -101,57 +101,208 @@ const customerBucketDefs = [
   ['121-150', 'days_150']
 ];
 
-
-
 /* =========================================================
    ROLE / SALES ALLOCATION SCOPE
    Reuses raj_dashboard_user SM / OD access.
 ========================================================= */
+
 function storedUser(){
-  try{return JSON.parse(localStorage.getItem(USER)||'{}')||{};}catch{return {};}
+  try{
+    return JSON.parse(
+      localStorage.getItem(USER) || '{}'
+    ) || {};
+  }catch{
+    return {};
+  }
 }
+
 function codeList(value){
-  if(Array.isArray(value)) return [...new Set(value.map(v=>String(v).trim()).filter(Boolean))];
-  if(value==null||value==='') return [];
-  return [...new Set(String(value).split(/[,;|]/).map(v=>v.trim()).filter(Boolean))];
+  if(Array.isArray(value)){
+    return [
+      ...new Set(
+        value
+          .map(v => String(v).trim())
+          .filter(Boolean)
+      )
+    ];
+  }
+
+  if(value == null || value === ''){
+    return [];
+  }
+
+  return [
+    ...new Set(
+      String(value)
+        .split(/[,;|]/)
+        .map(v => v.trim())
+        .filter(Boolean)
+    )
+  ];
 }
+
 function isAdmin(){
-  const u=storedUser();
-  return String(u.role||'').toLowerCase()==='admin'||u.full_view===true||u.fullView===true;
+  const u = storedUser();
+
+  return (
+    String(u.role || '').toLowerCase() === 'admin' ||
+    u.full_view === true ||
+    u.fullView === true
+  );
 }
+
 function roleScopedRows(source){
-  const u=storedUser();
-  if(isAdmin()) return source;
-  const role=String(u.role||'').toLowerCase();
-  const sm=codeList(u.sm_access).filter(v=>v.toUpperCase()!=='ALL');
-  const od=codeList(u.od_access).filter(v=>v.toUpperCase()!=='ALL');
-  return source.filter(row=>{
-    const rsm=String(row.sm??'').trim();
-    const rod=String(row.order_type??'').trim();
-    if(role==='sm') return sm.length>0 && sm.includes(rsm);
-    if(role==='od') return od.length>0 && od.includes(rod);
-    if(role==='saleshead'){
-      const smOk=!sm.length||sm.includes(rsm);
-      const odOk=!od.length||od.includes(rod);
-      return smOk&&odOk;
+  const u = storedUser();
+
+  if(isAdmin()){
+    return source;
+  }
+
+  const role =
+    String(u.role || '').toLowerCase();
+
+  const sm =
+    codeList(u.sm_access)
+      .filter(
+        v => v.toUpperCase() !== 'ALL'
+      );
+
+  const od =
+    codeList(u.od_access)
+      .filter(
+        v => v.toUpperCase() !== 'ALL'
+      );
+
+  return source.filter(row => {
+
+    const rsm =
+      String(row.sm ?? '').trim();
+
+    const rod =
+      String(row.order_type ?? '').trim();
+
+    if(role === 'sm'){
+      return (
+        sm.length > 0 &&
+        sm.includes(rsm)
+      );
     }
+
+    if(role === 'od'){
+      return (
+        od.length > 0 &&
+        od.includes(rod)
+      );
+    }
+
+    if(role === 'saleshead'){
+
+      const smOk =
+        !sm.length ||
+        sm.includes(rsm);
+
+      const odOk =
+        !od.length ||
+        od.includes(rod);
+
+      return smOk && odOk;
+    }
+
     return false;
   });
 }
+
 function applyRoleUi(){
-  const admin=isAdmin();
-  document.querySelectorAll('.admin-upload').forEach(el=>el.style.display=admin?'':'none');
-  const logs=document.getElementById('logsBtn'); if(logs) logs.style.display=admin?'':'none';
+
+  const admin = isAdmin();
+
+  document
+    .querySelectorAll('.admin-upload')
+    .forEach(
+      el =>
+        el.style.display =
+          admin ? '' : 'none'
+    );
+
+  const logs =
+    document.getElementById('logsBtn');
+
+  if(logs){
+    logs.style.display =
+      admin ? '' : 'none';
+  }
 }
+
 function initOutstandingDrawer(){
-  const sidebar=document.querySelector('.sidebar');
-  const toggle=document.getElementById('odFilterToggle');
-  if(!sidebar||!toggle) return;
-  const close=()=>{sidebar.classList.remove('od-open');document.body.classList.remove('od-drawer-open');};
-  toggle.addEventListener('click',e=>{e.stopPropagation();const open=!sidebar.classList.contains('od-open');sidebar.classList.toggle('od-open',open);document.body.classList.toggle('od-drawer-open',open);});
-  sidebar.addEventListener('click',e=>e.stopPropagation());
-  document.addEventListener('click',()=>{if(innerWidth<=900) close();});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape') close();});
+
+  const sidebar =
+    document.querySelector('.sidebar');
+
+  const toggle =
+    document.getElementById(
+      'odFilterToggle'
+    );
+
+  if(!sidebar || !toggle){
+    return;
+  }
+
+  const close = () => {
+
+    sidebar.classList.remove(
+      'od-open'
+    );
+
+    document.body.classList.remove(
+      'od-drawer-open'
+    );
+  };
+
+  toggle.addEventListener(
+    'click',
+    e => {
+
+      e.stopPropagation();
+
+      const open =
+        !sidebar.classList.contains(
+          'od-open'
+        );
+
+      sidebar.classList.toggle(
+        'od-open',
+        open
+      );
+
+      document.body.classList.toggle(
+        'od-drawer-open',
+        open
+      );
+    }
+  );
+
+  sidebar.addEventListener(
+    'click',
+    e => e.stopPropagation()
+  );
+
+  document.addEventListener(
+    'click',
+    () => {
+      if(innerWidth <= 900){
+        close();
+      }
+    }
+  );
+
+  document.addEventListener(
+    'keydown',
+    e => {
+      if(e.key === 'Escape'){
+        close();
+      }
+    }
+  );
 }
 
 /* =========================================================
@@ -159,6 +310,7 @@ function initOutstandingDrawer(){
 ========================================================= */
 
 function num(v) {
+
   if (
     v === null ||
     v === undefined ||
@@ -173,46 +325,77 @@ function num(v) {
       .trim()
   );
 
-  return Number.isFinite(n) ? n : 0;
+  return Number.isFinite(n)
+    ? n
+    : 0;
 }
 
 function money(v) {
+
   return '₹ ' +
-    Math.round(num(v))
-      .toLocaleString('en-IN');
+    Math.round(
+      num(v)
+    ).toLocaleString(
+      'en-IN'
+    );
 }
 
 function esc(v) {
+
   return String(v ?? '')
-    .replace(/[&<>"']/g, c => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;'
-    }[c]));
+    .replace(
+      /[&<>"']/g,
+      c => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[c])
+    );
 }
 
-function toast(message, stay = false) {
-  console.log('[Outstanding]', message);
+function toast(
+  message,
+  stay = false
+) {
+
+  console.log(
+    '[Outstanding]',
+    message
+  );
 
   const el = $('#toast');
 
-  if (!el) return;
+  if (!el){
+    return;
+  }
 
-  el.textContent = message;
-  el.style.display = 'block';
+  el.textContent =
+    message;
 
-  clearTimeout(toast.timer);
+  el.style.display =
+    'block';
+
+  clearTimeout(
+    toast.timer
+  );
 
   if (!stay) {
-    toast.timer = setTimeout(() => {
-      el.style.display = 'none';
-    }, 3500);
+
+    toast.timer =
+      setTimeout(
+        () => {
+          el.style.display =
+            'none';
+        },
+        3500
+      );
   }
 }
 
 function fatal(error) {
+
   console.error(
     '[Outstanding Dashboard]',
     error
@@ -220,7 +403,10 @@ function fatal(error) {
 
   toast(
     'Dashboard error: ' +
-    (error?.message || String(error)),
+    (
+      error?.message ||
+      String(error)
+    ),
     true
   );
 }
@@ -229,26 +415,42 @@ function fatal(error) {
    SUPABASE / AUTH
 ========================================================= */
 
-function authArgs(extra = {}) {
+function authArgs(
+  extra = {}
+) {
+
   return {
+
     p_session_token:
-      localStorage.getItem(TOKEN) || '',
+      localStorage.getItem(
+        TOKEN
+      ) || '',
 
     p_device_id:
-      localStorage.getItem(DEVICE) || '',
+      localStorage.getItem(
+        DEVICE
+      ) || '',
 
     ...extra
   };
 }
 
-async function rpc(name, args = {}) {
-  const { data, error } =
+async function rpc(
+  name,
+  args = {}
+) {
+
+  const {
+    data,
+    error
+  } =
     await sb.rpc(
       name,
       authArgs(args)
     );
 
   if (error) {
+
     throw new Error(
       `${name}: ${error.message}`
     );
@@ -258,35 +460,64 @@ async function rpc(name, args = {}) {
 }
 
 async function guard() {
-  if (!localStorage.getItem(TOKEN)) {
-    location.href = 'index.html';
+
+  if (
+    !localStorage.getItem(
+      TOKEN
+    )
+  ) {
+
+    location.href =
+      'index.html';
+
     return false;
   }
 
-  toast('Checking session...', true);
+  toast(
+    'Checking session...',
+    true
+  );
 
-  const { data, error } =
+  const {
+    data,
+    error
+  } =
     await sb.rpc(
       'raj_app_validate_session',
       authArgs()
     );
 
   if (error) {
+
     throw new Error(
       'Session check failed: ' +
       error.message
     );
   }
 
-  if (!data || data.success !== true) {
-    location.href = 'index.html';
+  if (
+    !data ||
+    data.success !== true
+  ) {
+
+    location.href =
+      'index.html';
+
     return false;
   }
 
   if (data.user) {
-    localStorage.setItem(USER, JSON.stringify(data.user));
+
+    localStorage.setItem(
+      USER,
+      JSON.stringify(
+        data.user
+      )
+    );
   }
+
   applyRoleUi();
+
   return true;
 }
 
@@ -298,12 +529,17 @@ async function getAllOutstandingRows(
   uploadId,
   message = 'Loading'
 ) {
+
   const result = [];
+
   let offset = 0;
 
   while (true) {
+
     toast(
-      `${message}: ${result.length.toLocaleString('en-IN')} rows loaded...`,
+      `${message}: ${result.length.toLocaleString(
+        'en-IN'
+      )} rows loaded...`,
       true
     );
 
@@ -311,13 +547,20 @@ async function getAllOutstandingRows(
       await sb.rpc(
         'raj_outstanding_get_rows',
         authArgs({
-          p_upload_id: uploadId,
-          p_offset: offset,
-          p_limit: PAGE_SIZE
+
+          p_upload_id:
+            uploadId,
+
+          p_offset:
+            offset,
+
+          p_limit:
+            PAGE_SIZE
         })
       );
 
     if (response.error) {
+
       throw new Error(
         'raj_outstanding_get_rows: ' +
         response.error.message
@@ -325,19 +568,31 @@ async function getAllOutstandingRows(
     }
 
     const page =
-      Array.isArray(response.data)
+      Array.isArray(
+        response.data
+      )
         ? response.data
         : [];
 
-    result.push(...page);
+    result.push(
+      ...page
+    );
 
-    if (page.length < PAGE_SIZE) {
+    if (
+      page.length <
+      PAGE_SIZE
+    ) {
       break;
     }
 
-    offset += PAGE_SIZE;
+    offset +=
+      PAGE_SIZE;
 
-    if (offset > 100000) {
+    if (
+      offset >
+      100000
+    ) {
+
       throw new Error(
         'Pagination safety limit reached.'
       );
@@ -360,59 +615,79 @@ async function getAllOutstandingRows(
 ========================================================= */
 
 function bucket(row) {
+
   return {
+
     days_15:
       Math.max(
         0,
-        num(row.days_15)
+        num(
+          row.days_15
+        )
       ),
 
     days_30:
       Math.max(
         0,
-        num(row.days_30)
+        num(
+          row.days_30
+        )
       ),
 
     days_45:
       Math.max(
         0,
-        num(row.days_45)
+        num(
+          row.days_45
+        )
       ),
 
     days_60:
       Math.max(
         0,
-        num(row.days_60)
+        num(
+          row.days_60
+        )
       ),
 
     days_75:
       Math.max(
         0,
-        num(row.days_75)
+        num(
+          row.days_75
+        )
       ),
 
     days_90:
       Math.max(
         0,
-        num(row.days_90)
+        num(
+          row.days_90
+        )
       ),
 
     days_120:
       Math.max(
         0,
-        num(row.days_120)
+        num(
+          row.days_120
+        )
       ),
 
     days_150:
       Math.max(
         0,
-        num(row.days_150)
+        num(
+          row.days_150
+        )
       ),
 
     pdc:
       Math.max(
         0,
-        num(row.pdc)
+        num(
+          row.pdc
+        )
       )
   };
 }
@@ -421,57 +696,113 @@ function bucket(row) {
    FILTER LOGIC
 ========================================================= */
 
-function rowMatches(row, ignoreKey = null) {
-  return filterMap.every(([key]) => {
-    if (key === ignoreKey) {
-      return true;
+function rowMatches(
+  row,
+  ignoreKey = null
+) {
+
+  return filterMap.every(
+    ([key]) => {
+
+      if (
+        key === ignoreKey
+      ) {
+        return true;
+      }
+
+      const selected =
+        filterSelections[key];
+
+      if (
+        !selected.size
+      ) {
+        return true;
+      }
+
+      if (
+        key === 'age_days'
+      ) {
+
+        return [
+          ...selected
+        ].some(
+          label => {
+
+            const field =
+              AGE_FILTERS[label];
+
+            return (
+              field &&
+              num(
+                row[field]
+              ) > 0
+            );
+          }
+        );
+      }
+
+      const value =
+        String(
+          row[key] ?? ''
+        ).trim();
+
+      return selected.has(
+        value
+      );
     }
-
-    const selected =
-      filterSelections[key];
-
-    if (!selected.size) {
-      return true;
-    }
-
-    if (key === 'age_days') {
-      return [...selected].some(label => {
-        const field = AGE_FILTERS[label];
-        return field && num(row[field]) > 0;
-      });
-    }
-
-    const value =
-      String(row[key] ?? '').trim();
-
-    return selected.has(value);
-  });
-}
-
-function filtered(source = rows) {
-  return roleScopedRows(source).filter(
-    row => rowMatches(row)
   );
 }
 
-function availableValues(key) {
-  if (key === 'age_days') {
-    return Object.keys(AGE_FILTERS);
+function filtered(
+  source = rows
+) {
+
+  return roleScopedRows(
+    source
+  ).filter(
+    row =>
+      rowMatches(row)
+  );
+}
+
+function availableValues(
+  key
+) {
+
+  if (
+    key === 'age_days'
+  ) {
+
+    return Object.keys(
+      AGE_FILTERS
+    );
   }
+
   return [
     ...new Set(
-      roleScopedRows(rows)
+
+      roleScopedRows(
+        rows
+      )
+
         .filter(
           row =>
-            rowMatches(row, key)
+            rowMatches(
+              row,
+              key
+            )
         )
+
         .map(
           row =>
             String(
               row[key] ?? ''
             ).trim()
         )
-        .filter(Boolean)
+
+        .filter(
+          Boolean
+        )
     )
   ].sort(
     (a, b) =>
@@ -487,26 +818,47 @@ function availableValues(key) {
 }
 
 function pruneSelections() {
+
   let changed = true;
   let pass = 0;
 
-  while (changed && pass < 12) {
+  while (
+    changed &&
+    pass < 12
+  ) {
+
     changed = false;
     pass++;
 
-    for (const [key] of filterMap) {
+    for (
+      const [key]
+      of filterMap
+    ) {
+
       const available =
         new Set(
-          availableValues(key)
+          availableValues(
+            key
+          )
         );
 
       for (
         const value
-        of [...filterSelections[key]]
+        of [
+          ...filterSelections[key]
+        ]
       ) {
-        if (!available.has(value)) {
+
+        if (
+          !available.has(
+            value
+          )
+        ) {
+
           filterSelections[key]
-            .delete(value);
+            .delete(
+              value
+            );
 
           changed = true;
         }
@@ -515,7 +867,12 @@ function pruneSelections() {
   }
 }
 
-function filterTitle(key, label) {
+
+
+
+
+ function filterTitle(key, label) {
+
   const selected =
     filterSelections[key];
 
@@ -530,7 +887,9 @@ function filterTitle(key, label) {
   return `${selected.size} selected`;
 }
 
+
 function renderFilterOptions(key) {
+
   const box =
     document.querySelector(
       `.ms[data-key="${key}"]`
@@ -603,6 +962,7 @@ function renderFilterOptions(key) {
     );
 
   if (trigger) {
+
     trigger.textContent =
       filterTitle(
         key,
@@ -615,13 +975,22 @@ function renderFilterOptions(key) {
       'input[type="checkbox"]'
     )
     .forEach(input => {
+
       input.onchange = () => {
+
         if (input.checked) {
+
           filterSelections[key]
-            .add(input.value);
+            .add(
+              input.value
+            );
+
         } else {
+
           filterSelections[key]
-            .delete(input.value);
+            .delete(
+              input.value
+            );
         }
 
         filtersChanged();
@@ -629,15 +998,22 @@ function renderFilterOptions(key) {
     });
 }
 
+
 function refreshFilters() {
+
   filterMap.forEach(
     ([key]) => {
-      renderFilterOptions(key);
+
+      renderFilterOptions(
+        key
+      );
     }
   );
 }
 
+
 function filtersChanged() {
+
   pruneSelections();
 
   detailPage = 1;
@@ -647,7 +1023,9 @@ function filtersChanged() {
   render();
 }
 
+
 function makeFilters() {
+
   const container =
     $('#filters');
 
@@ -656,7 +1034,9 @@ function makeFilters() {
   container.innerHTML =
     filterMap.map(
       ([key, label]) => `
+
         <div class="field">
+
           <label>
             ${esc(label)}
           </label>
@@ -665,6 +1045,7 @@ function makeFilters() {
             class="ms"
             data-key="${key}"
           >
+
             <button
               type="button"
               class="ms-trigger"
@@ -680,11 +1061,13 @@ function makeFilters() {
             <div class="ms-menu">
 
               <div class="ms-search-wrap">
+
                 <input
                   class="ms-search"
                   type="search"
                   placeholder="Search ${esc(label)}..."
                 >
+
               </div>
 
               <div class="ms-actions">
@@ -710,7 +1093,9 @@ function makeFilters() {
               ></div>
 
             </div>
+
           </div>
+
         </div>
       `
     ).join('');
@@ -718,6 +1103,7 @@ function makeFilters() {
   container
     .querySelectorAll('.ms')
     .forEach(box => {
+
       const key =
         box.dataset.key;
 
@@ -748,6 +1134,7 @@ function makeFilters() {
 
       trigger.onclick =
         event => {
+
           event.stopPropagation();
 
           document
@@ -755,21 +1142,32 @@ function makeFilters() {
               '.ms.open'
             )
             .forEach(other => {
+
               if (other !== box) {
+
                 other.classList
-                  .remove('open');
+                  .remove(
+                    'open'
+                  );
               }
             });
 
           box.classList
-            .toggle('open');
+            .toggle(
+              'open'
+            );
 
-          renderFilterOptions(key);
+          renderFilterOptions(
+            key
+          );
 
           if (
             box.classList
-              .contains('open')
+              .contains(
+                'open'
+              )
           ) {
+
             setTimeout(
               () =>
                 search?.focus(),
@@ -784,10 +1182,13 @@ function makeFilters() {
 
       search.oninput =
         () =>
-          renderFilterOptions(key);
+          renderFilterOptions(
+            key
+          );
 
       clear.onclick =
         () => {
+
           filterSelections[key]
             .clear();
 
@@ -798,6 +1199,7 @@ function makeFilters() {
 
       all.onclick =
         () => {
+
           const q =
             String(
               search.value || ''
@@ -806,11 +1208,13 @@ function makeFilters() {
               .toLowerCase();
 
           availableValues(key)
+
             .filter(
               v =>
                 v.toLowerCase()
                   .includes(q)
             )
+
             .forEach(
               v =>
                 filterSelections[key]
@@ -824,9 +1228,11 @@ function makeFilters() {
   refreshFilters();
 }
 
+
 document.addEventListener(
   'click',
   () => {
+
     document
       .querySelectorAll(
         '.ms.open'
@@ -834,28 +1240,38 @@ document.addEventListener(
       .forEach(
         box =>
           box.classList
-            .remove('open')
+            .remove(
+              'open'
+            )
       );
   }
 );
+
 
 /* =========================================================
    METRICS - DIRECT COLUMN TOTALS
 ========================================================= */
 
 function sum(data, key) {
+
   return data.reduce(
     (total, row) =>
-      total + num(row[key]),
+      total +
+      num(
+        row[key]
+      ),
     0
   );
 }
 
+
 function metrics(data) {
+
   const bs = {};
 
   bucketDefs.forEach(
     ([, key]) => {
+
       bs[key] =
         data.reduce(
           (total, row) =>
@@ -867,8 +1283,12 @@ function metrics(data) {
   );
 
   return {
+
     total:
-      sum(data, 'balance'),
+      sum(
+        data,
+        'balance'
+      ),
 
     customers:
       new Set(
@@ -883,22 +1303,61 @@ function metrics(data) {
       ).size,
 
     pdc:
-      sum(data, 'pdc'),
+      sum(
+        data,
+        'pdc'
+      ),
 
     /*
       Direct source column totals.
     */
-    over30: sum(data, 'days_30'),
-    over45: sum(data, 'days_45'),
-    over60: sum(data, 'days_60'),
-    over75: sum(data, 'days_75'),
-    over90: sum(data, 'days_90'),
-    over120: sum(data, 'days_120'),
-    over150: sum(data, 'days_150'),
+
+    over30:
+      sum(
+        data,
+        'days_30'
+      ),
+
+    over45:
+      sum(
+        data,
+        'days_45'
+      ),
+
+    over60:
+      sum(
+        data,
+        'days_60'
+      ),
+
+    over75:
+      sum(
+        data,
+        'days_75'
+      ),
+
+    over90:
+      sum(
+        data,
+        'days_90'
+      ),
+
+    over120:
+      sum(
+        data,
+        'days_120'
+      ),
+
+    over150:
+      sum(
+        data,
+        'days_150'
+      ),
 
     bs
   };
 }
+
 
 /* =========================================================
    CHART
@@ -911,8 +1370,11 @@ function draw(
   datasets,
   options = {}
 ) {
+
   if (charts[selector]) {
-    charts[selector].destroy();
+
+    charts[selector]
+      .destroy();
   }
 
   const canvas =
@@ -924,6 +1386,7 @@ function draw(
     new Chart(
       canvas,
       {
+
         type,
 
         data: {
@@ -932,8 +1395,11 @@ function draw(
         },
 
         options: {
+
           responsive: true,
-          maintainAspectRatio: false,
+
+          maintainAspectRatio:
+            false,
 
           interaction: {
             mode: 'index',
@@ -941,15 +1407,20 @@ function draw(
           },
 
           plugins: {
+
             legend: {
+
               display:
                 type === 'doughnut' ||
                 !!options.legend
             },
 
             tooltip: {
+
               callbacks: {
+
                 label(context) {
+
                   const prefix =
                     context.dataset
                       .label
@@ -960,6 +1431,7 @@ function draw(
                   if (
                     options.countChart
                   ) {
+
                     return (
                       prefix +
                       Number(
@@ -985,22 +1457,28 @@ function draw(
             type === 'doughnut'
               ? {}
               : {
+
                   y: {
-                    beginAtZero: true,
+
+                    beginAtZero:
+                      true,
 
                     ticks: {
+
                       precision:
                         options.countChart
                           ? 0
                           : undefined,
 
                       callback(value) {
+
                         const n =
                           Number(value);
 
                         if (
                           options.countChart
                         ) {
+
                           return n
                             .toLocaleString(
                               'en-IN'
@@ -1011,6 +1489,7 @@ function draw(
                           Math.abs(n) >=
                           10000000
                         ) {
+
                           return (
                             n / 10000000
                           ).toFixed(1) +
@@ -1021,6 +1500,7 @@ function draw(
                           Math.abs(n) >=
                           100000
                         ) {
+
                           return (
                             n / 100000
                           ).toFixed(1) +
@@ -1031,6 +1511,7 @@ function draw(
                           Math.abs(n) >=
                           1000
                         ) {
+
                           return (
                             n / 1000
                           ).toFixed(0) +
@@ -1043,6 +1524,7 @@ function draw(
                   },
 
                   x: {
+
                     grid: {
                       display: false
                     }
@@ -1054,106 +1536,159 @@ function draw(
 }
 
 
-
-
- /* =========================================================
+/* =========================================================
    SIMPLE TABLE
 ========================================================= */
 
-function simpleTable(items, columns) {
+function simpleTable(
+  items,
+  columns
+) {
+
   return `
     <table>
+
       <thead>
+
         <tr>
+
           ${columns.map(column => `
+
             <th class="${
-              column.num ? 'num' : ''
+              column.num
+                ? 'num'
+                : ''
             }">
-              ${esc(column.label)}
+
+              ${esc(
+                column.label
+              )}
+
             </th>
+
           `).join('')}
+
         </tr>
+
       </thead>
 
       <tbody>
+
         ${
           items.length
+
             ? items.map(
                 (row, index) => `
+
                   <tr>
+
                     ${columns.map(
                       column => `
+
                         <td class="${
                           column.num
                             ? 'num'
                             : ''
                         }">
+
                           ${
                             column.render
+
                               ? column.render(
                                   row,
                                   index
                                 )
+
                               : esc(
                                   row[
                                     column.key
                                   ] ?? ''
                                 )
                           }
+
                         </td>
+
                       `
                     ).join('')}
+
                   </tr>
+
                 `
               ).join('')
+
             : `
+
                 <tr>
+
                   <td
                     colspan="${columns.length}"
                     class="muted"
                   >
                     No data
                   </td>
+
                 </tr>
+
               `
         }
+
       </tbody>
+
     </table>
   `;
 }
+
 
 /* =========================================================
    SORT HELPERS
 ========================================================= */
 
-const numericFields = new Set([
-  'balance',
-  'days_15',
-  'days_30',
-  'days_45',
-  'days_60',
-  'days_75',
-  'days_90',
-  'days_120',
-  'days_150',
-  'pdc',
-  'total_customers',
-  'total_outstanding',
-  'total_pdc'
-]);
+const numericFields =
+  new Set([
+    'balance',
+    'days_15',
+    'days_30',
+    'days_45',
+    'days_60',
+    'days_75',
+    'days_90',
+    'days_120',
+    'days_150',
+    'pdc',
+    'total_customers',
+    'total_outstanding',
+    'total_pdc'
+  ]);
 
-function compareValues(a, b, key) {
-  if (numericFields.has(key)) {
+
+function compareValues(
+  a,
+  b,
+  key
+) {
+
+  if (
+    numericFields.has(
+      key
+    )
+  ) {
+
     return (
-      num(a?.[key]) -
-      num(b?.[key])
+      num(
+        a?.[key]
+      ) -
+      num(
+        b?.[key]
+      )
     );
   }
 
   return String(
     a?.[key] ?? ''
   ).localeCompare(
-    String(b?.[key] ?? ''),
+    String(
+      b?.[key] ?? ''
+    ),
     undefined,
     {
       numeric: true,
@@ -1162,8 +1697,15 @@ function compareValues(a, b, key) {
   );
 }
 
-function sortArrow(sort, key) {
-  if (sort.key !== key) {
+
+function sortArrow(
+  sort,
+  key
+) {
+
+  if (
+    sort.key !== key
+  ) {
     return '';
   }
 
@@ -1172,11 +1714,13 @@ function sortArrow(sort, key) {
     : ' ▼';
 }
 
+
 /* =========================================================
    CUSTOMER DETAILS
 ========================================================= */
 
 function renderDetails(data) {
+
   const container =
     $('#customerDetails');
 
@@ -1192,39 +1736,53 @@ function renderDetails(data) {
       .trim()
       .toLowerCase();
 
-  let list = [...data];
+  let list =
+    [...data];
 
   if (search) {
-    list = list.filter(row =>
-      [
-        row.party,
-        row.sm,
-        row.grp_name,
-        row.division,
-        row.area,
-        row.order_type,
-        row.city,
-        row.pincode
-      ].some(value =>
-        String(value ?? '')
-          .toLowerCase()
-          .includes(search)
-      )
-    );
+
+    list =
+      list.filter(
+        row =>
+          [
+            row.party,
+            row.sm,
+            row.grp_name,
+            row.division,
+            row.area,
+            row.order_type,
+            row.city,
+            row.pincode
+          ].some(
+            value =>
+              String(
+                value ?? ''
+              )
+                .toLowerCase()
+                .includes(
+                  search
+                )
+          )
+      );
   }
 
-  list.sort((a, b) => {
-    const result =
-      compareValues(
-        a,
-        b,
-        detailSort.key
-      );
+  list.sort(
+    (a, b) => {
 
-    return detailSort.dir === 'asc'
-      ? result
-      : -result;
-  });
+      const result =
+        compareValues(
+          a,
+          b,
+          detailSort.key
+        );
+
+      return (
+        detailSort.dir === 'asc'
+          ? result
+          : -result
+      );
+    }
+  );
 
   const totalPages =
     Math.max(
@@ -1237,7 +1795,10 @@ function renderDetails(data) {
 
   detailPage =
     Math.min(
-      Math.max(detailPage, 1),
+      Math.max(
+        detailPage,
+        1
+      ),
       totalPages
     );
 
@@ -1248,40 +1809,132 @@ function renderDetails(data) {
   const pageRows =
     list.slice(
       start,
-      start + DETAIL_PAGE_SIZE
+      start +
+      DETAIL_PAGE_SIZE
     );
 
   const columns = [
-    ['party', 'Party', false],
-    ['balance', 'Balance', true],
-    ['days_15', '15', true],
-    ['days_30', '30', true],
-    ['days_45', '45', true],
-    ['days_60', '60', true],
-    ['days_75', '75', true],
-    ['days_90', '90', true],
-    ['days_120', '120', true],
-    ['days_150', '150', true],
-    ['pdc', 'PDC', true],
-    ['sm', 'SM', false],
-    ['grp_name', 'GrpName', false],
-    ['division', 'Division', false],
-    ['area', 'Area', false],
+
+    [
+      'party',
+      'Party',
+      false
+    ],
+
+    [
+      'balance',
+      'Balance',
+      true
+    ],
+
+    [
+      'days_15',
+      '15',
+      true
+    ],
+
+    [
+      'days_30',
+      '30',
+      true
+    ],
+
+    [
+      'days_45',
+      '45',
+      true
+    ],
+
+    [
+      'days_60',
+      '60',
+      true
+    ],
+
+    [
+      'days_75',
+      '75',
+      true
+    ],
+
+    [
+      'days_90',
+      '90',
+      true
+    ],
+
+    [
+      'days_120',
+      '120',
+      true
+    ],
+
+    [
+      'days_150',
+      '150',
+      true
+    ],
+
+    [
+      'pdc',
+      'PDC',
+      true
+    ],
+
+    [
+      'sm',
+      'SM',
+      false
+    ],
+
+    [
+      'grp_name',
+      'GrpName',
+      false
+    ],
+
+    [
+      'division',
+      'Division',
+      false
+    ],
+
+    [
+      'area',
+      'Area',
+      false
+    ],
+
     [
       'order_type',
       'OD / Order',
       false
     ],
-    ['city', 'City', false],
-    ['pincode', 'Pincode', false]
+
+    [
+      'city',
+      'City',
+      false
+    ],
+
+    [
+      'pincode',
+      'Pincode',
+      false
+    ]
   ];
 
   container.innerHTML = `
+
     <table>
+
       <thead>
+
         <tr>
+
           ${columns.map(
             ([key, label, numeric]) => `
+
               <th
                 class="sortable ${
                   numeric
@@ -1290,60 +1943,90 @@ function renderDetails(data) {
                 }"
                 data-detail-sort="${key}"
               >
+
                 ${esc(label)}
+
                 ${sortArrow(
                   detailSort,
                   key
                 )}
+
               </th>
+
             `
           ).join('')}
+
         </tr>
+
       </thead>
 
       <tbody>
+
         ${
           pageRows.length
-            ? pageRows.map(row => `
-                <tr>
-                  ${columns.map(
-                    ([key, , numeric]) => `
-                      <td class="${
-                        numeric
-                          ? 'num'
-                          : ''
-                      }">
-                        ${
+
+            ? pageRows.map(
+                row => `
+
+                  <tr>
+
+                    ${columns.map(
+                      ([key, , numeric]) => `
+
+                        <td class="${
                           numeric
-                            ? money(
-                                row[key]
-                              )
-                            : esc(
-                                row[key] ??
-                                ''
-                              )
-                        }
-                      </td>
-                    `
-                  ).join('')}
-                </tr>
-              `).join('')
+                            ? 'num'
+                            : ''
+                        }">
+
+                          ${
+                            numeric
+
+                              ? money(
+                                  row[key]
+                                )
+
+                              : esc(
+                                  row[key] ??
+                                  ''
+                                )
+                          }
+
+                        </td>
+
+                      `
+                    ).join('')}
+
+                  </tr>
+
+                `
+              ).join('')
+
             : `
+
                 <tr>
+
                   <td
                     colspan="${columns.length}"
                     class="muted"
                   >
                     No matching data
                   </td>
+
                 </tr>
+
               `
         }
+
       </tbody>
+
     </table>
   `;
 
-  if ($('#detailCount')) {
+  if (
+    $('#detailCount')
+  ) {
+
     $('#detailCount')
       .textContent =
         `${list.length.toLocaleString(
@@ -1351,20 +2034,32 @@ function renderDetails(data) {
         )} rows`;
   }
 
-  if ($('#pageInfo')) {
+  if (
+    $('#pageInfo')
+  ) {
+
     $('#pageInfo')
       .textContent =
         `Page ${detailPage} of ${totalPages}`;
   }
 
-  if ($('#prevPage')) {
-    $('#prevPage').disabled =
-      detailPage <= 1;
+  if (
+    $('#prevPage')
+  ) {
+
+    $('#prevPage')
+      .disabled =
+        detailPage <= 1;
   }
 
-  if ($('#nextPage')) {
-    $('#nextPage').disabled =
-      detailPage >= totalPages;
+  if (
+    $('#nextPage')
+  ) {
+
+    $('#nextPage')
+      .disabled =
+        detailPage >=
+        totalPages;
   }
 
   container
@@ -1372,18 +2067,23 @@ function renderDetails(data) {
       '[data-detail-sort]'
     )
     .forEach(th => {
+
       th.onclick = () => {
+
         const key =
           th.dataset.detailSort;
 
         if (
           detailSort.key === key
         ) {
+
           detailSort.dir =
             detailSort.dir === 'asc'
               ? 'desc'
               : 'asc';
+
         } else {
+
           detailSort = {
             key,
             dir: 'asc'
@@ -1399,45 +2099,121 @@ function renderDetails(data) {
     });
 }
 
+
 /* =========================================================
    ACTIVE FILTER SUMMARY + KPI DRILLDOWN
 ========================================================= */
+
 function renderActiveFilters(){
-  let bar = document.getElementById('odActiveFilters');
+
+  let bar =
+    document.getElementById(
+      'odActiveFilters'
+    );
+
   if(!bar){
-    const kpis = document.getElementById('kpis');
+
+    const kpis =
+      document.getElementById(
+        'kpis'
+      );
+
     if(!kpis) return;
-    bar = document.createElement('div');
-    bar.id = 'odActiveFilters';
-    bar.className = 'active-filter-bar';
-    kpis.insertAdjacentElement('beforebegin', bar);
+
+    bar =
+      document.createElement(
+        'div'
+      );
+
+    bar.id =
+      'odActiveFilters';
+
+    bar.className =
+      'active-filter-bar';
+
+    kpis.insertAdjacentElement(
+      'beforebegin',
+      bar
+    );
   }
-  const chips=[];
-  filterMap.forEach(([key,label])=>{
-    const vals=[...(filterSelections[key]||[])];
-    if(vals.length) chips.push(`<span><b>${esc(label)}:</b> ${esc(vals.join(', '))}</span>`);
-  });
-  bar.innerHTML = chips.length
-    ? `<strong>Active Filters</strong>${chips.join('')}`
-    : `<strong>Active Filters</strong><span>All Data</span>`;
+
+  const chips = [];
+
+  filterMap.forEach(
+    ([key, label]) => {
+
+      const vals = [
+        ...(
+          filterSelections[key] ||
+          []
+        )
+      ];
+
+      if(vals.length){
+
+        chips.push(
+          `<span><b>${esc(label)}:</b> ${esc(
+            vals.join(', ')
+          )}</span>`
+        );
+      }
+    }
+  );
+
+  bar.innerHTML =
+    chips.length
+
+      ? `<strong>Active Filters</strong>${chips.join('')}`
+
+      : `<strong>Active Filters</strong><span>All Data</span>`;
 }
 
+
 function drillToAge(label){
-  filterSelections.age_days.clear();
-  if(label) filterSelections.age_days.add(label);
+
+  filterSelections
+    .age_days
+    .clear();
+
+  if(label){
+
+    filterSelections
+      .age_days
+      .add(label);
+  }
+
   detailPage = 1;
+
   refreshFilters();
+
   render();
-  setTimeout(()=>{
-    document.getElementById('customerDetails')?.closest('.card')?.scrollIntoView({behavior:'smooth',block:'start'});
-  },50);
+
+  setTimeout(
+    () => {
+
+      document
+        .getElementById(
+          'customerDetails'
+        )
+        ?.closest(
+          '.card'
+        )
+        ?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+    },
+    50
+  );
 }
+
 
 /* =========================================================
    MAIN DASHBOARD RENDER
 ========================================================= */
 
 function render() {
+
   renderActiveFilters();
 
   const data =
@@ -1454,31 +2230,142 @@ function render() {
     $('#kpis');
 
   if (kpis) {
+
     const cards = [
-      ['Total Outstanding', money(currentMetrics.total), ''],
-      ['Total Customers', currentMetrics.customers.toLocaleString('en-IN'), ''],
-      ['PDC Amount', money(currentMetrics.pdc), ''],
-      ['Over 30 Days', money(currentMetrics.over30), '30 Days'],
-      ['Over 45 Days', money(currentMetrics.over45), '45 Days'],
-      ['Over 60 Days', money(currentMetrics.over60), '60 Days'],
-      ['Over 75 Days', money(currentMetrics.over75), '75 Days'],
-      ['Over 90 Days', money(currentMetrics.over90), '90 Days'],
-      ['Over 120 Days', money(currentMetrics.over120), '120 Days'],
-      ['Over 150 Days', money(currentMetrics.over150), '150 Days']
+
+      [
+        'Total Outstanding',
+        money(
+          currentMetrics.total
+        ),
+        ''
+      ],
+
+      [
+        'Total Customers',
+        currentMetrics
+          .customers
+          .toLocaleString(
+            'en-IN'
+          ),
+        ''
+      ],
+
+      [
+        'PDC Amount',
+        money(
+          currentMetrics.pdc
+        ),
+        ''
+      ],
+
+      [
+        'Over 30 Days',
+        money(
+          currentMetrics.over30
+        ),
+        '30 Days'
+      ],
+
+      [
+        'Over 45 Days',
+        money(
+          currentMetrics.over45
+        ),
+        '45 Days'
+      ],
+
+      [
+        'Over 60 Days',
+        money(
+          currentMetrics.over60
+        ),
+        '60 Days'
+      ],
+
+      [
+        'Over 75 Days',
+        money(
+          currentMetrics.over75
+        ),
+        '75 Days'
+      ],
+
+      [
+        'Over 90 Days',
+        money(
+          currentMetrics.over90
+        ),
+        '90 Days'
+      ],
+
+      [
+        'Over 120 Days',
+        money(
+          currentMetrics.over120
+        ),
+        '120 Days'
+      ],
+
+      [
+        'Over 150 Days',
+        money(
+          currentMetrics.over150
+        ),
+        '150 Days'
+      ]
     ];
 
     kpis.innerHTML =
-      cards.map(([label, value, age]) => `
-        <article class="kpi ${age ? 'kpi-clickable' : ''}" ${age ? `data-age="${esc(age)}" title="Show ${esc(age)} customers"` : ''}>
-          <span>${esc(label)}</span>
-          <strong>${esc(value)}</strong>
-          <small>${age ? 'Click to view customers' : 'Current snapshot'}</small>
-        </article>
-      `).join('');
+      cards.map(
+        ([label, value, age]) => `
 
-    kpis.querySelectorAll('[data-age]').forEach(card => {
-      card.onclick = () => drillToAge(card.dataset.age);
-    });
+          <article
+            class="kpi ${
+              age
+                ? 'kpi-clickable'
+                : ''
+            }"
+            ${
+              age
+                ? `data-age="${esc(age)}" title="Show ${esc(age)} customers"`
+                : ''
+            }
+          >
+
+            <span>
+              ${esc(label)}
+            </span>
+
+            <strong>
+              ${esc(value)}
+            </strong>
+
+            <small>
+              ${
+                age
+                  ? 'Click to view customers'
+                  : 'Current snapshot'
+              }
+            </small>
+
+          </article>
+
+        `
+      ).join('');
+
+    kpis
+      .querySelectorAll(
+        '[data-age]'
+      )
+      .forEach(card => {
+
+        card.onclick =
+          () =>
+            drillToAge(
+              card.dataset.age
+            );
+      });
   }
 
   /* =====================================================
@@ -1514,7 +2401,8 @@ function render() {
         data:
           ageingValues,
 
-        borderRadius: 6
+        borderRadius:
+          6
       }
     ]
   );
@@ -1535,11 +2423,13 @@ function render() {
         data:
           ageingValues,
 
-        borderWidth: 0
+        borderWidth:
+          0
       }
     ],
     {
-      legend: true
+      legend:
+        true
     }
   );
 
@@ -1558,26 +2448,34 @@ function render() {
   const ageingCustomerCounts =
     customerBucketDefs.map(
       ([label, key]) => {
+
         const customers =
           new Set();
 
-        data.forEach(row => {
-          const amount =
-            bucket(row)[key];
+        data.forEach(
+          row => {
 
-          if (amount > 1000) {
-            const party =
-              String(
-                row.party ?? ''
-              ).trim();
+            const amount =
+              bucket(row)[key];
 
-            if (party) {
-              customers.add(
-                party
-              );
+            if (
+              amount > 1000
+            ) {
+
+              const party =
+                String(
+                  row.party ?? ''
+                ).trim();
+
+              if (party) {
+
+                customers.add(
+                  party
+                );
+              }
             }
           }
-        });
+        );
 
         return customers.size;
       }
@@ -1597,11 +2495,13 @@ function render() {
         data:
           ageingCustomerCounts,
 
-        borderRadius: 6
+        borderRadius:
+          6
       }
     ],
     {
-      countChart: true
+      countChart:
+        true
     }
   );
 
@@ -1613,19 +2513,30 @@ function render() {
     [...data]
       .sort(
         (a, b) =>
-          num(b.balance) -
-          num(a.balance)
+          num(
+            b.balance
+          ) -
+          num(
+            a.balance
+          )
       )
-      .slice(0, 5);
+      .slice(
+        0,
+        5
+      );
 
-  if ($('#topCustomers')) {
+  if (
+    $('#topCustomers')
+  ) {
+
     $('#topCustomers')
       .innerHTML =
         simpleTable(
           topCustomers,
           [
             {
-              label: '#',
+              label:
+                '#',
 
               render:
                 (row, index) =>
@@ -1644,7 +2555,8 @@ function render() {
               label:
                 'Balance',
 
-              num: true,
+              num:
+                true,
 
               render:
                 row =>
@@ -1677,16 +2589,23 @@ function render() {
             a.days_150
           )
       )
-      .slice(0, 5);
+      .slice(
+        0,
+        5
+      );
 
-  if ($('#overdueCustomers')) {
+  if (
+    $('#overdueCustomers')
+  ) {
+
     $('#overdueCustomers')
       .innerHTML =
         simpleTable(
           overdue,
           [
             {
-              label: '#',
+              label:
+                '#',
 
               render:
                 (row, index) =>
@@ -1705,7 +2624,8 @@ function render() {
               label:
                 '150',
 
-              num: true,
+              num:
+                true,
 
               render:
                 row =>
@@ -1718,7 +2638,8 @@ function render() {
               label:
                 'Balance',
 
-              num: true,
+              num:
+                true,
 
               render:
                 row =>
@@ -1732,22 +2653,32 @@ function render() {
 
   /* CUSTOMER DETAILS */
 
-  renderDetails(data);
+  renderDetails(
+    data
+  );
 
   /* COMPARISON */
 
   renderCompare(
     currentMetrics
-  ).catch(error => {
-    console.error(error);
-  });
+  ).catch(
+    error => {
+      console.error(
+        error
+      );
+    }
+  );
 }
 
-/* =========================================================
+
+
+
+ /* =========================================================
    COMPARISON SNAPSHOT SELECTOR
 ========================================================= */
 
 function populateCompareSelector() {
+
   const select =
     $('#compareSnapshotSelect');
 
@@ -1795,6 +2726,7 @@ function populateCompareSelector() {
         oldValue
     )
   ) {
+
     select.value =
       oldValue;
 
@@ -1816,10 +2748,12 @@ function populateCompareSelector() {
       : null;
 
   if (previous) {
+
     select.value =
       previous.id;
   }
 }
+
 
 /* =========================================================
    COMPARISON ROW CACHE
@@ -1828,11 +2762,13 @@ function populateCompareSelector() {
 async function getComparisonRows(
   uploadId
 ) {
+
   if (
     snapshotCache.has(
       uploadId
     )
   ) {
+
     return snapshotCache.get(
       uploadId
     );
@@ -1852,6 +2788,7 @@ async function getComparisonRows(
   return data;
 }
 
+
 /* =========================================================
    COMPARISON
 ========================================================= */
@@ -1859,6 +2796,7 @@ async function getComparisonRows(
 async function renderCompare(
   currentMetrics
 ) {
+
   const select =
     $('#compareSnapshotSelect');
 
@@ -1876,7 +2814,11 @@ async function renderCompare(
     ++comparisonRequestId;
 
   if (!compareId) {
-    if ($('#summaryCompare')) {
+
+    if (
+      $('#summaryCompare')
+    ) {
+
       $('#summaryCompare')
         .innerHTML = `
           <span class="muted">
@@ -1907,6 +2849,7 @@ async function renderCompare(
   }
 
   try {
+
     const compareRows =
       await getComparisonRows(
         compareId
@@ -1925,7 +2868,9 @@ async function renderCompare(
     */
 
     const compareFiltered =
-      roleScopedRows(compareRows).filter(
+      roleScopedRows(
+        compareRows
+      ).filter(
         row =>
           rowMatches(row)
       );
@@ -1944,9 +2889,12 @@ async function renderCompare(
     draw(
       '#compareChart',
       'bar',
+
       bucketDefs.map(
-        item => item[0]
+        item =>
+          item[0]
       ),
+
       [
         {
           label:
@@ -1976,8 +2924,10 @@ async function renderCompare(
             )
         }
       ],
+
       {
-        legend: true
+        legend:
+          true
       }
     );
 
@@ -1986,6 +2936,7 @@ async function renderCompare(
     =================================================== */
 
     const comparisonTable = [
+
       {
         metric:
           'Total Outstanding',
@@ -2007,7 +2958,8 @@ async function renderCompare(
         current:
           currentMetrics.customers,
 
-        count: true
+        count:
+          true
       },
 
       {
@@ -2044,12 +2996,16 @@ async function renderCompare(
       }
     ];
 
-    if ($('#summaryCompare')) {
+    if (
+      $('#summaryCompare')
+    ) {
+
       $('#summaryCompare')
         .innerHTML =
           simpleTable(
             comparisonTable,
             [
+
               {
                 label:
                   'Metric',
@@ -2063,16 +3019,19 @@ async function renderCompare(
                   compareUpload
                     .outstanding_date,
 
-                num: true,
+                num:
+                  true,
 
                 render:
                   row =>
                     row.count
+
                       ? Number(
                           row.previous
                         ).toLocaleString(
                           'en-IN'
                         )
+
                       : money(
                           row.previous
                         )
@@ -2083,16 +3042,19 @@ async function renderCompare(
                   activeUpload
                     .outstanding_date,
 
-                num: true,
+                num:
+                  true,
 
                 render:
                   row =>
                     row.count
+
                       ? Number(
                           row.current
                         ).toLocaleString(
                           'en-IN'
                         )
+
                       : money(
                           row.current
                         )
@@ -2102,12 +3064,16 @@ async function renderCompare(
     }
 
   } catch (error) {
+
     console.error(
       'Comparison error:',
       error
     );
 
-    if ($('#summaryCompare')) {
+    if (
+      $('#summaryCompare')
+    ) {
+
       $('#summaryCompare')
         .innerHTML = `
           <span class="muted">
@@ -2119,45 +3085,54 @@ async function renderCompare(
 }
 
 
-
-
-
-
- /* =========================================================
+/* =========================================================
    SNAPSHOT HISTORY
 ========================================================= */
 
 function renderHistory() {
+
   const container =
     $('#snapshotHistory');
 
-  if (!container) return;
+  if (!container) {
+    return;
+  }
 
   let list =
     [...uploads];
 
-  list.sort((a, b) => {
-    const result =
-      compareValues(
-        a,
-        b,
-        historySort.key
-      );
+  list.sort(
+    (a, b) => {
 
-    return historySort.dir === 'asc'
-      ? result
-      : -result;
-  });
+      const result =
+        compareValues(
+          a,
+          b,
+          historySort.key
+        );
+
+      return (
+        historySort.dir === 'asc'
+          ? result
+          : -result
+      );
+    }
+  );
 
   container.innerHTML = `
+
     <table>
+
       <thead>
+
         <tr>
+
           <th
             class="sortable"
             data-history-sort="outstanding_date"
           >
             Snapshot Date
+
             ${sortArrow(
               historySort,
               'outstanding_date'
@@ -2169,6 +3144,7 @@ function renderHistory() {
             data-history-sort="total_customers"
           >
             Customers
+
             ${sortArrow(
               historySort,
               'total_customers'
@@ -2180,6 +3156,7 @@ function renderHistory() {
             data-history-sort="total_outstanding"
           >
             Outstanding
+
             ${sortArrow(
               historySort,
               'total_outstanding'
@@ -2191,6 +3168,7 @@ function renderHistory() {
             data-history-sort="total_pdc"
           >
             PDC
+
             ${sortArrow(
               historySort,
               'total_pdc'
@@ -2200,61 +3178,86 @@ function renderHistory() {
           <th>
             File
           </th>
+
         </tr>
+
       </thead>
 
       <tbody>
+
         ${
           list.length
-            ? list.map(upload => `
-                <tr>
-                  <td>
-                    ${esc(
-                      upload.outstanding_date ||
-                      ''
-                    )}
-                  </td>
 
-                  <td class="num">
-                    ${num(
-                      upload.total_customers
-                    ).toLocaleString(
-                      'en-IN'
-                    )}
-                  </td>
+            ? list.map(
+                upload => `
 
-                  <td class="num">
-                    ${money(
-                      upload.total_outstanding
-                    )}
-                  </td>
+                  <tr>
 
-                  <td class="num">
-                    ${money(
-                      upload.total_pdc
-                    )}
-                  </td>
+                    <td>
+                      ${esc(
+                        upload.outstanding_date ||
+                        ''
+                      )}
+                    </td>
 
-                  <td>
-                    ${esc(
-                      upload.file_name ||
-                      ''
-                    )}
-                  </td>
-                </tr>
-              `).join('')
+                    <td class="num">
+
+                      ${num(
+                        upload.total_customers
+                      ).toLocaleString(
+                        'en-IN'
+                      )}
+
+                    </td>
+
+                    <td class="num">
+
+                      ${money(
+                        upload.total_outstanding
+                      )}
+
+                    </td>
+
+                    <td class="num">
+
+                      ${money(
+                        upload.total_pdc
+                      )}
+
+                    </td>
+
+                    <td>
+
+                      ${esc(
+                        upload.file_name ||
+                        ''
+                      )}
+
+                    </td>
+
+                  </tr>
+
+                `
+              ).join('')
+
             : `
+
                 <tr>
+
                   <td
                     colspan="5"
                     class="muted"
                   >
                     No snapshot history
                   </td>
+
                 </tr>
+
               `
         }
+
       </tbody>
+
     </table>
   `;
 
@@ -2262,56 +3265,79 @@ function renderHistory() {
     .querySelectorAll(
       '[data-history-sort]'
     )
-    .forEach(th => {
-      th.onclick = () => {
-        const key =
-          th.dataset.historySort;
+    .forEach(
+      th => {
 
-        if (
-          historySort.key === key
-        ) {
-          historySort.dir =
-            historySort.dir === 'asc'
-              ? 'desc'
-              : 'asc';
-        } else {
-          historySort = {
-            key,
-            dir: 'asc'
+        th.onclick =
+          () => {
+
+            const key =
+              th.dataset
+                .historySort;
+
+            if (
+              historySort.key ===
+              key
+            ) {
+
+              historySort.dir =
+                historySort.dir ===
+                'asc'
+                  ? 'desc'
+                  : 'asc';
+
+            } else {
+
+              historySort = {
+                key,
+                dir: 'asc'
+              };
+            }
+
+            renderHistory();
           };
-        }
-
-        renderHistory();
-      };
-    });
+      }
+    );
 }
+
 
 /* =========================================================
    SNAPSHOT SELECTOR
 ========================================================= */
 
 function populateSnapshotSelector() {
+
   const select =
     $('#snapshotSelect');
 
-  if (!select) return;
+  if (!select) {
+    return;
+  }
 
   select.innerHTML =
-    uploads.map(upload => `
-      <option
-        value="${esc(upload.id)}"
-      >
-        ${esc(
-          upload.outstanding_date
-        )}
-      </option>
-    `).join('');
+    uploads.map(
+      upload => `
+
+        <option
+          value="${esc(
+            upload.id
+          )}"
+        >
+          ${esc(
+            upload.outstanding_date
+          )}
+        </option>
+
+      `
+    ).join('');
 
   if (activeUpload) {
+
     select.value =
       activeUpload.id;
   }
 }
+
 
 /* =========================================================
    LOAD SELECTED SNAPSHOT
@@ -2320,13 +3346,16 @@ function populateSnapshotSelector() {
 async function loadSnapshot(
   uploadId
 ) {
+
   const upload =
     uploads.find(
       item =>
-        item.id === uploadId
+        item.id ===
+        uploadId
     );
 
   if (!upload) {
+
     throw new Error(
       'Snapshot not found.'
     );
@@ -2379,11 +3408,13 @@ async function loadSnapshot(
   );
 }
 
+
 /* =========================================================
    LOAD DASHBOARD
 ========================================================= */
 
 async function load() {
+
   toast(
     'Loading snapshots...',
     true
@@ -2401,24 +3432,32 @@ async function load() {
 
   uploads.sort(
     (a, b) => {
+
       const dateCompare =
         String(
-          b.outstanding_date || ''
+          b.outstanding_date ||
+          ''
         ).localeCompare(
           String(
-            a.outstanding_date || ''
+            a.outstanding_date ||
+            ''
           )
         );
 
-      if (dateCompare !== 0) {
+      if (
+        dateCompare !== 0
+      ) {
+
         return dateCompare;
       }
 
       return String(
-        b.uploaded_at || ''
+        b.uploaded_at ||
+        ''
       ).localeCompare(
         String(
-          a.uploaded_at || ''
+          a.uploaded_at ||
+          ''
         )
       );
     }
@@ -2427,12 +3466,18 @@ async function load() {
   renderHistory();
 
   if (!uploads.length) {
+
     rows = [];
-    activeUpload = null;
+
+    activeUpload =
+      null;
 
     populateSnapshotSelector();
+
     populateCompareSelector();
+
     makeFilters();
+
     render();
 
     toast(
@@ -2452,28 +3497,39 @@ async function load() {
   );
 }
 
+
 /* =========================================================
    CSV UPLOAD
 ========================================================= */
 
 function parseCsv(file) {
+
   return new Promise(
     (resolve, reject) => {
+
       Papa.parse(
         file,
         {
-          header: true,
-          skipEmptyLines: true,
+
+          header:
+            true,
+
+          skipEmptyLines:
+            true,
+
           transformHeader:
             header =>
-              String(header)
-                .trim(),
+              String(
+                header
+              ).trim(),
 
           complete(result) {
+
             if (
               result.errors &&
               result.errors.length
             ) {
+
               const serious =
                 result.errors.find(
                   error =>
@@ -2482,6 +3538,7 @@ function parseCsv(file) {
                 );
 
               if (serious) {
+
                 reject(
                   new Error(
                     serious.message
@@ -2493,18 +3550,23 @@ function parseCsv(file) {
             }
 
             resolve(
-              result.data || []
+              result.data ||
+              []
             );
           },
 
           error(error) {
-            reject(error);
+
+            reject(
+              error
+            );
           }
         }
       );
     }
   );
 }
+
 
 /* =========================================================
    MAP CSV TO DATABASE
@@ -2524,81 +3586,119 @@ function parseCsv(file) {
    No subtraction.
 ========================================================= */
 
-function mapCsvRows(csvRows) {
-  return csvRows.map(row => ({
-    party:
-      String(
-        row.Party ?? ''
-      ).trim(),
+function mapCsvRows(
+  csvRows
+) {
 
-    balance:
-      num(row.Balance),
+  return csvRows.map(
+    row => ({
 
-    days_15:
-      num(row['15']),
+      party:
+        String(
+          row.Party ??
+          ''
+        ).trim(),
 
-    days_30:
-      num(row['30']),
+      balance:
+        num(
+          row.Balance
+        ),
 
-    days_45:
-      num(row['45']),
+      days_15:
+        num(
+          row['15']
+        ),
 
-    days_60:
-      num(row['60']),
+      days_30:
+        num(
+          row['30']
+        ),
 
-    days_75:
-      num(row['75']),
+      days_45:
+        num(
+          row['45']
+        ),
 
-    days_90:
-      num(row['90']),
+      days_60:
+        num(
+          row['60']
+        ),
 
-    days_120:
-      num(row['120']),
+      days_75:
+        num(
+          row['75']
+        ),
 
-    days_150:
-      num(row['150']),
+      days_90:
+        num(
+          row['90']
+        ),
 
-    pdc:
-      num(row.PDC),
+      days_120:
+        num(
+          row['120']
+        ),
 
-    sm:
-      String(
-        row.SM ?? ''
-      ).trim(),
+      days_150:
+        num(
+          row['150']
+        ),
 
-    grp_name:
-      String(
-        row.GrpName ?? ''
-      ).trim(),
+      pdc:
+        num(
+          row.PDC
+        ),
 
-    division:
-      String(
-        row.Division ?? ''
-      ).trim(),
+      sm:
+        String(
+          row.SM ??
+          ''
+        ).trim(),
 
-    area:
-      String(
-        row.Area ?? ''
-      ).trim(),
+      grp_name:
+        String(
+          row.GrpName ??
+          ''
+        ).trim(),
 
-    order_type:
-      String(
-        row.Order ?? ''
-      ).trim(),
+      division:
+        String(
+          row.Division ??
+          ''
+        ).trim(),
 
-    city:
-      String(
-        row.City ?? ''
-      ).trim(),
+      area:
+        String(
+          row.Area ??
+          ''
+        ).trim(),
 
-    pincode:
-      String(
-        row.Pincode ?? ''
-      ).trim()
-  }));
+      order_type:
+        String(
+          row.Order ??
+          ''
+        ).trim(),
+
+      city:
+        String(
+          row.City ??
+          ''
+        ).trim(),
+
+      pincode:
+        String(
+          row.Pincode ??
+          ''
+        ).trim()
+    })
+  );
 }
 
-/* =========================================================
+
+
+
+
+ /* =========================================================
    UPLOAD OUTSTANDING
 ========================================================= */
 
@@ -2606,13 +3706,16 @@ async function uploadOutstanding(
   file,
   outstandingDate
 ) {
+
   if (!file) {
+
     throw new Error(
       'Please select CSV file.'
     );
   }
 
   if (!outstandingDate) {
+
     throw new Error(
       'Please select outstanding date.'
     );
@@ -2624,16 +3727,23 @@ async function uploadOutstanding(
   );
 
   const csvRows =
-    await parseCsv(file);
+    await parseCsv(
+      file
+    );
 
-  if (!csvRows.length) {
+  if (
+    !csvRows.length
+  ) {
+
     throw new Error(
       'CSV contains no data.'
     );
   }
 
   const mappedRows =
-    mapCsvRows(csvRows);
+    mapCsvRows(
+      csvRows
+    );
 
   const requiredCheck =
     mappedRows.filter(
@@ -2641,7 +3751,10 @@ async function uploadOutstanding(
         row.party
     );
 
-  if (!requiredCheck.length) {
+  if (
+    !requiredCheck.length
+  ) {
+
     throw new Error(
       'Party column not found or CSV has no valid Party rows.'
     );
@@ -2654,6 +3767,42 @@ async function uploadOutstanding(
   const payload =
     requiredCheck;
 
+
+  /*
+    IMPORTANT FIX:
+
+    Supabase function:
+    raj_outstanding_upload_json
+
+    requires:
+
+    p_session_token
+    p_device_id
+    p_outstanding_date
+    p_file_name
+    p_uploaded_by
+    p_rows
+
+    Session token and device ID are
+    automatically added by authArgs().
+
+    Here we add p_uploaded_by.
+  */
+
+  const currentUser =
+    storedUser();
+
+  const uploadedBy =
+    String(
+      currentUser.username ??
+      currentUser.user_name ??
+      currentUser.name ??
+      currentUser.email ??
+      currentUser.full_name ??
+      'Admin'
+    ).trim() || 'Admin';
+
+
   toast(
     `Uploading ${payload.length.toLocaleString(
       'en-IN'
@@ -2661,108 +3810,149 @@ async function uploadOutstanding(
     true
   );
 
-  const { data, error } =
+
+  const {
+    data,
+    error
+  } =
     await sb.rpc(
       'raj_outstanding_upload_json',
+
       authArgs({
+
         p_outstanding_date:
           outstandingDate,
 
         p_file_name:
           file.name,
 
+        p_uploaded_by:
+          uploadedBy,
+
         p_rows:
           payload
       })
     );
 
+
   if (error) {
+
     throw new Error(
       'Upload failed: ' +
       error.message
     );
   }
 
+
   toast(
     'Upload completed. Refreshing dashboard...',
     true
   );
 
+
   snapshotCache.clear();
 
+
   await load();
+
 
   toast(
     'Outstanding uploaded successfully.'
   );
 
+
   return data;
 }
+
 
 /* =========================================================
    UPLOAD MODAL HELPERS
 ========================================================= */
 
 function openUploadModal() {
+
   const modal =
     $('#uploadModal');
 
   if (!modal) {
+
     /*
       Fallback:
-      If HTML uses direct file/date controls,
+
+      If HTML uses direct
+      file/date controls,
       click the file input.
     */
 
-    $('#csvFile')?.click();
+    $('#csvFile')
+      ?.click();
+
     return;
   }
+
 
   modal.classList.add(
     'open'
   );
 
+
   modal.style.display =
     'flex';
 
+
   const date =
     $('#outstandingDate');
+
 
   if (
     date &&
     !date.value
   ) {
+
     date.value =
       new Date()
         .toISOString()
-        .slice(0, 10);
+        .slice(
+          0,
+          10
+        );
   }
 }
 
+
 function closeUploadModal() {
+
   const modal =
     $('#uploadModal');
 
-  if (!modal) return;
+  if (!modal) {
+    return;
+  }
+
 
   modal.classList.remove(
     'open'
   );
 
+
   modal.style.display =
     'none';
 }
+
 
 /* =========================================================
    CLEAR ALL FILTERS
 ========================================================= */
 
 function clearAllFilters() {
+
   filterMap.forEach(
     ([key]) =>
+
       filterSelections[key]
         .clear()
   );
+
 
   document
     .querySelectorAll(
@@ -2773,12 +3963,16 @@ function clearAllFilters() {
         input.value = ''
     );
 
+
   detailPage = 1;
+
 
   refreshFilters();
 
+
   render();
 }
+
 
 /* =========================================================
    EVENTS
@@ -2786,30 +3980,47 @@ function clearAllFilters() {
 
 function bindEvents() {
 
-  /* SNAPSHOT CHANGE */
 
-  if ($('#snapshotSelect')) {
+  /* =====================================================
+     SNAPSHOT CHANGE
+  ===================================================== */
+
+  if (
+    $('#snapshotSelect')
+  ) {
+
     $('#snapshotSelect')
       .onchange =
         async event => {
+
           try {
+
             await loadSnapshot(
               event.target.value
             );
+
           } catch (error) {
-            fatal(error);
+
+            fatal(
+              error
+            );
           }
         };
   }
 
-  /* COMPARISON CHANGE */
+
+  /* =====================================================
+     COMPARISON CHANGE
+  ===================================================== */
 
   if (
     $('#compareSnapshotSelect')
   ) {
+
     $('#compareSnapshotSelect')
       .onchange =
         () => {
+
           renderCompare(
             metrics(
               filtered()
@@ -2823,12 +4034,19 @@ function bindEvents() {
         };
   }
 
-  /* CUSTOMER SEARCH */
 
-  if ($('#detailSearch')) {
+  /* =====================================================
+     CUSTOMER SEARCH
+  ===================================================== */
+
+  if (
+    $('#detailSearch')
+  ) {
+
     $('#detailSearch')
       .oninput =
         () => {
+
           detailPage = 1;
 
           renderDetails(
@@ -2837,15 +4055,23 @@ function bindEvents() {
         };
   }
 
-  /* PREVIOUS PAGE */
 
-  if ($('#prevPage')) {
+  /* =====================================================
+     PREVIOUS PAGE
+  ===================================================== */
+
+  if (
+    $('#prevPage')
+  ) {
+
     $('#prevPage')
       .onclick =
         () => {
+
           if (
             detailPage > 1
           ) {
+
             detailPage--;
 
             renderDetails(
@@ -2855,12 +4081,19 @@ function bindEvents() {
         };
   }
 
-  /* NEXT PAGE */
 
-  if ($('#nextPage')) {
+  /* =====================================================
+     NEXT PAGE
+  ===================================================== */
+
+  if (
+    $('#nextPage')
+  ) {
+
     $('#nextPage')
       .onclick =
         () => {
+
           detailPage++;
 
           renderDetails(
@@ -2869,77 +4102,167 @@ function bindEvents() {
         };
   }
 
-  /* CLEAR FILTERS */
+
+  /* =====================================================
+     CLEAR FILTERS
+  ===================================================== */
 
   const clearButton =
     $('#resetBtn') ||
     $('#clearFilters') ||
     $('#clearAllFilters');
 
-  if (clearButton) {
+
+  if (
+    clearButton
+  ) {
+
     clearButton.onclick =
       clearAllFilters;
   }
 
-  /* UPLOAD BUTTON */
+
+  /* =====================================================
+     UPLOAD BUTTON
+  ===================================================== */
 
   const uploadButton =
     $('#uploadBtn') ||
     $('#uploadOutstandingBtn');
 
-  if (uploadButton) {
+
+  if (
+    uploadButton
+  ) {
+
     uploadButton.onclick =
       openUploadModal;
   }
 
-  if ($('#uploadBtn2')) { $('#uploadBtn2').onclick = openUploadModal; }
-  if ($('#refreshBtn')) { $('#refreshBtn').onclick = () => load().catch(fatal); }
-  if ($('#logoutBtn')) { $('#logoutBtn').onclick = () => { localStorage.removeItem(TOKEN); localStorage.removeItem(USER); location.href='index.html'; }; }
 
-  /* CLOSE UPLOAD MODAL */
+  if (
+    $('#uploadBtn2')
+  ) {
+
+    $('#uploadBtn2')
+      .onclick =
+        openUploadModal;
+  }
+
+
+  /* =====================================================
+     REFRESH BUTTON
+  ===================================================== */
+
+  if (
+    $('#refreshBtn')
+  ) {
+
+    $('#refreshBtn')
+      .onclick =
+        () =>
+          load()
+            .catch(
+              fatal
+            );
+  }
+
+
+  /* =====================================================
+     LOGOUT
+  ===================================================== */
+
+  if (
+    $('#logoutBtn')
+  ) {
+
+    $('#logoutBtn')
+      .onclick =
+        () => {
+
+          localStorage.removeItem(
+            TOKEN
+          );
+
+          localStorage.removeItem(
+            USER
+          );
+
+          location.href =
+            'index.html';
+        };
+  }
+
+
+  /* =====================================================
+     CLOSE UPLOAD MODAL
+  ===================================================== */
 
   const closeButton =
     $('#closeUploadModal') ||
     $('#cancelUpload');
 
-  if (closeButton) {
+
+  if (
+    closeButton
+  ) {
+
     closeButton.onclick =
       closeUploadModal;
   }
 
-  /* SUBMIT UPLOAD */
+
+  /* =====================================================
+     SUBMIT UPLOAD FORM
+  ===================================================== */
 
   const uploadForm =
     $('#uploadForm');
 
-  if (uploadForm) {
+
+  if (
+    uploadForm
+  ) {
+
     uploadForm.onsubmit =
       async event => {
+
         event.preventDefault();
+
 
         const file =
           $('#csvFile')
             ?.files?.[0];
 
+
         const date =
           $('#outstandingDate')
             ?.value;
 
+
         try {
+
           await uploadOutstanding(
             file,
             date
           );
 
+
           closeUploadModal();
+
 
           uploadForm.reset();
 
+
         } catch (error) {
-          fatal(error);
+
+          fatal(
+            error
+          );
         }
       };
   }
+
 
   /*
     Some versions of HTML may have
@@ -2949,43 +4272,62 @@ function bindEvents() {
   const confirmUpload =
     $('#confirmUpload');
 
+
   if (
     confirmUpload &&
     !uploadForm
   ) {
+
     confirmUpload.onclick =
       async () => {
+
+
         const file =
           $('#csvFile')
             ?.files?.[0];
+
 
         const date =
           $('#outstandingDate')
             ?.value;
 
+
         try {
+
           await uploadOutstanding(
             file,
             date
           );
 
+
           closeUploadModal();
 
+
         } catch (error) {
-          fatal(error);
+
+          fatal(
+            error
+          );
         }
       };
   }
 
-  /* ESC CLOSE */
+
+  /* =====================================================
+     ESC CLOSE
+  ===================================================== */
 
   document.addEventListener(
     'keydown',
     event => {
+
       if (
         event.key ===
         'Escape'
       ) {
+
+        closeUploadModal();
+
         document
           .querySelectorAll(
             '.ms.open'
@@ -2993,116 +4335,195 @@ function bindEvents() {
           .forEach(
             box =>
               box.classList
-                .remove('open')
+                .remove(
+                  'open'
+                )
           );
-
-        closeUploadModal();
       }
     }
   );
-}
 
-/* =========================================================
-   INITIALIZE
-========================================================= */
 
-async function init() {
-  try {
-    /*
-      Check required libraries before
-      creating Supabase client.
-    */
+  /* =====================================================
+     CLICK OUTSIDE UPLOAD MODAL
+  ===================================================== */
 
-    if (
-      typeof window.supabase ===
-      'undefined'
-    ) {
-      throw new Error(
-        'Supabase library is not loaded.'
-      );
-    }
+  const uploadModal =
+    $('#uploadModal');
 
-    if (
-      typeof window.RAJ_CONFIG ===
-      'undefined'
-    ) {
-      throw new Error(
-        'config.js / RAJ_CONFIG is not loaded.'
-      );
-    }
 
-    if (
-      typeof window.Chart ===
-      'undefined'
-    ) {
-      throw new Error(
-        'Chart.js is not loaded.'
-      );
-    }
+  if (
+    uploadModal
+  ) {
 
-    if (
-      typeof window.Papa ===
-      'undefined'
-    ) {
-      throw new Error(
-        'PapaParse is not loaded.'
-      );
-    }
+    uploadModal.addEventListener(
+      'click',
+      event => {
 
-    const key =
-      RAJ_CONFIG
-        .supabasePublishableKey ||
-      RAJ_CONFIG
-        .supabaseAnonKey;
+        if (
+          event.target ===
+          uploadModal
+        ) {
 
-    if (
-      !RAJ_CONFIG.supabaseUrl ||
-      !key
-    ) {
-      throw new Error(
-        'Supabase configuration is incomplete.'
-      );
-    }
-
-    sb =
-      window.supabase
-        .createClient(
-          RAJ_CONFIG
-            .supabaseUrl,
-          key
-        );
-
-    bindEvents();
-    initOutstandingDrawer();
-
-    const ok =
-      await guard();
-
-    if (!ok) {
-      return;
-    }
-
-    await load();
-
-  } catch (error) {
-    fatal(error);
+          closeUploadModal();
+        }
+      }
+    );
   }
 }
 
+
 /* =========================================================
-   START
+   SUPABASE INITIALIZATION
+========================================================= */
+
+function initSupabase() {
+
+  if (
+    typeof window.supabase ===
+    'undefined'
+  ) {
+
+    throw new Error(
+      'Supabase library not loaded.'
+    );
+  }
+
+
+  /*
+    config.js should provide
+    SUPABASE_URL and SUPABASE_ANON_KEY.
+  */
+
+  const url =
+    window.SUPABASE_URL ||
+    window.RAJ_SUPABASE_URL ||
+    window.supabaseUrl;
+
+
+  const key =
+    window.SUPABASE_ANON_KEY ||
+    window.RAJ_SUPABASE_ANON_KEY ||
+    window.supabaseAnonKey;
+
+
+  if (
+    !url ||
+    !key
+  ) {
+
+    /*
+      If another app script already
+      created a Supabase client,
+      reuse it when available.
+    */
+
+    if (
+      window.sb &&
+      typeof window.sb.rpc ===
+      'function'
+    ) {
+
+      sb =
+        window.sb;
+
+      return;
+    }
+
+
+    if (
+      window.supabaseClient &&
+      typeof window.supabaseClient.rpc ===
+      'function'
+    ) {
+
+      sb =
+        window.supabaseClient;
+
+      return;
+    }
+
+
+    throw new Error(
+      'Supabase configuration not found.'
+    );
+  }
+
+
+  sb =
+    window.supabase.createClient(
+      url,
+      key
+    );
+}
+
+
+/* =========================================================
+   START APPLICATION
+========================================================= */
+
+async function start() {
+
+  try {
+
+    initSupabase();
+
+
+    const valid =
+      await guard();
+
+
+    if (
+      !valid
+    ) {
+
+      return;
+    }
+
+
+    applyRoleUi();
+
+
+    initOutstandingDrawer();
+
+
+    bindEvents();
+
+
+    await load();
+
+
+  } catch (error) {
+
+    fatal(
+      error
+    );
+  }
+}
+
+
+/* =========================================================
+   DOM READY
 ========================================================= */
 
 if (
   document.readyState ===
   'loading'
 ) {
+
   document.addEventListener(
     'DOMContentLoaded',
-    init
+    start
   );
+
 } else {
-  init();
+
+  start();
 }
+
+
+/* =========================================================
+   END
+========================================================= */
 
 })();
