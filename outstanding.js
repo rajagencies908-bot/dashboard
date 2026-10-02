@@ -4380,16 +4380,36 @@ function bindEvents() {
 function initSupabase() {
 
   if (
-    typeof window.supabase ===
-    'undefined'
+    typeof window.supabase === 'undefined'
   ) {
-
     throw new Error(
       'Supabase library not loaded.'
     );
   }
 
+  const config =
+    window.RAJ_CONFIG || {};
 
+  const url =
+    config.supabaseUrl;
+
+  const key =
+    config.supabasePublishableKey;
+
+  if (!url || !key) {
+    throw new Error(
+      'Supabase configuration not found.'
+    );
+  }
+
+  sb =
+    window.supabase.createClient(
+      url,
+      key
+    );
+}
+
+   
   /*
     config.js should provide
     SUPABASE_URL and SUPABASE_ANON_KEY.
