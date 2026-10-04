@@ -1,132 +1,22 @@
-(() => {
-'use strict';
-
-const SESSION_KEY='raj_dashboard_session_token';
-const DEVICE_KEY='raj_dashboard_device_id';
-const USER_KEY='raj_dashboard_user';
-const cfg=window.RAJ_CONFIG||{};
-if(!window.supabase||!cfg.supabaseUrl||!cfg.supabasePublishableKey){alert('Supabase configuration not found.');return;}
-const sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabasePublishableKey);
-const $=id=>document.getElementById(id);
-const fmt=n=>new Intl.NumberFormat('en-IN',{maximumFractionDigits:2}).format(Number(n||0));
-let detected=null, groupRows=[];
-
-function storedUser(){try{return JSON.parse(localStorage.getItem(USER_KEY)||'{}')||{};}catch{return {};}}
-function isAdmin(){const u=storedUser();return String(u.role||u.user_role||'').toLowerCase()==='admin'||u.is_admin===true;}
-function authArgs(extra={}){return {...extra,p_session_token:localStorage.getItem(SESSION_KEY)||'',p_device_id:localStorage.getItem(DEVICE_KEY)||''};}
-async function rpc(name,args={}){const {data,error}=await sb.rpc(name,args);if(error)throw error;return data;}
-function toast(msg,error=false){const t=$('toast');t.textContent=msg;t.className='toast show'+(error?' error':'');clearTimeout(window.__stockToast);window.__stockToast=setTimeout(()=>t.className='toast',3500);}
-function selectedValues(id){return [...$(id).selectedOptions].map(o=>o.value).filter(Boolean);}
-function optionList(values,allLabel){return `<option value="">${allLabel}</option>`+values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');}
-function esc(v){const d=document.createElement('div');d.textContent=v??'';return d.innerHTML;}
-function num(v){if(v==null||v==='')return 0;const n=Number(String(v).replace(/,/g,''));return Number.isFinite(n)?n:0;}
-
-async function guard(){
-  const token=localStorage.getItem(SESSION_KEY),device=localStorage.getItem(DEVICE_KEY);
-  if(!token||!device){location.href='index.html';return false;}
-  try{const {data,error}=await sb.rpc('raj_app_validate_session',{p_session_token:token,p_device_id:device});if(error||data===false){location.href='index.html';return false;}}catch(e){console.warn('Session validation:',e.message);}
-  return true;
-}
-
-async function loadFilters(){
-  const [dates,divs]=await Promise.all([rpc('raj_stock_dates'),rpc('raj_stock_divisions')]);
-  const dateVals=(dates||[]).map(x=>typeof x==='object'?x.stock_date:x).filter(Boolean);
-  $('stockDate').innerHTML=dateVals.map(d=>`<option value="${d}">${d}</option>`).join('')||'<option value="">No stock uploaded</option>';
-  const divVals=(divs||[]).map(x=>typeof x==='object'?x.division:x).filter(Boolean);
-  $('stockDivision').innerHTML=optionList(divVals,'All Divisions');
-}
-
-async function loadGroups(){
-  const rows=await rpc('raj_stock_group_summary',{p_stock_date:$('stockDate').value||null,p_divisions:selectedValues('stockDivision').filter(Boolean).length?selectedValues('stockDivision').filter(Boolean):null});
-  groupRows=rows||[];
-  const groups=groupRows.map(r=>r.item_group).filter(Boolean);
-  const old=new Set(selectedValues('stockGroup'));
-  $('stockGroup').innerHTML=optionList(groups,'All Companies / Groups');
-  [...$('stockGroup').options].forEach(o=>{if(old.has(o.value))o.selected=true;});
-  renderGroups();
-}
-
-function renderGroups(){
-  const q=($('groupSearch').value||'').trim().toLowerCase();
-  const chosen=new Set(selectedValues('stockGroup').filter(Boolean));
-  const rows=groupRows.filter(r=>(!chosen.size||chosen.has(r.item_group))&&(!q||String(r.item_group||'').toLowerCase().includes(q)));
-  $('groupBody').innerHTML=rows.length?rows.map(r=>`<tr><td><b>${esc(r.item_group)}</b></td><td>${fmt(r.total_part_nos)}</td><td>${fmt(r.total_stock_qty)}</td><td>${fmt(r.stock_part_nos)}</td><td>${fmt(r.zero_stock_part_nos)}</td><td>${fmt(r.min_zero_part_nos)}</td><td>${fmt(r.min_zero_stock_part_nos)}</td><td>${fmt(r.min_zero_stock_qty)}</td><td>${fmt(r.max_part_nos)}</td><td>${fmt(r.max_stock_qty)}</td></tr>`).join(''):'<tr><td colspan="10" class="empty">No matching stock data.</td></tr>';
-}
-
-async function loadSummary(){
-  const groups=selectedValues('stockGroup').filter(Boolean),divs=selectedValues('stockDivision').filter(Boolean);
-  const s=await rpc('raj_stock_summary',{p_stock_date:$('stockDate').value||null,p_divisions:divs.length?divs:null,p_item_groups:groups.length?groups:null});
-  const x=s||{};
-  $('kTotalParts').textContent=fmt(x.TotalPartNos);$('kTotalQty').textContent=fmt(x.TotalStockQty);$('kStockParts').textContent=fmt(x.StockPartNos);$('kZeroParts').textContent=fmt(x.ZeroStockPartNos);$('kMinZero').textContent=fmt(x.MinZeroPartNos);$('kMinZeroStock').textContent=fmt(x.MinZeroStockPartNos);$('kMinZeroQty').textContent=fmt(x.MinZeroStockQty);$('kMaxParts').textContent=fmt(x.MaxPartNos);$('kMaxQty').textContent=fmt(x.MaxStockQty);
-  $('scopeText').textContent=`Stock Date: ${$('stockDate').value||'Latest'} • Stock Division: ${divs.length?divs.join(', '):'All'}`;
-}
-
-async function loadHistory(){
-  const rows=await rpc('raj_stock_upload_history');
-  $('historyBody').innerHTML=(rows||[]).map(r=>`<tr><td>${esc(r.stock_date)}</td><td><b>${esc(r.division)}</b></td><td>${esc(r.file_name||'')}</td><td>${fmt(r.total_rows)}</td><td>${esc(r.uploaded_by||'')}</td><td>${esc(r.uploaded_at?new Date(r.uploaded_at).toLocaleString('en-IN'):'')}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">No uploads yet.</td></tr>';
-}
-
-async function refreshAll(){try{await loadFilters();await loadGroups();await loadSummary();await loadHistory();}catch(e){toast('Stock dashboard error: '+e.message,true);}}
-
-function normHeader(v){return String(v??'').trim().replace(/\s+/g,' ');}
-function findHeaderRow(rows){
-  for(let i=0;i<Math.min(rows.length,30);i++){
-    const h=(rows[i]||[]).map(normHeader);
-    const lower=h.map(x=>x.toLowerCase());
-    if(lower.includes('itemcode')&&lower.includes('itemgroup')&&h.some(x=>/\sClosingQty$/i.test(x)))return {index:i,headers:h};
-  }
-  return null;
-}
-function analyzeWorkbook(wb){
-  const candidates=[];
-  for(const sheetName of wb.SheetNames){
-    const ws=wb.Sheets[sheetName];
-    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
-    const hit=findHeaderRow(rows);if(!hit)continue;
-    const closing=hit.headers.find(h=>/\sClosingQty$/i.test(h));if(!closing)continue;
-    const division=closing.replace(/\sClosingQty$/i,'').trim().toUpperCase();if(!division)continue;
-    const need=[`${division} Rate`,`${division} Value`,`${division} MinQty`,`${division} MaxQty`];
-    const lower=new Set(hit.headers.map(h=>h.toLowerCase()));
-    if(!need.every(h=>lower.has(h.toLowerCase())))continue;
-    candidates.push({sheetName,rows,headerIndex:hit.index,headers:hit.headers,division});
-  }
-  if(!candidates.length)throw new Error('No valid stock-data sheet found. Required headers: ItemGroup, ItemCode and <Division> ClosingQty/Rate/Value/MinQty/MaxQty.');
-  if(candidates.length>1)throw new Error('More than one valid stock sheet found. Keep one stock-data sheet per workbook.');
-  return candidates[0];
-}
-function mapRows(info){
-  const H=info.headers, idx=name=>H.findIndex(h=>h.toLowerCase()===name.toLowerCase()), d=info.division;
-  const ix={group:idx('ItemGroup'),code:idx('ItemCode'),desc:idx('ItemDescription'),unit:idx('Unit'),qty:idx(`${d} ClosingQty`),rate:idx(`${d} Rate`),value:idx(`${d} Value`),min:idx(`${d} MinQty`),max:idx(`${d} MaxQty`)};
-  return info.rows.slice(info.headerIndex+1).map(r=>({item_group:String(r[ix.group]??'').trim(),item_code:String(r[ix.code]??'').trim(),item_description:String(r[ix.desc]??'').trim(),unit:String(r[ix.unit]??'').trim(),closing_qty:num(r[ix.qty]),rate:num(r[ix.rate]),stock_value:num(r[ix.value]),min_qty:num(r[ix.min]),max_qty:num(r[ix.max])})).filter(r=>r.item_code);
-}
-async function inspectFile(file){
-  const buf=await file.arrayBuffer(),wb=XLSX.read(buf,{type:'array'}),info=analyzeWorkbook(wb),rows=mapRows(info);
-  if(!rows.length)throw new Error('Valid stock sheet found, but no ItemCode rows were found.');
-  return {...info,mappedRows:rows,file};
-}
-
-function openUpload(){if(!isAdmin()){toast('Stock upload is available to Admin only.',true);return;}$('uploadModal').classList.add('open');$('uploadModal').setAttribute('aria-hidden','false');$('uploadDate').value=new Date().toISOString().slice(0,10);}
-function closeUpload(){if($('startUpload').disabled===false&&$('progressWrap').style.display==='block')return;$('uploadModal').classList.remove('open');$('uploadModal').setAttribute('aria-hidden','true');}
-
-async function onFile(){
-  detected=null;$('startUpload').disabled=true;$('detectBox').className='detect-box';
-  const f=$('stockFile').files[0];if(!f){$('detectBox').textContent='Select a file to detect sheet and division.';return;}
-  try{detected=await inspectFile(f);$('detectBox').className='detect-box ok';$('detectBox').innerHTML=`Valid stock sheet detected.<br><b>Sheet:</b> ${esc(detected.sheetName)} &nbsp; <b>Division:</b> ${esc(detected.division)} &nbsp; <b>Rows:</b> ${fmt(detected.mappedRows.length)}`;$('startUpload').disabled=false;}catch(e){$('detectBox').className='detect-box bad';$('detectBox').textContent=e.message;}
-}
-
-async function uploadStock(){
-  if(!detected||!$('uploadDate').value)return;
-  const u=storedUser(),uploadedBy=String(u.username??u.user_name??u.name??u.email??u.full_name??'Admin').trim()||'Admin';
-  $('startUpload').disabled=true;$('cancelUpload').disabled=true;$('progressWrap').style.display='block';$('progressBar').style.width='25%';$('progressText').textContent=`Uploading ${fmt(detected.mappedRows.length)} rows for ${detected.division}…`;
-  try{
-    $('progressBar').style.width='45%';
-    const result=await rpc('raj_stock_upload_json',{p_stock_date:$('uploadDate').value,p_division:detected.division,p_file_name:detected.file.name,p_uploaded_by:uploadedBy,p_rows:detected.mappedRows});
-    $('progressBar').style.width='100%';$('progressText').textContent=`Completed: ${fmt(result?.rows||detected.mappedRows.length)} rows uploaded.`;toast(`${detected.division} stock uploaded successfully.`);
-    await refreshAll();setTimeout(()=>{$('uploadModal').classList.remove('open');$('progressWrap').style.display='none';$('stockFile').value='';detected=null;$('detectBox').className='detect-box';$('detectBox').textContent='Select a file to detect sheet and division.';$('cancelUpload').disabled=false;},700);
-  }catch(e){$('progressBar').style.width='0';$('progressText').textContent='Upload failed: '+e.message;$('cancelUpload').disabled=false;$('startUpload').disabled=false;toast('Upload failed: '+e.message,true);}
-}
-
-$('menuBtn').onclick=()=>$('sidebar').classList.toggle('open');$('uploadBtn').onclick=openUpload;$('closeUpload').onclick=closeUpload;$('cancelUpload').onclick=closeUpload;$('stockFile').onchange=onFile;$('startUpload').onclick=uploadStock;$('applyFilters').onclick=async()=>{await loadGroups();await loadSummary();};$('clearFilters').onclick=async()=>{[...$('stockDivision').options].forEach(o=>o.selected=false);[...$('stockGroup').options].forEach(o=>o.selected=false);await loadGroups();await loadSummary();};$('groupSearch').oninput=renderGroups;$('stockGroup').onchange=loadSummary;$('stockDate').onchange=async()=>{await loadGroups();await loadSummary();};$('stockDivision').onchange=async()=>{await loadGroups();await loadSummary();};
-
-(async()=>{if(!await guard())return;if(!isAdmin())$('uploadBtn').style.display='none';await refreshAll();})();
-})();
+(()=>{'use strict';
+const TOKEN='raj_dashboard_session_token',DEVICE='raj_dashboard_device_id',USER='raj_dashboard_user',cfg=window.RAJ_CONFIG||{};if(!window.supabase||!cfg.supabaseUrl||!cfg.supabasePublishableKey){alert('Supabase configuration not found.');return}const sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabasePublishableKey),$=id=>document.getElementById(id),fmt=n=>new Intl.NumberFormat('en-IN',{maximumFractionDigits:2}).format(Number(n||0)),money=n=>'₹'+fmt(n),esc=v=>{const d=document.createElement('div');d.textContent=v??'';return d.innerHTML},num=v=>{const n=Number(String(v??'').replace(/,/g,''));return Number.isFinite(n)?n:0};let detected=null,rows=[],charts={},filters={stockDivision:[],stockGroup:[],salesDivision:[],salesSm:[],salesOrder:[],salesArea:[],salesCity:[],salesPincode:[]};
+function user(){try{return JSON.parse(localStorage.getItem(USER)||'{}')||{}}catch{return{}}}function admin(){const u=user();return String(u.role||u.user_role||'').toLowerCase()==='admin'||u.is_admin===true}async function rpc(n,a={}){const {data,error}=await sb.rpc(n,a);if(error)throw error;return data}function toast(m,e=false){$('toast').textContent=m;$('toast').className='toast show'+(e?' error':'');clearTimeout(window.__st);window.__st=setTimeout(()=>$('toast').className='toast',4000)}
+async function guard(){const t=localStorage.getItem(TOKEN),d=localStorage.getItem(DEVICE);if(!t||!d){location.href='index.html';return false}const {data,error}=await sb.rpc('raj_app_validate_session',{p_session_token:t,p_device_id:d});if(error||data===false){location.href='index.html';return false}return true}
+function multi(wrapId,key,label,vals=[]){const w=$(wrapId);w.className='multi-box';w.innerHTML=`<div class="multi-label">${esc(label)}</div><button class="multi-btn" type="button"><span class="multi-text">All</span><span>▾</span></button><div class="multi-menu"><div class="multi-tools"><button type="button" data-all>Select All</button><button type="button" data-none>Unselect All</button></div><div class="multi-options"></div></div>`;const draw=()=>{w.querySelector('.multi-options').innerHTML=vals.map(v=>`<label><input type="checkbox" value="${esc(v)}" ${filters[key].includes(v)?'checked':''}><span>${esc(v)}</span></label>`).join('');labelText()};const labelText=()=>{const a=filters[key];w.querySelector('.multi-text').textContent=!a.length?'All':a.length===1?a[0]:`${a.length} selected`};w.querySelector('.multi-btn').onclick=e=>{e.stopPropagation();document.querySelectorAll('.multi-box.open').forEach(x=>{if(x!==w)x.classList.remove('open')});w.classList.toggle('open')};w.querySelector('[data-all]').onclick=()=>{filters[key]=[...vals];draw()};w.querySelector('[data-none]').onclick=()=>{filters[key]=[];draw()};w.querySelector('.multi-options').onchange=()=>{filters[key]=[...w.querySelectorAll('.multi-options input:checked')].map(x=>x.value);labelText()};draw()}
+document.addEventListener('click',e=>{if(!e.target.closest('.multi-box'))document.querySelectorAll('.multi-box.open').forEach(x=>x.classList.remove('open'))});
+function args(extra={}){return {p_stock_date:$('stockDate').value||null,p_stock_divisions:filters.stockDivision.length?filters.stockDivision:null,p_item_groups:filters.stockGroup.length?filters.stockGroup:null,p_sales_from:$('salesFrom').value||null,p_sales_to:$('salesTo').value||null,p_sales_divisions:filters.salesDivision.length?filters.salesDivision:null,p_sms:filters.salesSm.length?filters.salesSm:null,p_orders:filters.salesOrder.length?filters.salesOrder:null,p_areas:filters.salesArea.length?filters.salesArea:null,p_cities:filters.salesCity.length?filters.salesCity:null,p_pincodes:filters.salesPincode.length?filters.salesPincode:null,...extra}}
+async function loadFilterOptions(){const [dates,divs,so]=await Promise.all([rpc('raj_stock_dates'),rpc('raj_stock_divisions'),rpc('raj_stock_sales_filter_options')]);const ds=(dates||[]).map(x=>x.stock_date||x);$('stockDate').innerHTML=ds.map(x=>`<option>${x}</option>`).join('')||'<option value="">No stock uploaded</option>';const sd=(divs||[]).map(x=>x.division||x);multi('stockDivisionWrap','stockDivision','Division (Stock)',sd);multi('salesDivisionWrap','salesDivision','Division (Sales)',so?.divisions||[]);multi('salesSmWrap','salesSm','SM',so?.sms||[]);multi('salesOrderWrap','salesOrder','Order Category',so?.orders||[]);multi('salesAreaWrap','salesArea','Area',so?.areas||[]);multi('salesCityWrap','salesCity','City',so?.cities||[]);multi('salesPincodeWrap','salesPincode','Pincode',so?.pincodes||[]);$('salesFrom').placeholder=so?.min_date||'';$('salesTo').placeholder=so?.max_date||''}
+async function loadGroups(){const g=await rpc('raj_stock_group_summary',{p_stock_date:$('stockDate').value||null,p_divisions:filters.stockDivision.length?filters.stockDivision:null});const vals=(g||[]).map(x=>x.item_group).filter(Boolean);filters.stockGroup=filters.stockGroup.filter(x=>vals.includes(x));multi('stockGroupWrap','stockGroup','Company / Group',vals)}
+function total(a,k){return a.reduce((s,r)=>s+Number(r[k]||0),0)}function kpi(title,val,status,sub=''){return `<button class="kpi" data-status="${status}"><span>${title}</span><b>${val}</b>${sub?`<small>${sub}</small>`:''}</button>`}
+function renderKpis(){const r=rows;const specs=[['Total', 'all','total_part_nos','total_stock_qty','total_stock_value','total_sales_part_nos','total_sales_qty'],['Stock > 0','stock','stock_part_nos','stock_qty','stock_value','stock_sales_part_nos','stock_sales_qty'],['Zero Stock','zero','zero_part_nos',null,null,'zero_sales_part_nos','zero_sales_qty'],['Min Qty = 0','minzero','min_zero_part_nos','min_zero_stock_qty','min_zero_stock_value','min_zero_sales_part_nos','min_zero_sales_qty'],['Min 0 + Stock','minzerostock','min_zero_stock_part_nos','min_zero_with_stock_qty','min_zero_with_stock_value','min_zero_stock_sales_part_nos','min_zero_stock_sales_qty'],['Max Qty','max','max_part_nos','max_stock_qty','max_stock_value','max_sales_part_nos','max_sales_qty']];$('kpis').innerHTML=specs.map(s=>kpi(`${s[0]} Part Nos.`,fmt(total(r,s[2])),s[1],`${s[3]?`Stock Qty ${fmt(total(r,s[3]))} • `:''}${s[4]?`Value ${money(total(r,s[4]))} • `:''}Sales Parts ${fmt(total(r,s[5]))} • Sales Qty ${fmt(total(r,s[6]))}`)).join('');document.querySelectorAll('.kpi').forEach(b=>b.onclick=()=>openDetails(b.dataset.status,null))}
+function renderTable(){const q=$('groupSearch').value.toLowerCase().trim(),rr=rows.filter(r=>!q||String(r.item_group).toLowerCase().includes(q));$('groupHead').innerHTML='<tr><th>Company / Group</th><th>Total Parts</th><th>Total Stock Qty</th><th>Total Stock Value</th><th>Total Sales Parts</th><th>Total Sales Qty</th><th>Stock Parts</th><th>Stock Qty</th><th>Stock Value</th><th>Stock Sales Parts</th><th>Stock Sales Qty</th><th>Zero Parts</th><th>Zero Sales Parts</th><th>Zero Sales Qty</th><th>Min=0 Parts</th><th>Min=0 Stock Qty</th><th>Min=0 Stock Value</th><th>Min=0 Sales Parts</th><th>Min=0 Sales Qty</th><th>Min0+Stock Parts</th><th>Min0+Stock Qty</th><th>Min0+Stock Value</th><th>Min0+Stock Sales Parts</th><th>Min0+Stock Sales Qty</th><th>Max Parts</th><th>Max Stock Qty</th><th>Max Stock Value</th><th>Max Sales Parts</th><th>Max Sales Qty</th><th>View</th></tr>';$('groupBody').innerHTML=rr.length?rr.map(r=>`<tr><td><b>${esc(r.item_group)}</b></td>${['total_part_nos','total_stock_qty'].map(k=>`<td>${fmt(r[k])}</td>`).join('')}<td>${money(r.total_stock_value)}</td>${['total_sales_part_nos','total_sales_qty','stock_part_nos','stock_qty'].map(k=>`<td>${fmt(r[k])}</td>`).join('')}<td>${money(r.stock_value)}</td>${['stock_sales_part_nos','stock_sales_qty','zero_part_nos','zero_sales_part_nos','zero_sales_qty','min_zero_part_nos','min_zero_stock_qty'].map(k=>`<td>${fmt(r[k])}</td>`).join('')}<td>${money(r.min_zero_stock_value)}</td>${['min_zero_sales_part_nos','min_zero_sales_qty','min_zero_stock_part_nos','min_zero_with_stock_qty'].map(k=>`<td>${fmt(r[k])}</td>`).join('')}<td>${money(r.min_zero_with_stock_value)}</td>${['min_zero_stock_sales_part_nos','min_zero_stock_sales_qty','max_part_nos','max_stock_qty'].map(k=>`<td>${fmt(r[k])}</td>`).join('')}<td>${money(r.max_stock_value)}</td><td>${fmt(r.max_sales_part_nos)}</td><td>${fmt(r.max_sales_qty)}</td><td><button class="view-btn" data-group="${esc(r.item_group)}">View</button></td></tr>`).join(''):'<tr><td colspan="30" class="empty">No matching data.</td></tr>';document.querySelectorAll('.view-btn').forEach(b=>b.onclick=()=>openDetails('all',b.dataset.group))}
+function chart(id,type,labels,datasets){if(charts[id])charts[id].destroy();charts[id]=new Chart($(id),{type,data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}}}})}function renderCharts(){const top=[...rows].sort((a,b)=>Number(b.total_stock_qty)-Number(a.total_stock_qty)).slice(0,12);chart('statusChart','doughnut',['Stock Parts','Zero Stock','Min=0','Max'],[{data:[total(rows,'stock_part_nos'),total(rows,'zero_part_nos'),total(rows,'min_zero_part_nos'),total(rows,'max_part_nos')]}]);chart('compareChart','bar',top.map(x=>x.item_group),[{label:'Stock Qty',data:top.map(x=>x.total_stock_qty)},{label:'Sales Qty',data:top.map(x=>x.total_sales_qty)}])}
+function renderQuick(){$('quickLinks').innerHTML=[['zero','View Zero Stock Parts'],['minzero','View Min Qty = 0 Parts'],['minzerostock','View Min 0 + Stock Parts'],['max','View Max Qty Parts'],['stock','View Stock Parts'],['all','View All Parts']].map(x=>`<button data-q="${x[0]}">${x[1]}</button>`).join('');$('quickLinks').querySelectorAll('button').forEach(b=>b.onclick=()=>openDetails(b.dataset.q,null))}
+function scope(){const s=[];if($('salesFrom').value||$('salesTo').value)s.push(`Sales Date ${$('salesFrom').value||'Start'} to ${$('salesTo').value||'Latest'}`);for(const [k,l] of [['stockDivision','Stock Division'],['stockGroup','Company'],['salesDivision','Sales Division'],['salesSm','SM'],['salesOrder','Order'],['salesArea','Area'],['salesCity','City'],['salesPincode','Pincode']])if(filters[k].length)s.push(`${l}: ${filters[k].join(', ')}`);$('activeScope').textContent=s.length?'Active Scope • '+s.join(' | '):'Active Scope • All Stock + Total Sales (no Sales filter selected)'}
+async function loadData(){toast('Loading Stock + Sales…');try{rows=await rpc('raj_stock_sales_group_summary',args())||[];renderKpis();renderTable();renderCharts();renderQuick();scope();toast('Stock + Sales updated.')}catch(e){console.error(e);toast('Dashboard error: '+e.message,true)}}
+async function openDetails(status,group){try{const a=args({p_status:status,p_item_groups:group?[group]:(filters.stockGroup.length?filters.stockGroup:null)}),d=await rpc('raj_stock_sales_part_details',a)||[];$('detailTitle').textContent=`${group||'Selected Scope'} • ${status==='all'?'All Parts':status} Details`;$('detailScope').textContent=`${d.length.toLocaleString('en-IN')} Part Nos. • Sales follows current Sales filters`;$('detailBody').innerHTML=d.map(r=>`<tr><td>${esc(r.item_group)}</td><td><b>${esc(r.item_code)}</b></td><td>${esc(r.item_description||'')}</td><td>${fmt(r.closing_qty)}</td><td>${money(r.stock_value)}</td><td>${fmt(r.min_qty)}</td><td>${fmt(r.max_qty)}</td><td>${fmt(r.sales_qty)}</td><td>${money(r.sales_value)}</td></tr>`).join('')||'<tr><td colspan="9" class="empty">No Part Nos.</td></tr>';$('detailModal').classList.add('open')}catch(e){toast(e.message,true)}}
+async function history(){const h=await rpc('raj_stock_upload_history');$('historyBody').innerHTML=(h||[]).map(r=>`<tr><td>${r.stock_date}</td><td><b>${esc(r.division)}</b></td><td>${esc(r.file_name||'')}</td><td>${fmt(r.total_rows)}</td><td>${esc(r.uploaded_by||'')}</td><td>${r.uploaded_at?new Date(r.uploaded_at).toLocaleString('en-IN'):''}</td></tr>`).join('')}
+function norm(v){return String(v??'').trim().replace(/\s+/g,' ')}function findHead(rs){for(let i=0;i<Math.min(rs.length,30);i++){const h=(rs[i]||[]).map(norm),l=h.map(x=>x.toLowerCase());if(l.includes('itemcode')&&l.includes('itemgroup')&&h.some(x=>/\sClosingQty$/i.test(x)))return{index:i,headers:h}}return null}function analyze(wb){const c=[];for(const sheetName of wb.SheetNames){const rs=XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{header:1,defval:'',raw:false}),hit=findHead(rs);if(!hit)continue;const cl=hit.headers.find(h=>/\sClosingQty$/i.test(h));if(!cl)continue;const division=cl.replace(/\sClosingQty$/i,'').trim().toUpperCase();if(!division)continue;const low=new Set(hit.headers.map(h=>h.toLowerCase()));if(![`${division} Rate`,`${division} Value`,`${division} MinQty`,`${division} MaxQty`].every(h=>low.has(h.toLowerCase())))continue;c.push({sheetName,rs,headerIndex:hit.index,headers:hit.headers,division})}if(!c.length)throw Error('No valid stock-data sheet found. Sheet name can be anything; required Stock headers were not found.');if(c.length>1)throw Error('More than one valid stock sheet found in this workbook.');return c[0]}function mapRows(i){const H=i.headers,ix=n=>H.findIndex(h=>h.toLowerCase()===n.toLowerCase()),d=i.division,x={g:ix('ItemGroup'),c:ix('ItemCode'),de:ix('ItemDescription'),u:ix('Unit'),q:ix(`${d} ClosingQty`),r:ix(`${d} Rate`),v:ix(`${d} Value`),mi:ix(`${d} MinQty`),ma:ix(`${d} MaxQty`)};return i.rs.slice(i.headerIndex+1).map(r=>({item_group:String(r[x.g]??'').trim(),item_code:String(r[x.c]??'').trim(),item_description:String(r[x.de]??'').trim(),unit:String(r[x.u]??'').trim(),closing_qty:num(r[x.q]),rate:num(r[x.r]),stock_value:num(r[x.v]),min_qty:num(r[x.mi]),max_qty:num(r[x.ma])})).filter(r=>r.item_code)}
+async function inspect(f){const wb=XLSX.read(await f.arrayBuffer(),{type:'array'}),i=analyze(wb),mappedRows=mapRows(i);if(!mappedRows.length)throw Error('No ItemCode rows found.');return{...i,mappedRows,file:f}}function openUpload(){if(!admin())return toast('Admin only.',true);$('uploadModal').classList.add('open');$('uploadDate').value=new Date().toISOString().slice(0,10)}async function onFile(){detected=null;$('startUpload').disabled=true;const f=$('stockFile').files[0];if(!f)return;try{detected=await inspect(f);$('detectBox').className='detect-box ok';$('detectBox').innerHTML=`Sheet: <b>${esc(detected.sheetName)}</b> • Division: <b>${esc(detected.division)}</b> • Rows: <b>${fmt(detected.mappedRows.length)}</b>`;$('startUpload').disabled=false}catch(e){$('detectBox').className='detect-box bad';$('detectBox').textContent=e.message}}async function upload(){if(!detected)return;const u=user(),by=String(u.username||u.name||u.email||'Admin');$('startUpload').disabled=true;$('progressWrap').style.display='block';$('progressBar').style.width='40%';try{const z=await rpc('raj_stock_upload_json',{p_stock_date:$('uploadDate').value,p_division:detected.division,p_file_name:detected.file.name,p_uploaded_by:by,p_rows:detected.mappedRows});$('progressBar').style.width='100%';$('progressText').textContent=`${fmt(z?.rows)} rows uploaded`;setTimeout(()=>location.reload(),700)}catch(e){$('startUpload').disabled=false;$('progressText').textContent=e.message;toast(e.message,true)}}
+$('menuBtn').onclick=()=>$('sidebar').classList.toggle('open');$('uploadBtn').onclick=openUpload;$('closeUpload').onclick=$('cancelUpload').onclick=()=>$('uploadModal').classList.remove('open');$('stockFile').onchange=onFile;$('startUpload').onclick=upload;$('applyFilters').onclick=loadData;$('clearSales').onclick=()=>{for(const k of ['salesDivision','salesSm','salesOrder','salesArea','salesCity','salesPincode'])filters[k]=[];$('salesFrom').value='';$('salesTo').value='';loadFilterOptions().then(loadGroups).then(loadData)};$('clearAll').onclick=()=>{Object.keys(filters).forEach(k=>filters[k]=[]);$('salesFrom').value='';$('salesTo').value='';loadFilterOptions().then(loadGroups).then(loadData)};$('stockDate').onchange=()=>loadGroups().then(loadData);$('groupSearch').oninput=renderTable;$('closeDetail').onclick=()=>$('detailModal').classList.remove('open');
+(async()=>{if(!await guard())return;if(!admin())$('uploadBtn').style.display='none';await loadFilterOptions();await loadGroups();await loadData();await history()})()})();

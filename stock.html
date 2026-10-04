@@ -1,81 +1,12 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>RAJ Agencies - Stock Analysis</title>
-  <link rel="stylesheet" href="stock.css">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="config.js"></script>
-</head>
-<body>
-  <div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-      <div class="brand"><img src="raj-logo.jpg.jpg" alt="RAJ"><div><b>RAJ AGENCIES</b><small>Analytics</small></div></div>
-      <nav>
-        <a href="index.html">Sales Dashboard</a>
-        <a href="outstanding.html">Outstanding Dashboard</a>
-        <a href="daily-sales.html">Daily Sales</a>
-        <a class="active" href="stock.html">Stock Analysis</a>
-      </nav>
-    </aside>
-
-    <main class="main">
-      <header class="topbar">
-        <button class="menu-btn" id="menuBtn" type="button">☰</button>
-        <div><h1>Stock Analysis</h1><p>Division-wise stock snapshot</p></div>
-        <button class="primary" id="uploadBtn" type="button">Upload Stock</button>
-      </header>
-
-      <section class="panel filters-panel">
-        <div class="panel-title">Stock Filters</div>
-        <div class="filter-grid">
-          <label>Stock Date<select id="stockDate"></select></label>
-          <label>Division<select id="stockDivision" multiple></select></label>
-          <label>Company / Group<select id="stockGroup" multiple></select></label>
-          <div class="filter-actions"><button id="applyFilters" class="primary" type="button">Apply</button><button id="clearFilters" class="secondary" type="button">Clear</button></div>
-        </div>
-        <div class="hint">Division list is dynamic. Future divisions appear automatically after upload.</div>
-      </section>
-
-      <section class="kpis" id="kpis">
-        <button class="kpi" data-status="all"><span>Total Part Nos.</span><b id="kTotalParts">0</b></button>
-        <button class="kpi blue" data-status="all"><span>Total Stock Qty</span><b id="kTotalQty">0</b></button>
-        <button class="kpi green" data-status="stock"><span>Stock Part Nos.</span><b id="kStockParts">0</b></button>
-        <button class="kpi red" data-status="zero"><span>Zero Stock Part Nos.</span><b id="kZeroParts">0</b></button>
-        <button class="kpi purple" data-status="minzero"><span>Min Qty = 0 Parts</span><b id="kMinZero">0</b></button>
-        <button class="kpi orange" data-status="minzerostock"><span>Min 0 + Stock Parts</span><b id="kMinZeroStock">0</b></button>
-        <button class="kpi orange" data-status="minzerostock"><span>Min 0 + Stock Qty</span><b id="kMinZeroQty">0</b></button>
-        <button class="kpi blue" data-status="max"><span>Max Qty Parts</span><b id="kMaxParts">0</b></button>
-        <button class="kpi blue" data-status="max"><span>Max Stock Qty</span><b id="kMaxQty">0</b></button>
-      </section>
-
-      <section class="panel">
-        <div class="panel-head"><div><h2>Company / Group Wise Summary</h2><p id="scopeText">Latest stock snapshot</p></div><input id="groupSearch" class="search" placeholder="Search company / group..."></div>
-        <div class="table-wrap"><table><thead><tr><th>Company / Group</th><th>Total Part Nos.</th><th>Total Stock Qty</th><th>Stock Part Nos.</th><th>Zero Stock</th><th>Min Qty = 0</th><th>Min 0 + Stock Parts</th><th>Min 0 + Stock Qty</th><th>Max Qty Parts</th><th>Max Stock Qty</th></tr></thead><tbody id="groupBody"><tr><td colspan="10" class="empty">Loading…</td></tr></tbody></table></div>
-      </section>
-
-      <section class="panel">
-        <div class="panel-head"><div><h2>Upload History</h2><p>Stock date and division snapshots</p></div></div>
-        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Division</th><th>File</th><th>Rows</th><th>Uploaded By</th><th>Uploaded At</th></tr></thead><tbody id="historyBody"></tbody></table></div>
-      </section>
-    </main>
-  </div>
-
-  <div class="modal" id="uploadModal" aria-hidden="true">
-    <div class="modal-card">
-      <div class="modal-head"><h2>Upload Stock</h2><button id="closeUpload" type="button">×</button></div>
-      <p class="modal-note">Workbook sheet name can be anything. The system finds the valid stock sheet from its headers and detects the division from columns such as “HO ClosingQty”, “MH ClosingQty”, etc.</p>
-      <label>Stock Date<input type="date" id="uploadDate"></label>
-      <label>Excel File<input type="file" id="stockFile" accept=".xlsx,.xls,.xlsm,.xlsb"></label>
-      <div class="detect-box" id="detectBox">Select a file to detect sheet and division.</div>
-      <div class="progress-wrap" id="progressWrap"><div class="progress"><i id="progressBar"></i></div><span id="progressText"></span></div>
-      <div class="modal-actions"><button class="secondary" id="cancelUpload" type="button">Cancel</button><button class="primary" id="startUpload" type="button" disabled>Upload Stock</button></div>
-    </div>
-  </div>
-
-  <div class="toast" id="toast"></div>
-  <script src="stock.js"></script>
-</body>
-</html>
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RAJ Agencies - Stock & Sales Analysis</title><link rel="stylesheet" href="stock.css?v=20261004v2"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script><script src="config.js"></script></head><body>
+<div class="app-shell"><aside class="sidebar" id="sidebar"><div class="brand"><img src="raj-logo.jpg.jpg" alt="RAJ"><div><b>RAJ AGENCIES</b><small>Analytics</small></div></div><nav><a href="index.html">Sales Dashboard</a><a href="outstanding.html">Outstanding Dashboard</a><a href="daily-sales.html">Daily Sales</a><a class="active" href="stock.html">Stock Analysis</a></nav></aside>
+<main class="main"><header class="topbar"><button class="menu-btn" id="menuBtn">☰</button><div><h1>Stock & Sales Analysis</h1><p>Independent Stock scope + Sales scope</p></div><button class="primary" id="uploadBtn">Upload Stock</button></header>
+<section class="scope-grid"><div class="panel scope stock-scope"><div class="panel-title">STOCK FILTERS <small>Only Stock scope</small></div><div class="filter-grid three"><label>Stock Date<select id="stockDate"></select></label><div id="stockDivisionWrap"></div><div id="stockGroupWrap"></div></div><div class="hint">Stock Division and Sales Division are independent.</div></div>
+<div class="panel scope sales-scope"><div class="panel-title">SALES FILTERS <small>Apply to Sales in every Stock category</small></div><div class="filter-grid sales-grid"><label>From Date<input type="date" id="salesFrom"></label><label>To Date<input type="date" id="salesTo"></label><div id="salesDivisionWrap"></div><div id="salesSmWrap"></div><div id="salesOrderWrap"></div><div id="salesAreaWrap"></div><div id="salesCityWrap"></div><div id="salesPincodeWrap"></div></div><div class="filter-actions top-actions"><button class="primary" id="applyFilters">Apply</button><button class="secondary" id="clearSales">Clear Sales Filters = Total Sales</button><button class="secondary" id="clearAll">Clear All</button></div></div></section>
+<div id="activeScope" class="active-scope">Loading…</div>
+<section class="kpis" id="kpis"></section>
+<section class="panel"><div class="panel-head"><div><h2>Company / Group Wise Summary</h2><p>Every Stock category includes selected Sales Qty + Sales Part Nos.</p></div><input id="groupSearch" class="search" placeholder="Search company / group..."></div><div class="table-wrap"><table class="wide"><thead id="groupHead"></thead><tbody id="groupBody"></tbody></table></div></section>
+<section class="dash-grid"><div class="panel"><h2>Stock Part Nos. Status</h2><div class="chart-box"><canvas id="statusChart"></canvas></div></div><div class="panel"><h2>Stock Qty vs Sales Qty</h2><div class="chart-box"><canvas id="compareChart"></canvas></div></div><div class="panel"><h2>Quick View</h2><div class="quick" id="quickLinks"></div></div></section>
+<section class="panel"><div class="panel-head"><div><h2>Upload History</h2><p>Stock date and division snapshots</p></div></div><div class="table-wrap"><table><thead><tr><th>Date</th><th>Division</th><th>File</th><th>Rows</th><th>Uploaded By</th><th>Uploaded At</th></tr></thead><tbody id="historyBody"></tbody></table></div></section></main></div>
+<div class="modal" id="detailModal"><div class="modal-card detail-card"><div class="modal-head"><div><h2 id="detailTitle">Part Number Details</h2><p id="detailScope"></p></div><button id="closeDetail">×</button></div><div class="table-wrap detail-wrap"><table><thead><tr><th>Company</th><th>Part No.</th><th>Description</th><th>Stock Qty</th><th>Stock Value</th><th>Min Qty</th><th>Max Qty</th><th>Sales Qty</th><th>Sales Value</th></tr></thead><tbody id="detailBody"></tbody></table></div></div></div>
+<div class="modal" id="uploadModal"><div class="modal-card"><div class="modal-head"><h2>Upload Stock</h2><button id="closeUpload">×</button></div><p class="modal-note">Sheet name is not fixed. The valid stock sheet and Division are detected from headers automatically.</p><label>Stock Date<input type="date" id="uploadDate"></label><label>Excel File<input type="file" id="stockFile" accept=".xlsx,.xls,.xlsm,.xlsb"></label><div class="detect-box" id="detectBox">Select a file to detect sheet and division.</div><div class="progress-wrap" id="progressWrap"><div class="progress"><i id="progressBar"></i></div><span id="progressText"></span></div><div class="modal-actions"><button class="secondary" id="cancelUpload">Cancel</button><button class="primary" id="startUpload" disabled>Upload Stock</button></div></div></div><div class="toast" id="toast"></div><script src="stock.js?v=20261004v2"></script></body></html>
