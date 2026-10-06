@@ -181,19 +181,29 @@ async function deleteSalesRange(){
       if(r?.done||n===0)break;
     }
     await rpc('raj_daily_sales_delete_complete',{...authArgs(),p_date_from:from,p_date_to:to,p_deleted_rows:deleted});
-    $('#deleteSalesProgressText').textContent='Refreshing Sales Dashboard caches...';
+
+    /* IMPORTANT: deletion is already complete at this point. Cache rebuilds are
+       separate best-effort steps, so a slow cache can never make the UI report
+       that the Sales delete failed. A corrected Sales re-upload also refreshes
+       the relevant caches afterwards. */
+    $('#deleteSalesProgress i').style.width='100%';
+    $('#deleteSalesProgressText').textContent=`Sales data deleted • ${deleted.toLocaleString('en-IN')} rows removed. Updating caches separately...`;
+    salesDeletePreview=null;
+
     const names=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'], months=[];
     let d=new Date(from+'T00:00:00'),end=new Date(to+'T00:00:00'); d=new Date(d.getFullYear(),d.getMonth(),1);
     while(d<=end){const m=names[d.getMonth()];if(!months.includes(m))months.push(m);d=new Date(d.getFullYear(),d.getMonth()+1,1)}
-    await rpc('raj_main_sales_cache_refresh',{...authArgs(),p_months:months});
-    await rpc('raj_main_fast_rebuild');
-    let stockCacheOk=true;
-    try{await rpc('raj_stock_sales_refresh_cache')}catch(e){stockCacheOk=false;console.warn('Stock Sales cache refresh:',e)}
-    $('#deleteSalesProgress i').style.width='100%';
-    $('#deleteSalesProgressText').textContent=`Delete complete • ${deleted.toLocaleString('en-IN')} rows removed${stockCacheOk?' • all Sales caches refreshed':' • Stock Analysis cache refresh pending'}`;
-    salesDeletePreview=null;
+
+    const pending=[];
+    try{await rpc('raj_main_sales_cache_refresh',{...authArgs(),p_months:months})}catch(e){pending.push('Main monthly cache');console.warn('Main monthly cache refresh:',e)}
+    try{await rpc('raj_main_fast_rebuild')}catch(e){pending.push('Main fast cache');console.warn('Main fast cache refresh:',e)}
+    try{await rpc('raj_stock_sales_refresh_cache')}catch(e){pending.push('Stock Sales cache');console.warn('Stock Sales cache refresh:',e)}
+
+    $('#deleteSalesProgressText').textContent=pending.length
+      ? `Delete complete • ${deleted.toLocaleString('en-IN')} rows removed • cache refresh pending: ${pending.join(', ')}. Re-upload corrected Sales now.`
+      : `Delete complete • ${deleted.toLocaleString('en-IN')} rows removed • all Sales caches refreshed.`;
     toast(`Sales deleted: ${from} to ${to} • ${deleted.toLocaleString('en-IN')} rows.`);
-    await loadAll();
+    try{await loadAll()}catch(e){console.warn('Dashboard reload after delete:',e)}
   }catch(e){console.error(e);$('#deleteSalesProgressText').textContent='Delete stopped: '+(e.message||'Unknown error');toast((e.message||'Sales delete failed.')+' Run Check Data again before retrying.',true)}
   finally{card.classList.remove('uploading');$('#checkDeleteSales').disabled=false}
 }
