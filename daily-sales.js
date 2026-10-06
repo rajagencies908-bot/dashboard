@@ -173,11 +173,11 @@ async function deleteSalesRange(){
   let deleted=0;
   try{
     while(true){
-      const r=await rpc('raj_daily_sales_delete_chunk',{...authArgs(),p_date_from:from,p_date_to:to,p_limit:5000});
+      const r=await rpc('raj_daily_sales_delete_chunk',{...authArgs(),p_date_from:from,p_date_to:to,p_limit:500});
       const n=Number(r?.deleted||0); deleted+=n;
       const pct=expected?Math.min(95,Math.round(deleted/expected*95)):0;
       $('#deleteSalesProgress i').style.width=pct+'%';
-      $('#deleteSalesProgressText').textContent=`Deleting... ${deleted.toLocaleString('en-IN')} / ${expected.toLocaleString('en-IN')} rows`;
+      $('#deleteSalesProgressText').textContent=`Deleting in safe batches... ${deleted.toLocaleString('en-IN')} / ${expected.toLocaleString('en-IN')} rows`;
       if(r?.done||n===0)break;
     }
     await rpc('raj_daily_sales_delete_complete',{...authArgs(),p_date_from:from,p_date_to:to,p_deleted_rows:deleted});
